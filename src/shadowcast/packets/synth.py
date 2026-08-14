@@ -21,6 +21,7 @@ toggleable, so a failing test can be bisected to the specific pathology that bro
     ghost_caster         a net_id casts spells without ever being created
     corrupt_minion_time  SpawnMinion timestamps are denormal garbage
     keyframe_creates     CreateHero is re-emitted every 60 s as a resync
+    duplicate_fog_max    each fog transition repeated up to N times at one timestamp
 
 With every pathology off, downstream reconstruction should recover truth exactly —
 that pins the algebra. With all on, it should stay within stated tolerances — that
@@ -112,6 +113,11 @@ class Pathologies:
     ghost_caster: bool = True
     corrupt_minion_time: bool = True
     keyframe_creates: bool = True
+    #: Repeat each fog transition this many times at an identical timestamp. The real
+    #: stream's single largest defect: LeaveFog is 65-70% of ALL packets and maknee
+    #: documents "20+ repeats sometimes". Without this the dedupe path is never
+    #: exercised, and dedupe is the first thing any consumer of the corpus must do.
+    duplicate_fog_max: int = 12
 
     @classmethod
     def none(cls) -> Pathologies:
@@ -126,6 +132,7 @@ class Pathologies:
             ghost_caster=False,
             corrupt_minion_time=False,
             keyframe_creates=False,
+            duplicate_fog_max=1,
         )
 
     @classmethod
@@ -527,6 +534,18 @@ class SyntheticSource:
             # verified chord intact.
             return np.vstack([np.asarray(start, dtype=np.float64)[None, :], poly])
 
+        # Static entities, resolved before the tick loop because turret attacks
+        # emitted during it must use the same snapped positions the vision oracle
+        # does — otherwise a recovered turret position would not match the source
+        # that produced the visibility it is meant to explain.
+        rows_turret: list[tuple] = []
+        turret_pos: list[tuple[float, float, int]] = []
+        for n, (name, tteam, tpos) in enumerate(sr.TURRETS):
+            snapped, _ = sr.snap_polyline(terrain, np.asarray(tpos)[None, :])
+            nid = _TURRET_NETID_BASE + n
+            rows_turret.append((0.0, nid, nid, name))
+            turret_pos.append((float(snapped[0, 0]), float(snapped[0, 1]), int(tteam)))
+
         pth = spec.pathologies
         for tick in range(n_ticks):
             t = tick * dt
@@ -614,6 +633,28 @@ class SyntheticSource:
                         (t, int(net_ids[c]), f"{champion[c]}Q", 0x1234 + c, x, z, x, z, 0)
                     )
 
+            # Turrets shoot too, and that is the only way their positions can be
+            # recovered: `CreateTurret` carries a name but no coordinates, while
+            # `BasicAttackPos` pairs `source_net_id` with `source_position`. Since a
+            # turret never moves, the mode of its attack positions IS its location —
+            # which makes turret team (from the name) and turret position (from the
+            # attacks) jointly recoverable, and turrets are the anchor for resolving
+            # champion teams.
+            if tick % 8 == 0:
+                for n, (tx, tz, _tteam) in enumerate(turret_pos):
+                    if rng.random() < 0.35:
+                        rows_attack.append(
+                            (
+                                t,
+                                _TURRET_NETID_BASE + n,
+                                _NEUTRAL_NETID_BASE,
+                                tx,
+                                tz,
+                                tx + 300.0,
+                                tz,
+                            )
+                        )
+
             # Kills: damage in the second before, then health to zero.
             for kt, killer, victim in kill_script:
                 if abs(t - kt) < dt / 2:
@@ -680,15 +721,6 @@ class SyntheticSource:
                 )
         wards = np.array(ward_rows, dtype=WARD_TRUTH)
 
-        # --- static entities ---
-        rows_turret: list[tuple] = []
-        turret_pos: list[tuple[float, float, int]] = []
-        for n, (name, tteam, tpos) in enumerate(sr.TURRETS):
-            snapped, _ = sr.snap_polyline(terrain, np.asarray(tpos)[None, :])
-            nid = _TURRET_NETID_BASE + n
-            rows_turret.append((0.0, nid, nid, name))
-            turret_pos.append((float(snapped[0, 0]), float(snapped[0, 1]), int(tteam)))
-
         rows_neutral: list[tuple] = []
         rows_death: list[tuple] = []
         for n, (_label, p) in enumerate(sr.WARD_SPOTS[:6]):
@@ -726,6 +758,9 @@ class SyntheticSource:
         visible = self._run_oracle(pos, brush, alive, team, wards, turret_pos, routes, spec)
 
         fog_rows = _fog_rows(visible, team, net_ids, dt)
+        if pth.duplicate_fog_max > 1 and fog_rows.size:
+            reps = rng.integers(1, pth.duplicate_fog_max + 1, size=fog_rows.size)
+            fog_rows = np.repeat(fog_rows, reps)
 
         # --- assemble ---
         heroes: list[tuple] = []
@@ -742,9 +777,17 @@ class SyntheticSource:
             rows_cast.append((45.0, _GHOST_NETID, "ghost", 0x9999, 5000.0, 5000.0, 0.0, 0.0, 0))
 
         def mk(rows, dtype):
+            """Build a packet array from row tuples, leaving `seq` for later.
+
+            Row tuples omit `seq` because stream position is only knowable once every
+            kind has been built and interleaved.
+            """
+            fields = [f for f in dtype.names if f != "seq"]
             out = np.empty(len(rows), dtype=dtype)
             for n, r in enumerate(rows):
-                out[n] = r
+                for f, v in zip(fields, r):
+                    out[n][f] = v
+            out["seq"] = -1
             return out
 
         wp = mk(rows_waypoint, WAYPOINT)
@@ -753,6 +796,8 @@ class SyntheticSource:
             wp_xz[n] = (x - spec.waypoint_offset, z - spec.waypoint_offset)
 
         minions = mk(rows_minion, SPAWN_MINION)
+        minions.sort(order="t", kind="stable")
+        true_minion_times = minions["t"].copy()
         if pth.corrupt_minion_time and minions.size:
             # Real SpawnMinion.time is denormal-float noise. Consumers must take
             # timing from the surrounding stream clock instead.
@@ -794,6 +839,35 @@ class SyntheticSource:
                 # generator bug rather than a bookkeeping one.
                 order_owner_arr = order_owner_arr[perm]
                 order_tick_arr = order_tick_arr[perm]
+
+        # Interleave every kind into one stream and stamp each row with its position.
+        #
+        # `minions` is merged on its TRUE times even though the published `t` may be
+        # denormal garbage, because that is exactly the situation on real data: the
+        # timestamps are unusable but the stream position is not, and a ward's real
+        # placement time is recoverable from the packets around it. Losing that would
+        # make ward lifetimes — the project's headline metric — unrecoverable.
+        merge_t: list[np.ndarray] = []
+        merge_kind: list[np.ndarray] = []
+        merge_idx: list[np.ndarray] = []
+        for kind_id, name in enumerate(bundle_arrays):
+            if name == "waypoint_xz":
+                continue
+            arr = bundle_arrays[name]
+            if arr.size == 0:
+                continue
+            times = true_minion_times if name == "minions" else arr["t"]
+            merge_t.append(np.asarray(times, dtype=np.float64))
+            merge_kind.append(np.full(arr.size, kind_id, dtype=np.int64))
+            merge_idx.append(np.arange(arr.size, dtype=np.int64))
+        if merge_t:
+            all_t = np.concatenate(merge_t)
+            all_kind = np.concatenate(merge_kind)
+            all_idx = np.concatenate(merge_idx)
+            order = np.lexsort((all_idx, all_kind, all_t))
+            for pos_in_stream, k in enumerate(order):
+                name = list(bundle_arrays)[all_kind[k]]
+                bundle_arrays[name]["seq"][all_idx[k]] = pos_in_stream
 
         meta = MatchMeta(
             match_id=match_id,

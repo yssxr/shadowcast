@@ -45,7 +45,9 @@ def test_movement_orders_carry_no_entity_id(synth_clean):
     assert names is not None
     for forbidden in ("net_id", "entity", "entity_id", "owner"):
         assert forbidden not in names
-    assert set(names) == {"t", "off", "n", "with_speed"}
+    #  is the stream position, not an entity id: it says WHERE in the packet
+    # order the row sat, which is what makes SpawnMinion's corrupt clock recoverable.
+    assert set(names) == {"t", "off", "n", "with_speed", "seq"}
 
 
 def test_bundle_dtypes_match_the_declared_kinds(synth_clean):

@@ -295,6 +295,27 @@ N_HEROES: Final = 10
 # at an identical timestamp. Dedupe on (time, net_id) before anything else.
 FOG_DEDUPE_REQUIRED: Final = True
 
+# Replication attributes. MEASURED: 57% of real entries have an EMPTY `name`, leaving
+# only the (primary_index, secondary_index) pair, so a reader that keys on the name
+# alone silently discards the majority. These pairs were confirmed against real data.
+ATTR_MOVE_SPEED: Final = "mMoveSpeed"
+ATTR_HP: Final = "mHP"
+REPL_INDEX_NAMES: Final = {
+    (32, 0): "mHP",
+    (32, 1): "mMaxHP",
+    (32, 10): "mExp",
+    (32, 14): "mPAR",
+    (32, 18): "mSAR",
+    (32, 24): ATTR_MOVE_SPEED,
+    (32, 30): "mIsTargetableToTeamFlags",
+}
+
+# Champion base movement speed spans roughly 325-345 before items, and boots plus
+# haste can push it far higher. Used only as a sanity band on recovered values.
+MOVE_SPEED_MIN: Final = 200.0
+MOVE_SPEED_MAX: Final = 1200.0
+MOVE_SPEED_DEFAULT: Final = 335.0
+
 # SpawnMinion.time is denormal-float garbage (observed max 1.96e-39) and
 # BarrackSpawnUnit.minion_type/minion_level are garbage too (u64-max values,
 # levels of 113 and 202). Classify minions by SpawnMinion.name/skin_name and take

@@ -61,14 +61,23 @@ __all__ = [
 # ---------------------------------------------------------------------------
 # Packet dtypes
 # ---------------------------------------------------------------------------
+#: Every packet dtype carries `seq`: its index in the original interleaved event
+#: stream. That field exists because splitting one stream into per-kind arrays throws
+#: away the interleaving — and the interleaving is the only thing that makes
+#: `SPAWN_MINION`'s corrupt timestamps recoverable. A ward's placement time comes from
+#: the surrounding packets' clock, which requires knowing what "surrounding" means.
+#: Ward lifetimes are the project's headline metric, so losing that would be expensive.
+
 #: `CreateHero` — re-emitted roughly every 60 s as a keyframe resync, so consumers
 #: must dedupe by net_id. No team, no role, no position.
-CREATE_HERO = np.dtype([("t", "f8"), ("net_id", "u4"), ("name", "U24"), ("champion", "U24")])
+CREATE_HERO = np.dtype(
+    [("t", "f8"), ("net_id", "u4"), ("name", "U24"), ("champion", "U24"), ("seq", "i8")]
+)
 
 #: `WaypointGroup` / `WaypointGroupWithSpeed`. **No entity id, by design.**
 #: `off`/`n` index into a shared `WAYPOINT_XZ` buffer (CSR form), which is the honest
 #: normalisation of a variable-length polyline payload and vectorises cleanly.
-WAYPOINT = np.dtype([("t", "f8"), ("off", "i8"), ("n", "i4"), ("with_speed", "u1")])
+WAYPOINT = np.dtype([("t", "f8"), ("off", "i8"), ("n", "i4"), ("with_speed", "u1"), ("seq", "i8")])
 
 #: Waypoint polyline payload, in the **map-centred** frame.
 WAYPOINT_XZ = np.dtype([("x", "f4"), ("z", "f4")])
@@ -77,7 +86,7 @@ WAYPOINT_XZ = np.dtype([("x", "f4"), ("z", "f4")])
 #: the observing team is derived from the fact that a team always sees its own
 #: members, so an event about champion C can only come from C's opponents.
 #: Heavily duplicated in the real stream; dedupe on (t, net_id, leaving).
-FOG = np.dtype([("t", "f8"), ("net_id", "u4"), ("leaving", "u1")])
+FOG = np.dtype([("t", "f8"), ("net_id", "u4"), ("leaving", "u1"), ("seq", "i8")])
 
 #: `Replication`. One attribute per net_id per packet, so full state needs
 #: accumulation. `name` is empty for the majority of real entries, leaving only the
@@ -91,12 +100,15 @@ REPLICATION = np.dtype(
         ("name", "U32"),
         ("value", "f8"),
         ("is_float", "u1"),
+        ("seq", "i8"),
     ]
 )
 
 #: `CreateTurret`. No position — the name is the only identity, and it encodes team
 #: (`T1` = ORDER, `T2` = CHAOS), which makes turrets the anchor for team resolution.
-CREATE_TURRET = np.dtype([("t", "f8"), ("net_id", "u4"), ("owner_net_id", "u4"), ("name", "U40")])
+CREATE_TURRET = np.dtype(
+    [("t", "f8"), ("net_id", "u4"), ("owner_net_id", "u4"), ("name", "U40"), ("seq", "i8")]
+)
 
 #: `SpawnMinion`. Also how wards arrive. `t` may be garbage; `targetable_on_client`
 #: holds the owning hero's net_id for wards.
@@ -110,6 +122,7 @@ SPAWN_MINION = np.dtype(
         ("skin_name", "U32"),
         ("targetable_on_client", "u4"),
         ("t_valid", "u1"),
+        ("seq", "i8"),
     ]
 )
 
@@ -123,6 +136,7 @@ CREATE_NEUTRAL = np.dtype(
         ("name", "U32"),
         ("camp_id", "i4"),
         ("neutral_type", "i4"),
+        ("seq", "i8"),
     ]
 )
 
@@ -140,6 +154,7 @@ CAST_SPELL = np.dtype(
         ("tgt_x", "f4"),
         ("tgt_z", "f4"),
         ("slot", "i2"),
+        ("seq", "i8"),
     ]
 )
 
@@ -154,22 +169,31 @@ BASIC_ATTACK = np.dtype(
         ("src_z", "f4"),
         ("tgt_x", "f4"),
         ("tgt_z", "f4"),
+        ("seq", "i8"),
     ]
 )
 
 #: `UnitApplyDamage`. No damage type and no killing blow, so kill attribution is the
 #: last damage source before a health-replication zero.
-DAMAGE = np.dtype([("t", "f8"), ("source_net_id", "u4"), ("target_net_id", "u4"), ("damage", "f4")])
+DAMAGE = np.dtype(
+    [("t", "f8"), ("source_net_id", "u4"), ("target_net_id", "u4"), ("damage", "f4"), ("seq", "i8")]
+)
 
 #: `NPCDieMapView` / `NPCDieMapViewBroadcast`. Covers minions, camps and structures.
 #: **Never champions** — verified across 45,851 real death packets.
 NPC_DIE = np.dtype(
-    [("t", "f8"), ("killer_net_id", "u4"), ("killed_net_id", "u4"), ("broadcast", "u1")]
+    [
+        ("t", "f8"),
+        ("killer_net_id", "u4"),
+        ("killed_net_id", "u4"),
+        ("broadcast", "u1"),
+        ("seq", "i8"),
+    ]
 )
 
 #: `UseItem`. No position, so a trinket use alone cannot locate a ward — the ward's
 #: own `SpawnMinion` row does that.
-USE_ITEM = np.dtype([("t", "f8"), ("net_id", "u4"), ("slot", "i2")])
+USE_ITEM = np.dtype([("t", "f8"), ("net_id", "u4"), ("slot", "i2"), ("seq", "i8")])
 
 
 #: Field name on `PacketBundle` -> dtype. Iterated by the conformance suite and by

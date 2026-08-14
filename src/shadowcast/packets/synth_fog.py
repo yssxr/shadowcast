@@ -176,6 +176,10 @@ def transitions_from_visibility(
 
     out = np.empty(len(rows), dtype=FOG)
     for n, (t, nid, leaving) in enumerate(rows):
-        out[n] = (t, nid, leaving)
+        out[n]["t"] = t
+        out[n]["net_id"] = nid
+        out[n]["leaving"] = leaving
+    # `seq` is stamped later, once every packet kind has been interleaved.
+    out["seq"] = -1
     out.sort(order="t", kind="stable")
     return out
