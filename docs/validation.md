@@ -113,20 +113,40 @@ Tests with analytically known answers, not comparisons against the data.
 | Information-barrier leak detector | — |
 | Artifact round trip, Python writer vs TypeScript reader | — |
 
-### On the FOV agreement figure
+### FOV table, via `shadowcast fov verify`
 
-99.860% is not a modelling result and should not be read as one — it is the
-disagreement between two *implementations of different algorithms*, measured on geometry
-built to be worse than Summoner's Rift. The informative parts are that all 4,286
-disagreements are one-directional (shadowcasting over-reports; it never loses vision) and
-that every one lies within two cells of a shadow boundary, which is the signature of
-boundary quantisation rather than of a defect. The number that will actually matter is
-agreement against the dataset's own fog events, which is still `[pending]`.
+On **real Summoner's Rift terrain**, 150 sources at champion sight radius:
+
+| | Value |
+|---|---|
+| Table rows equal to a fresh computation | 150 / 150 |
+| `row & disc(r)` equal to `fov(r)` computed directly | 150 / 150 |
+| Cells compared against the ray-march reference | 947,984 |
+| Shadowcasting over-reports | **0** |
+| Shadowcasting under-reports | **0** |
+
+### On the two agreement figures
+
+The 99.860% figure above comes from the *adversarial* 64² fixture — a map deliberately
+built with a one-cell door, a wall diagonal, a pillar and adjacent brushes, i.e. worse
+geometry than Summoner's Rift contains. Real terrain agrees exactly.
+
+Neither number is a modelling result, and neither should be quoted as one. Both measure
+disagreement between two implementations of *different algorithms* on the same terrain.
+What makes them informative is the shape rather than the magnitude: all 4,286
+disagreements on the adversarial map are one-directional (shadowcasting over-reports; it
+never loses vision) and every one lies within two cells of a shadow boundary, which is
+the signature of boundary quantisation rather than a defect.
+
+The number that will actually matter is agreement against the dataset's own fog events,
+which is still `[pending]` and will be worse.
 
 ### Performance
 
 | | Value |
 |---|---|
 | Single field-of-view computation at RMAX | 34 µs |
-| Projected full FOV table (165,578 rows) | ~6 s single-core |
-| FOV table size | 286 MB (`walkable` is 62.9%, not the 25–40% budgeted) |
+| FOV table build (165,578 rows, 6 threads) | 2.0–4.3 s |
+| FOV table size | 286 MB — `walkable` is 62.9%, not the 25–40% budgeted |
+| Mask union, 40 sources | 23.9 µs per team-tick |
+| Projected mask assembly per match (7,200 ticks × 2 teams) | 0.34 s |

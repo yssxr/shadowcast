@@ -22,6 +22,8 @@ app = typer.Typer(
 )
 terrain_app = typer.Typer(no_args_is_help=True, help="Build and inspect map terrain.")
 app.add_typer(terrain_app, name="terrain")
+fov_app = typer.Typer(no_args_is_help=True, help="Build and verify the visibility table.")
+app.add_typer(fov_app, name="fov")
 
 
 def _echo_table(title: str, rows: dict[str, object]) -> None:
@@ -144,6 +146,145 @@ def terrain_show(
     typer.echo("\n".join(lines))
     typer.echo("")
     typer.echo('legend: . walkable   : partial   " brush   (blank) vision-blocking')
+
+
+def _load_terrain(explicit: Path | None = None):
+    """Load the built terrain, or build it on the fly if it is absent."""
+    from shadowcast.config import TerrainSpec, terrain_path
+    from shadowcast.terrain.terrain import Terrain, build_terrain
+
+    if explicit is not None:
+        return Terrain.load(explicit)
+    # A default TerrainSpec has no navgrid hash, so it cannot name the built file.
+    # Build from the navgrid instead, which is cheap and always consistent.
+    candidate = terrain_path(TerrainSpec()).parent
+    built = sorted(candidate.glob("terrain_*.npz")) if candidate.exists() else []
+    if len(built) == 1:
+        return Terrain.load(built[0])
+    return build_terrain()
+
+
+@fov_app.command("build")
+def fov_build(
+    terrain_file: Annotated[
+        Optional[Path], typer.Option("--terrain", help="Terrain .npz. Defaults to rebuilding.")
+    ] = None,
+    chunks: Annotated[
+        int, typer.Option(help="Parallel work chunks. More than cores is fine.")
+    ] = 64,
+) -> None:
+    """Precompute the visibility table.
+
+    One row per walkable cell, holding field of view at RMAX. Every smaller sight
+    radius is served by intersecting with a precomputed disc, which is why a single
+    table suffices and why the naive all-pairs alternative (8.6 TB at this grid) is
+    not needed.
+    """
+    import time
+
+    from shadowcast.fov.table import build_table
+
+    terrain = _load_terrain(terrain_file)
+    typer.echo(f"terrain {terrain.spec.content_hash}: {terrain.n_walkable:,} walkable cells")
+    start = time.perf_counter()
+    table = build_table(terrain, n_chunks=chunks)
+    elapsed = time.perf_counter() - start
+
+    _echo_table("fov table", table.describe())
+    typer.echo("")
+    _echo_table(
+        "build",
+        {
+            "elapsed": f"{elapsed:.1f}s",
+            "per row": f"{elapsed / max(1, table.n_rows) * 1e6:.0f} us",
+            "worst scan depth": (
+                f"{table.header.extra['worst_scan_depth']} of "
+                f"{table.header.extra['scratch_frames']} frames"
+            ),
+        },
+    )
+    typer.secho(f"\nwrote {table.header.extra.get('dir', '')}".rstrip(), fg=typer.colors.GREEN)
+
+
+@fov_app.command("verify")
+def fov_verify(
+    samples: Annotated[int, typer.Option(help="Source cells to check.")] = 200,
+    radius: Annotated[
+        Optional[float], typer.Option(help="Radius to compare at. Defaults to champion sight.")
+    ] = None,
+) -> None:
+    """Check the table against fresh computations, and shadowcasting against ray marching.
+
+    Two independent checks. The first confirms the stored bytes are the field of view
+    they claim to be. The second compares against a different *class* of algorithm —
+    per-target ray marching rather than an octant sweep — so a shared mistake is
+    unlikely. Disagreement there is expected in one direction only, and that
+    direction is what gets reported: shadowcasting over-reports at shadow edges but
+    must never lose vision.
+    """
+    import numpy as np
+
+    from shadowcast.fov.reference import boundary_band, fov_reference
+    from shadowcast.fov.shadowcast import fov_bool
+    from shadowcast.fov.table import load_table
+    from shadowcast.geom.bitset import unpack_rows
+    from shadowcast.geom.grid import disc_mask
+
+    terrain = _load_terrain()
+    table = load_table(terrain)
+    radius = radius if radius is not None else C.SIGHT_CHAMPION
+
+    rng = np.random.default_rng(0)
+    picks = rng.choice(terrain.walkable_cells(), size=samples, replace=False)
+
+    row_mismatch = 0
+    disc_mismatch = 0
+    considered = permissive = restrictive = 0
+    disc_r = disc_mask(radius, window=table.window)
+
+    for k in picks:
+        j, i = divmod(int(k), terrain.grid)
+        brush = int(terrain.brush_id[j, i])
+        row = table.lookup(int(k), brush, brush)
+        packed = np.asarray(table.rows[row])[: table.window * table.src_words]
+        stored = unpack_rows(packed.reshape(table.window, table.src_words), table.window)
+
+        if not np.array_equal(stored, fov_bool(terrain, i, j, C.RMAX_UNITS, half=table.half)):
+            row_mismatch += 1
+        at_r = fov_bool(terrain, i, j, radius, half=table.half)
+        if not np.array_equal(stored & disc_r, at_r):
+            disc_mismatch += 1
+
+        ref = fov_reference(terrain, i, j, radius, half=table.half)
+        keep = disc_r & ~(boundary_band(at_r) | boundary_band(ref))
+        considered += int(keep.sum())
+        permissive += int((at_r & ~ref & keep).sum())
+        restrictive += int((~at_r & ref & keep).sum())
+
+    _echo_table(
+        f"verify ({samples} sources, radius {radius:.0f})",
+        {
+            "rows == fresh computation": f"{samples - row_mismatch}/{samples}",
+            "row & disc == fov(r)": f"{samples - disc_mismatch}/{samples}",
+            "cells compared vs ray march": f"{considered:,}",
+            "shadowcast over-reports": f"{permissive:,} ({permissive / max(1, considered):.4%})",
+            "shadowcast under-reports": f"{restrictive:,}",
+        },
+    )
+    typer.echo("")
+    problems = row_mismatch or disc_mismatch or restrictive
+    if problems:
+        typer.secho(
+            "FAIL — a row disagrees with a fresh computation, radius separability is "
+            "broken, or vision is being lost relative to the reference",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(1)
+    typer.secho(
+        "OK — rows exact, radius separability exact, and no vision lost relative to "
+        "the independent reference",
+        fg=typer.colors.GREEN,
+    )
 
 
 @app.command()
