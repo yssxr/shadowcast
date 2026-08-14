@@ -108,3 +108,22 @@ known-first-party = ["shadowcast"]
 
 [tool.ruff.format]
 docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# Type checking
+# ---------------------------------------------------------------------------
+# Editors and the pyright LSP need to be pointed at the uv-managed venv; without
+# venvPath/venv every third-party import resolves to nothing and the real errors
+# drown in forty-odd spurious "could not be resolved".
+[tool.pyright]
+include = ["src", "tests"]
+exclude = ["**/__pycache__", ".venv", "data", "web"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+# numba ships no type information, so every @njit function is an untyped call and
+# every numba import is unresolved-in-stubs. Reporting that is noise, not signal —
+# the JIT layer is pinned by tests, not by the checker.
+reportMissingTypeStubs = false
+reportUntypedFunctionDecorator = false

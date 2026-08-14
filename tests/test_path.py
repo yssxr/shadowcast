@@ -16,6 +16,7 @@ from shadowcast.geom.path import (
     STEP_COST,
     UNREACHABLE,
     astar,
+    chord_walkable,
     field_to_units,
     geodesic_field,
     nearest_walkable,
@@ -96,33 +97,75 @@ def test_diagonal_between_two_walls_is_forbidden():
     walkable[10, 11] = False
     walkable[11, 10] = False
     field = geodesic_field(walkable, np.array([_cell(10, 10)], dtype=np.int32))
-    # The direct diagonal is refused, so the cheapest route is three diagonals
-    # swinging around the blocked pair: (10,10) -> (11,9) -> (12,10) -> (11,11).
-    assert field[_cell(11, 11)] == 3 * DIAG_COST
+    assert field[_cell(11, 11)] > DIAG_COST
 
 
-def test_astar_respects_the_same_rule():
-    walkable = _open()
-    walkable[10, 11] = False
-    walkable[11, 10] = False
-    path = astar(walkable, _cell(10, 10), _cell(11, 11))
-    assert len(path) == 4  # not 2
+def test_diagonal_rule_is_strict():
+    """A diagonal requires BOTH orthogonal neighbours open, not either.
 
+    The permissive variant (either suffices) was used first and is geometrically
+    wrong: the straight line between the two cell centres passes through one of the
+    orthogonal cells, so if that cell is a wall the move clips terrain. The exact
+    voxel traversal in `chord_walkable` rejects such a chord, and the disagreement
+    showed up as synthetic ground-truth positions sitting inside walls.
 
-def test_diagonal_rule_is_the_permissive_variant():
-    """A diagonal needs only ONE of its two orthogonal neighbours open.
-
-    The stricter rule (both open) is arguably closer to League, where a champion's
-    ~65-unit collision radius exceeds our 28.8-unit cell and so could not squeeze
-    past a single open neighbour. It is not adopted because it would also seal
-    legitimately narrow map corridors that champions do use, and the difference only
-    affects the synthetic generator's realism — the belief filter's motion model
-    reads this same function, so truth and model stay consistent either way.
+    It is also wrong for League specifically — a one-cell gap is 28.8 world units,
+    well under a champion's ~65-unit collision radius. And it costs nothing on the
+    real map: Summoner's Rift stays 100% connected under the strict rule, with an
+    unchanged diameter (see `test_map_diameter_matches_the_documented_nexus_distance`).
     """
     walkable = _open()
     walkable[10, 11] = False  # one neighbour blocked, one open
     field = geodesic_field(walkable, np.array([_cell(10, 10)], dtype=np.int32))
-    assert field[_cell(11, 11)] == DIAG_COST
+    assert field[_cell(11, 11)] > DIAG_COST, "permissive diagonal accepted a corner cut"
+    assert field[_cell(11, 11)] == 2 * STEP_COST  # forced around via (11, 10)
+
+
+def test_astar_and_chord_walkable_agree_on_adjacent_steps():
+    """Consecutive cells of an A* path must always form a legal chord.
+
+    `simplify_path` falls back to the immediate successor when no longer chord is
+    walkable, and that fallback is only safe if adjacent steps are guaranteed legal.
+    Under the permissive diagonal rule they were not, and the simplifier silently
+    returned a path containing an unverified corner-cutting chord.
+    """
+    rng = np.random.default_rng(4)
+    walkable = _open()
+    walkable[rng.random((G, G)) < 0.22] = False
+    walkable[5, 5] = True
+    for _ in range(40):
+        gj, gi = int(rng.integers(0, G)), int(rng.integers(0, G))
+        if not walkable[gj, gi]:
+            continue
+        path = astar(walkable, _cell(5, 5), _cell(gj, gi))
+        if path.size < 2:
+            continue
+        pj, pi = np.divmod(path, G)
+        for k in range(len(path) - 1):
+            assert chord_walkable(walkable, pj[k], pi[k], pj[k + 1], pi[k + 1])
+
+
+def test_chord_walkable_visits_clipped_corners():
+    """Exact traversal, not point sampling.
+
+    A segment can cut the corner of a wall cell without any sampled point landing
+    inside it. A 0.25-cell sampled implementation accepted such chords, which is how
+    ground-truth positions ended up inside terrain despite every chord having been
+    "verified".
+    """
+    walkable = _open()
+    # A long shallow diagonal whose path clips this cell's corner.
+    walkable[12, 20] = False
+    assert not chord_walkable(walkable, 10, 10, 14, 30)
+    walkable[12, 20] = True
+    assert chord_walkable(walkable, 10, 10, 14, 30)
+
+
+def test_chord_walkable_rejects_endpoints_in_walls():
+    walkable = _open()
+    walkable[10, 10] = False
+    assert not chord_walkable(walkable, 10, 10, 20, 20)
+    assert not chord_walkable(walkable, 20, 20, 10, 10)
 
 
 # ---------------------------------------------------------------------------

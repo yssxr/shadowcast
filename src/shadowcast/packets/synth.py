@@ -511,16 +511,21 @@ class SyntheticSource:
                 if cells.size == 0:
                     path_cache[key] = np.empty((0, 2))
                 else:
-                    keep = simplify_path(terrain.walkable, cells, max_points=8)
+                    keep = simplify_path(terrain.walkable, cells, max_points=7)
                     jj, ii = np.divmod(keep, terrain.grid)
                     x, z = cell_to_world(ii, jj)
                     path_cache[key] = np.stack([x, z], axis=1)
             poly = path_cache[key]
             if poly.shape[0] == 0:
                 return None
-            out = poly.copy()
-            out[0] = start
-            return out
+            # The champion's continuous position is PREPENDED, not substituted for the
+            # first path vertex. Substituting looked equivalent and was not: the chord
+            # from an off-centre point to the *second* vertex is a different segment
+            # from the centre-to-centre one the simplifier verified, and it can clip a
+            # third cell. Prepending keeps the extra segment inside a single cell —
+            # cells are convex, so it is walkable by construction — and leaves every
+            # verified chord intact.
+            return np.vstack([np.asarray(start, dtype=np.float64)[None, :], poly])
 
         pth = spec.pathologies
         for tick in range(n_ticks):
@@ -553,23 +558,37 @@ class SyntheticSource:
                     goal = goal_for(c, t + _GOAL_LOOKAHEAD, current)
                     poly = order_polyline(movers[c].pos, goal)
                     if poly is not None and poly.shape[0] >= 2:
+                        # The champion walks the UNJITTERED path; only the published
+                        # order is perturbed. Jittering the walked path too would make
+                        # truth agree with the corrupted waypoint, which is the
+                        # opposite of the pathology being modelled — the point is that
+                        # waypoints[0] disagrees with where the unit actually is, and
+                        # that disagreement is what the order residual measures.
+                        movers[c].set_order(poly)
+                        emitted = poly
                         if pth.order_start_jitter > 0:
-                            poly = poly.copy()
-                            poly[0] = poly[0] + rng.normal(
+                            emitted = poly.copy()
+                            emitted[0] = emitted[0] + rng.normal(
                                 0.0, pth.order_start_jitter / 2.0, size=2
                             )
-                        movers[c].set_order(poly)
                         off = len(xz)
-                        for p in poly:
+                        for p in emitted:
                             xz.append((float(p[0]), float(p[1])))
-                        rows_waypoint.append((t, off, len(poly), 1 if rng.random() < 0.02 else 0))
+                        rows_waypoint.append(
+                            (t, off, len(emitted), 1 if rng.random() < 0.02 else 0)
+                        )
                         order_owner.append(c)
                         order_tick.append(tick)
                     next_order_t[c] = t + float(rng.uniform(0.6, 2.5))
 
-                movers[c].step(dt)
+                # Recorded BEFORE stepping, so `pos[tick]` is the position at time
+                # `tick * dt` rather than at `(tick + 1) * dt`. Stepping first put
+                # every truth sample one tick ahead of its own timestamp — an error
+                # that would have propagated silently into the fog oracle and every
+                # metric derived from it.
                 pos[tick, c] = movers[c].pos
                 speed_t[tick, c] = movers[c].speed
+                movers[c].step(dt)
 
             # Boots at eight minutes: a speed change mid-game that the reconstructor
             # must pick up from replication rather than assume.
@@ -756,14 +775,25 @@ class SyntheticSource:
             "items": mk(rows_item, USE_ITEM),
         }
 
-        for name, arr in bundle_arrays.items():
+        order_owner_arr = np.array(order_owner, dtype=np.int16)
+        order_tick_arr = np.array(order_tick, dtype=np.int32)
+
+        for name in list(bundle_arrays):
+            arr = bundle_arrays[name]
             if name in ("waypoint_xz", "minions") or arr.size == 0:
                 continue
-            arr.sort(order="t", kind="stable")
             if pth.quantise_time:
                 arr["t"] = np.round(arr["t"] * 30.0) / 30.0
-            if pth.reorder_window > 0:
-                _jitter_order(arr, pth.reorder_window, rng)
+            perm = _arrival_permutation(arr["t"], pth.reorder_window, rng)
+            bundle_arrays[name] = arr[perm]
+            if name == "waypoints":
+                # Truth's per-order attribution must follow the rows it describes.
+                # It did not, and the reorder pathology exposed it: shuffling
+                # `waypoints` left `order_owner[n]` pointing at a different order, so
+                # a test comparing them saw map-scale disagreement and looked like a
+                # generator bug rather than a bookkeeping one.
+                order_owner_arr = order_owner_arr[perm]
+                order_tick_arr = order_tick_arr[perm]
 
         meta = MatchMeta(
             match_id=match_id,
@@ -785,8 +815,8 @@ class SyntheticSource:
             speed=speed_t,
             brush=brush,
             visible=visible,
-            order_owner=np.array(order_owner, dtype=np.int16),
-            order_tick=np.array(order_tick, dtype=np.int32),
+            order_owner=order_owner_arr,
+            order_tick=order_tick_arr,
             wards=wards,
             kills=kill_rows,
         )
@@ -902,21 +932,25 @@ def _fog_rows(visible, team, net_ids, dt) -> np.ndarray:
     return transitions_from_visibility(visible, team, net_ids, dt)
 
 
-def _jitter_order(arr: np.ndarray, window: float, rng) -> None:
-    """Permute rows within a short time window, in place.
+def _arrival_permutation(t: np.ndarray, window: float, rng) -> np.ndarray:
+    """Index permutation putting rows in arrival order: sorted, then locally shuffled.
 
-    Real packets do not arrive perfectly ordered. Anything that assumes monotone
-    arrival — a running clock, a state accumulator — has to tolerate this, so the
-    generator produces it rather than leaving the assumption untested.
+    Returns a permutation rather than mutating in place so callers can apply the same
+    reordering to parallel bookkeeping. Real packets do not arrive perfectly ordered,
+    and anything that assumes monotone arrival — a running clock, a state accumulator —
+    has to tolerate it, so the generator produces it rather than leaving the
+    assumption untested.
     """
-    if arr.size < 2:
-        return
-    t = arr["t"]
+    perm = np.argsort(t, kind="stable")
+    if window <= 0 or perm.size < 2:
+        return perm
+    ts = t[perm]
     start = 0
-    while start < arr.size:
-        end = int(np.searchsorted(t, t[start] + window, side="right"))
+    while start < perm.size:
+        end = int(np.searchsorted(ts, ts[start] + window, side="right"))
         if end - start > 1:
-            block = arr[start:end].copy()
+            block = perm[start:end].copy()
             rng.shuffle(block)
-            arr[start:end] = block
+            perm[start:end] = block
         start = max(end, start + 1)
+    return perm

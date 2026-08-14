@@ -25,3 +25,7 @@ web/public/terrain/
 
 # macOS
 .DS_Store
+
+# Claude Code. The shared project config (.claude/settings.json, hooks, skills) is
+# committed on purpose; personal per-machine overrides are not.
+.claude/settings.local.json

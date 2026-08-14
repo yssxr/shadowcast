@@ -45,3 +45,36 @@ def terrain(navgrid_path):
     from shadowcast.terrain.terrain import build_terrain
 
     return build_terrain(navgrid_path=navgrid_path)
+
+
+@pytest.fixture(scope="session")
+def fov_table(terrain, tmp_path_factory):
+    """The precomputed visibility table. Session-scoped — building it is ~4 s."""
+    from shadowcast.fov.table import build_table
+
+    return build_table(terrain, out_dir=tmp_path_factory.mktemp("fov_session"))
+
+
+@pytest.fixture(scope="session")
+def synth_clean(terrain):
+    """A full synthetic match with no pathologies.
+
+    Session-scoped because generation is ~2.5 s and includes the fog oracle. The
+    clean variant is the one that pins the algebra: with nothing injected,
+    downstream reconstruction must recover truth exactly.
+    """
+    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+
+    src = SyntheticSource(terrain, ScenarioSpec(seed=7, pathologies=Pathologies.none()))
+    mid = src.match_ids()[0]
+    return src.read(mid), src.truth(mid)
+
+
+@pytest.fixture(scope="session")
+def synth_dirty(terrain):
+    """A full synthetic match with every pathology enabled."""
+    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+
+    src = SyntheticSource(terrain, ScenarioSpec(seed=7, pathologies=Pathologies.all()))
+    mid = src.match_ids()[0]
+    return src.read(mid), src.truth(mid)

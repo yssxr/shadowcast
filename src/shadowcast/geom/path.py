@@ -60,16 +60,25 @@ _NEIGHBOURS = np.array(
 
 @njit(cache=True, inline="always")
 def _diagonal_ok(walkable: np.ndarray, j: int, i: int, dj: int, di: int) -> bool:
-    """Forbid cutting a diagonal between two walls.
+    """A diagonal move requires BOTH of its orthogonal neighbours to be open.
 
-    Without this a unit slips through the join of two wall corners, which on
-    Summoner's Rift means walking through the point where two jungle walls meet.
-    Every such shortcut would then appear in the ground truth as a legal route the
-    belief filter's navmesh-constrained motion could never reproduce.
+    This is the strict rule, and the permissive variant (either neighbour suffices) was
+    tried first and abandoned for two reasons.
+
+    Geometrically it is wrong: the straight line between the two cell centres passes
+    through one of the orthogonal cells, so if that cell is a wall the move clips
+    terrain. `chord_walkable` traverses exactly and rejects such a chord, and the
+    disagreement showed up as 14 synthetic ground-truth positions per match sitting
+    inside walls — routes a navmesh-constrained belief filter could never explain.
+
+    Physically it is also wrong for League: a one-cell gap here is 28.8 world units,
+    well under a champion's ~65-unit collision radius, so squeezing through is not
+    something the game permits either. The strict rule sealing such gaps is the more
+    faithful behaviour, not a limitation.
     """
     if dj == 0 or di == 0:
         return True
-    return walkable[j + dj, i] or walkable[j, i + di]
+    return walkable[j + dj, i] and walkable[j, i + di]
 
 
 @njit(cache=True, inline="always")
@@ -260,28 +269,63 @@ def astar(walkable: np.ndarray, start: int, goal: int) -> np.ndarray:
 def chord_walkable(walkable: np.ndarray, j0: int, i0: int, j1: int, i1: int) -> bool:
     """Is the straight line between two cell centres entirely on walkable ground?
 
-    Sampled at 0.25-cell steps in cell space. Used to simplify a dense path into the
-    handful of waypoints a real movement order carries, while guaranteeing the
-    resulting chords stay legal — otherwise the simplification would cut wall corners
-    and put the synthetic ground truth somewhere no champion could walk.
+    Exact voxel traversal (Amanatides & Woo), not point sampling: it visits every cell
+    the segment passes through, including cells it merely clips at a corner.
+
+    That exactness is the point. A sampled version at 0.25-cell steps looks adequate
+    and is not — a segment can cut the corner of a wall cell without any sample
+    landing inside it, which put roughly 15 synthetic ground-truth positions per match
+    inside terrain even though every chord had supposedly been verified. Those are
+    exactly the positions a navmesh-constrained belief filter could never explain.
     """
     h, w = walkable.shape
-    di = i1 - i0
-    dj = j1 - j0
-    length = np.sqrt(float(di * di + dj * dj))
-    if length == 0.0:
-        return walkable[j0, i0]
-    steps = int(length / 0.25) + 1
-    # Sampled from cell CENTRE to cell centre (index + 0.5) and truncated, matching
-    # `geom.grid.world_to_cell` exactly. Using `round(index)` instead is equivalent
-    # everywhere except on exact half-cell ties, where NumPy rounds half-to-even and
-    # truncation rounds half-up — which put roughly 22 synthetic ground-truth
-    # positions per match one cell inside a wall.
-    for s in range(steps + 1):
-        t = s / steps
-        ci = int(i0 + 0.5 + di * t)
-        cj = int(j0 + 0.5 + dj * t)
-        if ci < 0 or ci >= w or cj < 0 or cj >= h or not walkable[cj, ci]:
+    if not (0 <= i0 < w and 0 <= j0 < h and 0 <= i1 < w and 0 <= j1 < h):
+        return False
+    if not walkable[j0, i0] or not walkable[j1, i1]:
+        return False
+
+    # Cell centres in cell-unit space, matching `geom.grid.world_to_cell`, where the
+    # cell containing a point is its truncation.
+    x = i0 + 0.5
+    y = j0 + 0.5
+    dx = (i1 + 0.5) - x
+    dy = (j1 + 0.5) - y
+
+    ci = i0
+    cj = j0
+    step_i = 1 if dx > 0 else (-1 if dx < 0 else 0)
+    step_j = 1 if dy > 0 else (-1 if dy < 0 else 0)
+
+    # Parametric distance to the next cell boundary on each axis, and between them.
+    big = 1.0e30
+    t_max_i = big
+    t_delta_i = big
+    if step_i != 0:
+        next_i = ci + (1 if step_i > 0 else 0)
+        t_max_i = (next_i - x) / dx
+        t_delta_i = abs(1.0 / dx)
+    t_max_j = big
+    t_delta_j = big
+    if step_j != 0:
+        next_j = cj + (1 if step_j > 0 else 0)
+        t_max_j = (next_j - y) / dy
+        t_delta_j = abs(1.0 / dy)
+
+    # Bounded by the Manhattan cell distance, which is how many boundary crossings a
+    # straight segment can make.
+    max_steps = abs(i1 - i0) + abs(j1 - j0) + 2
+    for _ in range(max_steps):
+        if ci == i1 and cj == j1:
+            return True
+        if t_max_i < t_max_j:
+            ci += step_i
+            t_max_i += t_delta_i
+        else:
+            cj += step_j
+            t_max_j += t_delta_j
+        if ci < 0 or ci >= w or cj < 0 or cj >= h:
+            return False
+        if not walkable[cj, ci]:
             return False
     return True
 
@@ -294,9 +338,14 @@ def simplify_path(walkable: np.ndarray, cells: np.ndarray, max_points: int = 8) 
     sends a few waypoints, not a cell-by-cell route — and the walkability guarantee is
     what keeps the shortcut honest.
 
-    If the greedy pass still needs more than `max_points`, the path is returned
-    subsampled to that budget rather than silently dropping the destination; callers
-    that care about exactness should raise the budget.
+    If the greedy pass still needs more than `max_points`, the result is **truncated**
+    — the first `max_points` vertices are kept and the destination is dropped.
+
+    Subsampling to fit the budget was the first attempt and it is wrong: evenly
+    spaced vertices from a legal chain create new chords that were never checked, so
+    the returned path cuts wall corners while appearing to have been verified. A real
+    movement order is also finite; a client sends what fits and the unit is ordered
+    again on arrival. Truncation matches that and keeps every chord legal.
     """
     walkable = np.ascontiguousarray(walkable, dtype=np.bool_)
     w = walkable.shape[1]
@@ -308,6 +357,10 @@ def simplify_path(walkable: np.ndarray, cells: np.ndarray, max_points: int = 8) 
     cursor = 0
     n = len(cells)
     while cursor < n - 1:
+        # Falling back to the immediate successor is safe because the path came from
+        # A* with the strict diagonal rule, so every adjacent step is a legal chord.
+        # Under the permissive rule it was NOT safe: an adjacent diagonal step could
+        # clip a wall corner, and this loop would then keep an unverified chord.
         best = cursor + 1
         # Binary search would assume monotone visibility, which corners violate.
         for cand in range(n - 1, cursor, -1):
@@ -317,11 +370,7 @@ def simplify_path(walkable: np.ndarray, cells: np.ndarray, max_points: int = 8) 
         keep.append(best)
         cursor = best
     out = cells[np.array(keep, dtype=np.int64)]
-
-    if out.size > max_points:
-        idx = np.unique(np.linspace(0, out.size - 1, max_points).astype(np.int64))
-        out = out[idx]
-    return out
+    return out[:max_points] if out.size > max_points else out
 
 
 def field_to_units(field: np.ndarray, cell_size: float) -> np.ndarray:
