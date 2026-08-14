@@ -96,11 +96,37 @@ Tests with analytically known answers, not comparisons against the data.
 | Check | Result |
 |---|---|
 | Bitset blit: Numba kernel vs NumPy reference, every offset | **passing** (726 offsets, exhaustive) |
-| World ↔ cell round trip within half a cell | **passing** |
-| Radius monotonicity: `fov(r) == fov(RMAX) & disc(r)` | — |
-| Empty-grid FOV equals the integer disc exactly | — |
-| Brush fixture: four semantic cases | — |
-| 64² exhaustive brute-force FOV oracle | — |
+| World ↔ cell round trip within half a cell | **passing** (max error 20.34 u vs 20.38 u half-diagonal) |
+| Navgrid flag populations at the computed offset | **passing** (32,365 / 2,129 / 1,819) |
+| Walkable space is a single connected component | **passing** (54,955 cells, 0 orphans) |
+| Terrain upsample is exact vs independently located navgrid cells | **passing** |
+| Brush groups within band of the documented 39 | **passing** (40, identical under 4- and 8-connectivity) |
+| **Radius monotonicity: `fov(r) == fov(RMAX) & disc(r)`** | **passing, exact** — 0 mismatches over 2,000 (source, radius) pairs on real SR, plus 240 brush-standing pairs |
+| Empty-grid FOV equals the integer disc exactly | **passing** at 4 radii |
+| Full-length wall casts an analytic half-plane shadow | **passing** |
+| Brush fixture: four semantic cases | **passing** (opaque inward, own brush visible, foreign brush opaque, transparent outward) |
+| Shadowcast is never more restrictive than ray marching | **passing** — 0 restrictive disagreements |
+| Exhaustive adversarial-map oracle vs ray marching | **passing** — 99.860% over 3,064,927 cells |
+| Disagreements confined to shadow boundaries | **passing** — max distance 2 cells |
+| Scan-stack headroom | **passing** — high-water 52 of 8,192 frames over 2,000 sources |
 | Particle filter vs exact 256-state Bayes forward pass | — |
 | Information-barrier leak detector | — |
 | Artifact round trip, Python writer vs TypeScript reader | — |
+
+### On the FOV agreement figure
+
+99.860% is not a modelling result and should not be read as one — it is the
+disagreement between two *implementations of different algorithms*, measured on geometry
+built to be worse than Summoner's Rift. The informative parts are that all 4,286
+disagreements are one-directional (shadowcasting over-reports; it never loses vision) and
+that every one lies within two cells of a shadow boundary, which is the signature of
+boundary quantisation rather than of a defect. The number that will actually matter is
+agreement against the dataset's own fog events, which is still `[pending]`.
+
+### Performance
+
+| | Value |
+|---|---|
+| Single field-of-view computation at RMAX | 34 µs |
+| Projected full FOV table (165,578 rows) | ~6 s single-core |
+| FOV table size | 286 MB (`walkable` is 62.9%, not the 25–40% budgeted) |
