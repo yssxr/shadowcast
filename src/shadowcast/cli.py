@@ -8,7 +8,7 @@ and independently rebuildable.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -30,7 +30,7 @@ def _echo_table(title: str, rows: dict[str, object]) -> None:
     typer.secho(title, bold=True)
     width = max((len(str(k)) for k in rows), default=0)
     for k, v in rows.items():
-        typer.echo(f"  {str(k):<{width}}  {v}")
+        typer.echo(f"  {k!s:<{width}}  {v}")
 
 
 @app.command()
@@ -42,11 +42,11 @@ def version() -> None:
 @terrain_app.command("build")
 def terrain_build(
     navgrid: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(help="Path to a .aimesh_ngrid file. Defaults to data/terrain/."),
     ] = None,
     out: Annotated[
-        Optional[Path],
+        Path | None,
         typer.Option(help="Where to write the terrain .npz. Defaults to a hash-keyed path."),
     ] = None,
     no_see_through: Annotated[
@@ -108,7 +108,7 @@ def terrain_build(
 
 @terrain_app.command("show")
 def terrain_show(
-    path: Annotated[Optional[Path], typer.Argument(help="Terrain .npz.")] = None,
+    path: Annotated[Path | None, typer.Argument(help="Terrain .npz.")] = None,
     width: Annotated[int, typer.Option(help="Characters across.")] = 96,
 ) -> None:
     """Render terrain as ASCII, for eyeballing that it is actually the right map.
@@ -117,7 +117,7 @@ def terrain_show(
     cannot. This is the check that caught nothing because the parse was right, and
     would have caught everything if it were not.
     """
-    from shadowcast.config import GridSpec, TerrainSpec, terrain_path
+    from shadowcast.config import TerrainSpec, terrain_path
     from shadowcast.terrain.terrain import Terrain, build_terrain
 
     if path is None:
@@ -167,7 +167,7 @@ def _load_terrain(explicit: Path | None = None):
 @fov_app.command("build")
 def fov_build(
     terrain_file: Annotated[
-        Optional[Path], typer.Option("--terrain", help="Terrain .npz. Defaults to rebuilding.")
+        Path | None, typer.Option("--terrain", help="Terrain .npz. Defaults to rebuilding.")
     ] = None,
     chunks: Annotated[
         int, typer.Option(help="Parallel work chunks. More than cores is fine.")
@@ -210,7 +210,7 @@ def fov_build(
 def fov_verify(
     samples: Annotated[int, typer.Option(help="Source cells to check.")] = 200,
     radius: Annotated[
-        Optional[float], typer.Option(help="Radius to compare at. Defaults to champion sight.")
+        float | None, typer.Option(help="Radius to compare at. Defaults to champion sight.")
     ] = None,
 ) -> None:
     """Check the table against fresh computations, and shadowcasting against ray marching.

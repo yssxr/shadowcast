@@ -26,12 +26,12 @@ from numba import njit
 from shadowcast.fov.table import MISS, FovTable
 
 __all__ = [
+    "mask_popcount",
+    "mask_to_bool",
     "new_mask",
+    "or_live_window",
     "union_sources",
     "union_sources_ref",
-    "mask_to_bool",
-    "mask_popcount",
-    "or_live_window",
 ]
 
 
@@ -146,9 +146,7 @@ def union_sources_ref(
         si_lo, si_hi = max(0, -x0), min(window, grid - x0)
         if sj_hi <= sj_lo or si_hi <= si_lo:
             continue
-        acc[y0 + sj_lo : y0 + sj_hi, x0 + si_lo : x0 + si_hi] |= win[
-            sj_lo:sj_hi, si_lo:si_hi
-        ]
+        acc[y0 + sj_lo : y0 + sj_hi, x0 + si_lo : x0 + si_hi] |= win[sj_lo:sj_hi, si_lo:si_hi]
 
     out[:] = pack_rows(acc, row_words=out.shape[1])
 

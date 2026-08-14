@@ -1,0 +1,922 @@
+"""Synthetic replay generator: a scripted match with known ground truth.
+
+Exists because the two hardest components in the engine cannot be validated against
+real data at all. Movement-order attribution has no labels in the corpus, and the
+belief filter's correctness is not something a real replay can adjudicate. Both need a
+match where the answer is known, and this produces one — on the *real* terrain, so
+real geometry (brush entrances, jungle walls, base chokes) is exercised throughout.
+
+**It is adversarial on purpose.** A generator that emitted clean, labelled,
+well-ordered packets would validate nothing, because the real stream is none of those
+things. Every defect measured in the real corpus is reproduced here and individually
+toggleable, so a failing test can be bisected to the specific pathology that broke it:
+
+    anonymous_orders     movement orders carry no entity id (the defining defect)
+    quantise_time        timestamps rounded to the ~30 Hz the real stream shows
+    drop_speed_replicas  a fraction of movement-speed updates never arrive
+    orders_mid_path      a new order supersedes one still in progress
+    order_start_jitter   waypoints[0] disagrees slightly with the true position
+    reorder_window       packets arrive out of order within a short window
+    silent_ward_expiry   one ward vanishes with no WardCorpse
+    ghost_caster         a net_id casts spells without ever being created
+    corrupt_minion_time  SpawnMinion timestamps are denormal garbage
+    keyframe_creates     CreateHero is re-emitted every 60 s as a resync
+
+With every pathology off, downstream reconstruction should recover truth exactly —
+that pins the algebra. With all on, it should stay within stated tolerances — that
+pins the robustness. Between them the two settings cover what L1 and L2 can get wrong.
+
+**Motion is defined by the orders, not the other way round.** Each champion picks a
+goal, paths to it, and the emitted order is a walkable simplification of that path;
+the champion then walks the emitted polyline exactly. So integrating the published
+orders reproduces the truth by construction, which is the property the trajectory
+reconstructor is being asked to invert. Deriving orders from a separately-computed
+truth would have left an inconsistency no amount of downstream cleverness could close.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+from shadowcast import constants as C
+from shadowcast import sr
+from shadowcast.geom.grid import cell_to_world, world_to_cell
+from shadowcast.geom.path import astar, nearest_walkable, simplify_path
+from shadowcast.packets.source import (
+    BASIC_ATTACK,
+    CAST_SPELL,
+    CREATE_HERO,
+    CREATE_NEUTRAL,
+    CREATE_TURRET,
+    DAMAGE,
+    NPC_DIE,
+    REPLICATION,
+    SPAWN_MINION,
+    USE_ITEM,
+    WAYPOINT,
+    WAYPOINT_XZ,
+    MatchMeta,
+    PacketBundle,
+)
+from shadowcast.terrain.terrain import Terrain
+
+__all__ = ["ROSTER", "Pathologies", "ScenarioSpec", "SyntheticSource", "Truth"]
+
+# Hero net_ids mirror the real corpus, where all ten were contiguous from 0x4000001E.
+_HERO_NETID_BASE = C.HERO_NETID_HINT_LO
+_TURRET_NETID_BASE = 0x40000004
+_WARD_NETID_BASE = 0x40001000
+_NEUTRAL_NETID_BASE = 0x40002000
+_GHOST_NETID = 0x40009999
+
+ROLES = ("top", "jungle", "mid", "bot", "support")
+
+#: (champion, summoner name) per team, in ROLES order. Lowercase internal champion ids
+#: like the real `CreateHero.champion` field.
+ROSTER: tuple[tuple[str, str], ...] = (
+    ("fiora", "anodyne"),
+    ("nunu", "kestrel"),
+    ("syndra", "lull"),
+    ("caitlyn", "faraday"),
+    ("sona", "pallor"),
+    ("chogath", "umber"),
+    ("viego", "sable"),
+    ("katarina", "tenet"),
+    ("varus", "vervain"),
+    ("blitzcrank", "wren"),
+)
+
+_LANE_FOR_ROLE = {"top": "top", "mid": "mid", "bot": "bot", "support": "bot"}
+
+#: How far ahead a champion aims when issuing a movement order, in seconds. At ~335
+#: units/second this puts the destination roughly 1,300 units away, which is the
+#: distance a player actually clicks.
+_GOAL_LOOKAHEAD = 4.0
+
+
+@dataclass(frozen=True, slots=True)
+class Pathologies:
+    """Real-stream defects, each independently toggleable."""
+
+    quantise_time: bool = True
+    drop_speed_replicas: float = 0.02
+    orders_mid_path: bool = True
+    order_start_jitter: float = 12.0  # world units
+    reorder_window: float = 0.1  # seconds
+    silent_ward_expiry: bool = True
+    ghost_caster: bool = True
+    corrupt_minion_time: bool = True
+    keyframe_creates: bool = True
+
+    @classmethod
+    def none(cls) -> Pathologies:
+        """A clean stream. Downstream reconstruction must recover truth exactly."""
+        return cls(
+            quantise_time=False,
+            drop_speed_replicas=0.0,
+            orders_mid_path=False,
+            order_start_jitter=0.0,
+            reorder_window=0.0,
+            silent_ward_expiry=False,
+            ghost_caster=False,
+            corrupt_minion_time=False,
+            keyframe_creates=False,
+        )
+
+    @classmethod
+    def all(cls) -> Pathologies:
+        return cls()
+
+
+@dataclass(frozen=True, slots=True)
+class ScenarioSpec:
+    seed: int = 7
+    duration: float = C.MATCH_WINDOW_SECONDS
+    tick_hz: int = C.TICK_HZ
+    pathologies: Pathologies = field(default_factory=Pathologies)
+    #: Offset from the map-centred waypoint frame to world coordinates. Deliberately
+    #: NOT the 7500 that a calibrator would guess first, so the calibration step is
+    #: actually tested rather than trivially satisfied.
+    waypoint_offset: float = 7462.5
+
+    @property
+    def n_ticks(self) -> int:
+        return int(self.duration * self.tick_hz) + 1
+
+    @property
+    def dt(self) -> float:
+        return 1.0 / self.tick_hz
+
+    def content_hash(self) -> str:
+        from shadowcast.config import content_hash
+
+        return content_hash(dataclasses.asdict(self))
+
+
+# ---------------------------------------------------------------------------
+# Ground truth
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class Truth:
+    """Everything the generator knows and the packet stream does not say.
+
+    Imported only by tests. A production module reaching for this would be reading the
+    answer key, and the information-barrier test in L3 exists to catch exactly that.
+    """
+
+    spec: ScenarioSpec
+    net_ids: np.ndarray  # u4[10]
+    team: np.ndarray  # u1[10]
+    role: tuple[str, ...]
+    champion: tuple[str, ...]
+    pos: np.ndarray  # f8[n_ticks, 10, 2] world coords
+    alive: np.ndarray  # u1[n_ticks, 10]
+    speed: np.ndarray  # f8[n_ticks, 10]
+    brush: np.ndarray  # i2[n_ticks, 10]
+    visible: np.ndarray  # u1[n_ticks, 2, 10] from the independent oracle
+    order_owner: np.ndarray  # i2[n_orders] which champion issued each order
+    order_tick: np.ndarray  # i4[n_orders]
+    wards: np.ndarray  # structured, see WARD_TRUTH
+    kills: np.ndarray  # structured, see KILL_TRUTH
+
+    def save(self, path: str | Path) -> Path:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            path,
+            net_ids=self.net_ids,
+            team=self.team,
+            pos=self.pos,
+            alive=self.alive,
+            speed=self.speed,
+            brush=self.brush,
+            visible=self.visible,
+            order_owner=self.order_owner,
+            order_tick=self.order_tick,
+            wards=self.wards,
+            kills=self.kills,
+            meta=np.frombuffer(
+                json.dumps(
+                    {
+                        "spec": dataclasses.asdict(self.spec),
+                        "role": list(self.role),
+                        "champion": list(self.champion),
+                    }
+                ).encode("utf-8"),
+                dtype=np.uint8,
+            ),
+        )
+        return path
+
+    @classmethod
+    def load(cls, path: str | Path) -> Truth:
+        with np.load(path) as z:
+            meta = json.loads(bytes(z["meta"]).decode("utf-8"))
+            spec_d = dict(meta["spec"])
+            spec_d["pathologies"] = Pathologies(**spec_d["pathologies"])
+            return cls(
+                spec=ScenarioSpec(**spec_d),
+                net_ids=z["net_ids"],
+                team=z["team"],
+                role=tuple(meta["role"]),
+                champion=tuple(meta["champion"]),
+                pos=z["pos"],
+                alive=z["alive"],
+                speed=z["speed"],
+                brush=z["brush"],
+                visible=z["visible"],
+                order_owner=z["order_owner"],
+                order_tick=z["order_tick"],
+                wards=z["wards"],
+                kills=z["kills"],
+            )
+
+
+WARD_TRUTH = np.dtype(
+    [
+        ("net_id", "u4"),
+        ("owner_net_id", "u4"),
+        ("team", "u1"),
+        ("kind", "U10"),
+        ("x", "f8"),
+        ("z", "f8"),
+        ("t0", "f8"),
+        ("t1", "f8"),
+        ("spot", "U32"),
+        ("silent_expiry", "u1"),
+    ]
+)
+
+KILL_TRUTH = np.dtype([("t", "f8"), ("killer", "i2"), ("victim", "i2"), ("respawn_t", "f8")])
+
+
+# ---------------------------------------------------------------------------
+# Movement
+# ---------------------------------------------------------------------------
+class _Mover:
+    """Walks a polyline at a given speed. Position is a pure function of progress."""
+
+    __slots__ = ("poly", "prog", "seg", "speed", "total")
+
+    def __init__(self, start: np.ndarray, speed: float) -> None:
+        self.poly = np.array([start, start], dtype=np.float64)
+        self.seg = np.zeros(1)
+        self.total = 0.0
+        self.prog = 0.0
+        self.speed = speed
+
+    def set_order(self, poly: np.ndarray) -> None:
+        self.poly = np.asarray(poly, dtype=np.float64)
+        self.seg = np.hypot(*np.diff(self.poly, axis=0).T)
+        self.total = float(self.seg.sum())
+        self.prog = 0.0
+
+    @property
+    def done(self) -> bool:
+        return self.prog >= self.total
+
+    @property
+    def pos(self) -> np.ndarray:
+        want = min(self.prog, self.total)
+        for n, d in enumerate(self.seg):
+            if want <= d:
+                f = want / d if d > 0 else 0.0
+                return self.poly[n] + (self.poly[n + 1] - self.poly[n]) * f
+            want -= d
+        return self.poly[-1].copy()
+
+    def step(self, dt: float) -> None:
+        self.prog = min(self.total, self.prog + self.speed * dt)
+
+
+def _dense_route(terrain: Terrain, pts: np.ndarray) -> np.ndarray:
+    """A*-connect snapped polyline vertices into one dense, navmesh-legal route."""
+    snapped, _ = sr.snap_polyline(terrain, pts)
+    cells: list[int] = []
+    for n in range(len(snapped) - 1):
+        i0, j0 = world_to_cell(*snapped[n])
+        i1, j1 = world_to_cell(*snapped[n + 1])
+        leg = astar(terrain.walkable, j0 * terrain.grid + i0, j1 * terrain.grid + i1)
+        if leg.size == 0:
+            raise RuntimeError(f"no route between landmark {n} and {n + 1}")
+        cells.extend(leg[1:].tolist() if cells else leg.tolist())
+    arr = np.array(cells, dtype=np.int64)
+    j, i = np.divmod(arr, terrain.grid)
+    x, z = cell_to_world(i, j)
+    return np.stack([x, z], axis=1)
+
+
+def _route_lut(route: np.ndarray, n: int = 2048) -> np.ndarray:
+    """Resample a polyline to `n` points evenly spaced by arclength.
+
+    The dense A*-built routes have hundreds of vertices, so a Python-level arclength
+    lerp inside the per-tick loop would walk all of them every call — hundreds of
+    millions of operations over a match. A lookup makes it an array index.
+    """
+    out = np.empty((n, 2))
+    for k in range(n):
+        out[k] = sr.lerp_polyline(route, k / (n - 1))
+    return out
+
+
+def _lut_point(lut: np.ndarray, s: float) -> np.ndarray:
+    k = int(np.clip(s, 0.0, 1.0) * (lut.shape[0] - 1))
+    return lut[k]
+
+
+# ---------------------------------------------------------------------------
+# The generator
+# ---------------------------------------------------------------------------
+class SyntheticSource:
+    """A `PacketSource` producing scripted matches on real terrain."""
+
+    def __init__(self, terrain: Terrain, spec: ScenarioSpec | None = None, n_matches: int = 1):
+        self.terrain = terrain
+        self.spec = spec or ScenarioSpec()
+        self.n_matches = n_matches
+        self._routes: dict[str, np.ndarray] = {}
+        self._truth: dict[str, Truth] = {}
+
+    # -- PacketSource -------------------------------------------------
+    def match_ids(self) -> list[str]:
+        return [f"synth-{self.spec.seed:04d}-{n:03d}" for n in range(self.n_matches)]
+
+    def read(self, match_id: str) -> PacketBundle:
+        bundle, truth = self.generate(match_id)
+        self._truth[match_id] = truth
+        return bundle
+
+    def truth(self, match_id: str) -> Truth:
+        if match_id not in self._truth:
+            self.read(match_id)
+        return self._truth[match_id]
+
+    # -- routes -------------------------------------------------------
+    def routes(self) -> dict[str, np.ndarray]:
+        """Dense, navmesh-legal routes, arclength-resampled for O(1) lookup."""
+        if not self._routes:
+            for lane, pts in sr.LANES.items():
+                self._routes[f"lane_{lane}"] = _route_lut(_dense_route(self.terrain, pts))
+            for team, pts in sr.JUNGLE_ROUTES.items():
+                self._routes[f"jungle_{team}"] = _route_lut(_dense_route(self.terrain, pts))
+        return self._routes
+
+    # -- generation ---------------------------------------------------
+    def generate(self, match_id: str) -> tuple[PacketBundle, Truth]:
+        spec = self.spec
+        idx = int(match_id.rsplit("-", 1)[1])
+        rng = np.random.default_rng(spec.seed * 1000 + idx)
+        terrain = self.terrain
+        routes = self.routes()
+        n_ticks, dt = spec.n_ticks, spec.dt
+        n_champs = 10
+
+        net_ids = np.arange(_HERO_NETID_BASE, _HERO_NETID_BASE + n_champs, dtype=np.uint32)
+        team = np.array([0] * 5 + [1] * 5, dtype=np.uint8)
+        role = tuple(ROLES) * 2
+        champion = tuple(c for c, _ in ROSTER)
+        summoner = tuple(s for _, s in ROSTER)
+
+        phase = rng.uniform(0, 2 * np.pi, size=n_champs)
+        base_speed = np.full(n_champs, 335.0)
+
+        movers: list[_Mover] = []
+        for c in range(n_champs):
+            movers.append(_Mover(sr.FOUNTAINS[int(team[c])].copy(), base_speed[c]))
+
+        # Scripted kills. The killer's goal becomes the victim's position for the
+        # preceding few seconds, which produces a genuine approach-and-gank rather
+        # than two champions teleporting together.
+        kill_script = [
+            (150.0, 6, 2),
+            (300.0, 1, 8),
+            (455.0, 6, 0),
+            (610.0, 1, 7),
+            (760.0, 9, 4),
+        ]
+        kill_rows = np.empty(len(kill_script), dtype=KILL_TRUTH)
+        respawn_lookup: dict[float, float] = {}
+        for n, (kt, killer, victim) in enumerate(kill_script):
+            respawn_t = kt + 20.0 + 0.5 * (kt / 60.0)
+            kill_rows[n] = (kt, killer, victim, respawn_t)
+            respawn_lookup[kt] = respawn_t
+
+        # Scripted wards.
+        ward_script: list[tuple[float, int, int, str, float]] = []
+        for n, _spot in enumerate(sr.WARD_SPOTS):
+            owner_team = 0 if n < 6 else 1
+            kind = "control" if n % 3 == 2 else "totem"
+            place_t = 90.0 + 62.0 * n
+            life = 150.0 if kind == "control" else 105.0
+            ward_script.append((place_t, owner_team, n, kind, life))
+
+        # --- state ---
+        pos = np.zeros((n_ticks, n_champs, 2))
+        alive = np.ones((n_ticks, n_champs), dtype=np.uint8)
+        speed_t = np.zeros((n_ticks, n_champs))
+        respawn_at = np.zeros(n_champs)
+        next_order_t = np.zeros(n_champs)
+
+        rows_waypoint: list[tuple[float, int, int, int]] = []
+        xz: list[tuple[float, float]] = []
+        order_owner: list[int] = []
+        order_tick: list[int] = []
+        rows_repl: list[tuple] = []
+        rows_cast: list[tuple] = []
+        rows_attack: list[tuple] = []
+        rows_damage: list[tuple] = []
+
+        # Initial speed replication for everyone.
+        for c in range(n_champs):
+            rows_repl.append((0.0, int(net_ids[c]), 32, 24, "mMoveSpeed", base_speed[c], 1))
+
+        # Lane offsets are in WORLD UNITS, not arclength fractions.
+        #
+        # Fractions were the first attempt and they are badly wrong: the top and bottom
+        # lanes are ~20,200 units long, so a plausible-looking +-0.085 offset puts
+        # opposing laners 3,430 units apart when champion sight is 1,350. Three of the
+        # ten champions were then never seen by the enemy for an entire match, which
+        # made the fog oracle look broken when the scenario was.
+        LANE_SEPARATION = 420.0  # each laner sits this far from the lane midpoint
+        SUPPORT_OFFSET = 180.0  # supports hover just behind their carry
+        # Three superposed oscillations, chosen so implied speed is realistic rather
+        # than so the amplitudes look plausible. A single slow swing (900 units over
+        # 165 s) moves the goal ~10 units/second, less than half a cell per order
+        # interval — champions then stand still, no order is ever long enough to emit,
+        # and median implied speed comes out at zero. Peak contribution of a term is
+        # amplitude * 2*pi / period, so the short-period terms are what create motion.
+        LANE_WAVES = ((900.0, 90.0), (320.0, 23.0), (140.0, 7.0))
+        RECALL_PERIOD = 190.0
+        RECALL_DURATION = 26.0
+
+        lane_len = {k: float(np.hypot(*np.diff(v, axis=0).T).sum()) for k, v in routes.items()}
+
+        def goal_for(c: int, t: float, current: np.ndarray) -> np.ndarray:
+            r = role[c]
+            tm = int(team[c])
+            # A gank overrides everything: head for the victim. This makes the kill an
+            # actual approach the belief filter can be asked about, rather than two
+            # champions materialising next to each other.
+            for kt, killer, victim in kill_script:
+                if c == killer and kt - 9.0 <= t < kt:
+                    return current[victim].copy()
+            if r == "jungle":
+                route = routes[f"jungle_{tm}"]
+                cyc = 118.0
+                u = ((t + phase[c] * 12.0) % (2 * cyc)) / cyc
+                s = u if u <= 1.0 else 2.0 - u
+                return _lut_point(route, s)
+
+            key = f"lane_{_LANE_FOR_ROLE[r]}"
+            lane = routes[key]
+            length = lane_len[key]
+            if t < 70.0:
+                # Leave the fountain and walk to the lane.
+                return _lut_point(lane, 0.10 if tm == 0 else 0.90)
+            if r == "support" and ((250.0 < t < 330.0) or (560.0 < t < 640.0)):
+                # Roam: head for a river ward spot on the contested half.
+                return sr.WARD_SPOTS[5 if tm == 0 else 7][1].copy()
+
+            # Periodic recall. A long walk back to base and out again, which is what
+            # exercises trajectory reconstruction over distance rather than over the
+            # few hundred units of lane shuffling.
+            cycle = (t + phase[c] * 30.0) % RECALL_PERIOD
+            if cycle < RECALL_DURATION:
+                return sr.FOUNTAINS[tm].copy()
+
+            sign = -1.0 if tm == 0 else 1.0
+            offset = sign * LANE_SEPARATION
+            for amp, period in LANE_WAVES:
+                offset += amp * np.sin(2.0 * np.pi * t / period + phase[c])
+            if r == "support":
+                offset += sign * SUPPORT_OFFSET
+            s = 0.5 + offset / length
+            return _lut_point(lane, float(np.clip(s, 0.06, 0.94)))
+
+        path_cache: dict[tuple[int, int], np.ndarray] = {}
+
+        def order_polyline(start: np.ndarray, goal: np.ndarray) -> np.ndarray | None:
+            i0, j0 = world_to_cell(*start)
+            i1, j1 = world_to_cell(*goal)
+            j0, i0 = nearest_walkable(terrain.walkable, j0, i0)
+            j1, i1 = nearest_walkable(terrain.walkable, j1, i1)
+            key = (j0 * terrain.grid + i0, j1 * terrain.grid + i1)
+            if key not in path_cache:
+                cells = astar(terrain.walkable, key[0], key[1])
+                if cells.size == 0:
+                    path_cache[key] = np.empty((0, 2))
+                else:
+                    keep = simplify_path(terrain.walkable, cells, max_points=8)
+                    jj, ii = np.divmod(keep, terrain.grid)
+                    x, z = cell_to_world(ii, jj)
+                    path_cache[key] = np.stack([x, z], axis=1)
+            poly = path_cache[key]
+            if poly.shape[0] == 0:
+                return None
+            out = poly.copy()
+            out[0] = start
+            return out
+
+        pth = spec.pathologies
+        for tick in range(n_ticks):
+            t = tick * dt
+            current = np.array([m.pos for m in movers])
+
+            for c in range(n_champs):
+                if alive[max(0, tick - 1), c] == 0 and t < respawn_at[c]:
+                    alive[tick, c] = 0
+                    pos[tick, c] = sr.FOUNTAINS[int(team[c])]
+                    speed_t[tick, c] = 0.0
+                    continue
+                if alive[max(0, tick - 1), c] == 0 and t >= respawn_at[c]:
+                    # Respawn is a discontinuity, not a walk: the champion reappears
+                    # at the fountain. Trajectory reconstruction must not interpolate
+                    # across it.
+                    movers[c] = _Mover(sr.FOUNTAINS[int(team[c])].copy(), base_speed[c])
+                    next_order_t[c] = t
+
+                # Orders are issued on a timer, not on completion of the previous one.
+                # Completion-triggered issuance was the first attempt and it produced
+                # ~950 orders per jungler against ~40 per laner: the goal moves a few
+                # units per tick, so the path to it is one cell, the order finishes
+                # immediately, and another is issued next tick. A real player clicks
+                # somewhere a second or two ahead, which is what the lookahead models.
+                needs = t >= next_order_t[c]
+                if pth.orders_mid_path:
+                    needs = needs or (rng.random() < 0.01)
+                if needs:
+                    goal = goal_for(c, t + _GOAL_LOOKAHEAD, current)
+                    poly = order_polyline(movers[c].pos, goal)
+                    if poly is not None and poly.shape[0] >= 2:
+                        if pth.order_start_jitter > 0:
+                            poly = poly.copy()
+                            poly[0] = poly[0] + rng.normal(
+                                0.0, pth.order_start_jitter / 2.0, size=2
+                            )
+                        movers[c].set_order(poly)
+                        off = len(xz)
+                        for p in poly:
+                            xz.append((float(p[0]), float(p[1])))
+                        rows_waypoint.append((t, off, len(poly), 1 if rng.random() < 0.02 else 0))
+                        order_owner.append(c)
+                        order_tick.append(tick)
+                    next_order_t[c] = t + float(rng.uniform(0.6, 2.5))
+
+                movers[c].step(dt)
+                pos[tick, c] = movers[c].pos
+                speed_t[tick, c] = movers[c].speed
+
+            # Boots at eight minutes: a speed change mid-game that the reconstructor
+            # must pick up from replication rather than assume.
+            if abs(t - 480.0) < dt / 2:
+                for c in range(n_champs):
+                    movers[c].speed = 380.0
+                    if rng.random() >= pth.drop_speed_replicas:
+                        rows_repl.append((t, int(net_ids[c]), 32, 24, "mMoveSpeed", 380.0, 1))
+
+            # Labelled position anchors. These are the only packets that tie a
+            # position to a net_id, so they are what makes anonymous movement orders
+            # attributable at all — roughly one per champion per 1.5 s, matching the
+            # 546-1,085 per champion per match measured in the real corpus.
+            for c in range(n_champs):
+                if alive[tick, c] == 0:
+                    continue
+                if rng.random() < dt / 1.5:
+                    x, z = pos[tick, c]
+                    rows_attack.append((t, int(net_ids[c]), 0, x, z, x + 200.0, z + 200.0))
+                if rng.random() < dt / 3.0:
+                    x, z = pos[tick, c]
+                    rows_cast.append(
+                        (t, int(net_ids[c]), f"{champion[c]}Q", 0x1234 + c, x, z, x, z, 0)
+                    )
+
+            # Kills: damage in the second before, then health to zero.
+            for kt, killer, victim in kill_script:
+                if abs(t - kt) < dt / 2:
+                    for n in range(6):
+                        rows_damage.append(
+                            (kt - 1.0 + n * 0.15, int(net_ids[killer]), int(net_ids[victim]), 180.0)
+                        )
+                    rows_repl.append((kt, int(net_ids[victim]), 32, 0, "mHP", 0.0, 1))
+                    alive[tick, victim] = 0
+                    respawn_at[victim] = respawn_lookup[kt]
+
+        # --- wards ---
+        ward_rows: list[tuple] = []
+        rows_minion: list[tuple] = []
+        rows_item: list[tuple] = []
+        for n, (place_t, owner_team, spot_idx, kind, life) in enumerate(ward_script):
+            if place_t >= spec.duration:
+                continue  # a short scenario simply gets fewer wards
+            spot_name, spot_pos = sr.WARD_SPOTS[spot_idx]
+            snapped, _ = sr.snap_polyline(terrain, spot_pos[None, :])
+            wx, wz = snapped[0]
+            # The nearest living champion of the owning team is credited. Falling back
+            # to the whole team matters: with everyone dead there is no living placer,
+            # and dropping the ward silently would make ward counts depend on the
+            # kill script in a way no test would notice.
+            tick = min(n_ticks - 1, round(place_t / dt))
+            cand = [c for c in range(n_champs) if team[c] == owner_team and alive[tick, c]]
+            if not cand:
+                cand = [c for c in range(n_champs) if team[c] == owner_team]
+            owner = min(cand, key=lambda c: float(np.hypot(*(pos[tick, c] - (wx, wz)))))
+            net_id = _WARD_NETID_BASE + n
+            silent = bool(pth.silent_ward_expiry and n == 3)
+            ward_rows.append(
+                (
+                    net_id,
+                    int(net_ids[owner]),
+                    owner_team,
+                    kind,
+                    wx,
+                    wz,
+                    place_t,
+                    place_t + life,
+                    spot_name,
+                    1 if silent else 0,
+                )
+            )
+            name, skin = (
+                ("VisionWard", "SightWard") if kind == "control" else ("SightWard", "YellowTrinket")
+            )
+            rows_minion.append((place_t, net_id, wx, wz, name, skin, int(net_ids[owner]), 1))
+            rows_item.append((place_t, int(net_ids[owner]), 7 if kind == "control" else 6))
+            if not silent:
+                rows_minion.append(
+                    (
+                        place_t + life,
+                        _WARD_NETID_BASE + 500 + n,
+                        wx,
+                        wz,
+                        "WardCorpse",
+                        "S5Test_WardCorpse",
+                        int(net_ids[owner]),
+                        1,
+                    )
+                )
+        wards = np.array(ward_rows, dtype=WARD_TRUTH)
+
+        # --- static entities ---
+        rows_turret: list[tuple] = []
+        turret_pos: list[tuple[float, float, int]] = []
+        for n, (name, tteam, tpos) in enumerate(sr.TURRETS):
+            snapped, _ = sr.snap_polyline(terrain, np.asarray(tpos)[None, :])
+            nid = _TURRET_NETID_BASE + n
+            rows_turret.append((0.0, nid, nid, name))
+            turret_pos.append((float(snapped[0, 0]), float(snapped[0, 1]), int(tteam)))
+
+        rows_neutral: list[tuple] = []
+        rows_death: list[tuple] = []
+        for n, (_label, p) in enumerate(sr.WARD_SPOTS[:6]):
+            snapped, _ = sr.snap_polyline(terrain, p[None, :])
+            rows_neutral.append(
+                (
+                    0.0,
+                    _NEUTRAL_NETID_BASE + n,
+                    float(snapped[0, 0]),
+                    float(snapped[0, 1]),
+                    f"SRU_Camp{n}.1.1",
+                    n + 1,
+                    67,
+                )
+            )
+        # Camp clears. Death packets exist in the real stream but NEVER name a
+        # champion as the victim — verified across 45,851 real rows — so the generator
+        # emits them only for neutrals. Anything downstream that hoped to read
+        # champion deaths from here will find nothing, which is the point.
+        for n in range(6):
+            killer_team = n % 2
+            jungler = 1 if killer_team == 0 else 6
+            clear_t = 105.0 + 92.0 * n
+            if clear_t < spec.duration:
+                rows_death.append((clear_t, int(net_ids[jungler]), _NEUTRAL_NETID_BASE + n, 0))
+
+        # --- brush membership and the fog oracle ---
+        brush = np.full((n_ticks, n_champs), -1, dtype=np.int16)
+        for tick in range(n_ticks):
+            for c in range(n_champs):
+                i, j = world_to_cell(*pos[tick, c])
+                if 0 <= i < terrain.grid and 0 <= j < terrain.grid:
+                    brush[tick, c] = terrain.brush_id[j, i]
+
+        visible = self._run_oracle(pos, brush, alive, team, wards, turret_pos, routes, spec)
+
+        fog_rows = _fog_rows(visible, team, net_ids, dt)
+
+        # --- assemble ---
+        heroes: list[tuple] = []
+        keyframes = [0.0]
+        if pth.keyframe_creates:
+            keyframes = list(np.arange(0.0, spec.duration, 60.0))
+        for kf in keyframes:
+            for c in range(n_champs):
+                heroes.append((kf, int(net_ids[c]), summoner[c], champion[c]))
+
+        if pth.ghost_caster:
+            # A pet or clone: casts spells, never created. The resolver must ignore it
+            # rather than crash or invent an eleventh champion.
+            rows_cast.append((45.0, _GHOST_NETID, "ghost", 0x9999, 5000.0, 5000.0, 0.0, 0.0, 0))
+
+        def mk(rows, dtype):
+            out = np.empty(len(rows), dtype=dtype)
+            for n, r in enumerate(rows):
+                out[n] = r
+            return out
+
+        wp = mk(rows_waypoint, WAYPOINT)
+        wp_xz = np.empty(len(xz), dtype=WAYPOINT_XZ)
+        for n, (x, z) in enumerate(xz):
+            wp_xz[n] = (x - spec.waypoint_offset, z - spec.waypoint_offset)
+
+        minions = mk(rows_minion, SPAWN_MINION)
+        if pth.corrupt_minion_time and minions.size:
+            # Real SpawnMinion.time is denormal-float noise. Consumers must take
+            # timing from the surrounding stream clock instead.
+            minions["t"] = np.linspace(1e-40, 5e-39, minions.size)
+            minions["t_valid"] = 0
+
+        bundle_arrays = {
+            "heroes": mk(heroes, CREATE_HERO),
+            "waypoints": wp,
+            "waypoint_xz": wp_xz,
+            "fog": fog_rows,
+            "replication": mk(rows_repl, REPLICATION),
+            "turrets": mk(rows_turret, CREATE_TURRET),
+            "minions": minions,
+            "neutrals": mk(rows_neutral, CREATE_NEUTRAL),
+            "casts": mk(rows_cast, CAST_SPELL),
+            "attacks": mk(rows_attack, BASIC_ATTACK),
+            "damage": mk(rows_damage, DAMAGE),
+            "deaths": mk(rows_death, NPC_DIE),
+            "items": mk(rows_item, USE_ITEM),
+        }
+
+        for name, arr in bundle_arrays.items():
+            if name in ("waypoint_xz", "minions") or arr.size == 0:
+                continue
+            arr.sort(order="t", kind="stable")
+            if pth.quantise_time:
+                arr["t"] = np.round(arr["t"] * 30.0) / 30.0
+            if pth.reorder_window > 0:
+                _jitter_order(arr, pth.reorder_window, rng)
+
+        meta = MatchMeta(
+            match_id=match_id,
+            source=f"synthetic/{spec.content_hash()}",
+            duration=spec.duration,
+            n_packets=sum(a.size for k, a in bundle_arrays.items() if k != "waypoint_xz"),
+            patch="synthetic",
+            extra={"seed": spec.seed, "waypoint_offset": spec.waypoint_offset},
+        )
+        bundle = PacketBundle(meta=meta, **bundle_arrays)
+        truth = Truth(
+            spec=spec,
+            net_ids=net_ids,
+            team=team,
+            role=role,
+            champion=champion,
+            pos=pos,
+            alive=alive,
+            speed=speed_t,
+            brush=brush,
+            visible=visible,
+            order_owner=np.array(order_owner, dtype=np.int16),
+            order_tick=np.array(order_tick, dtype=np.int32),
+            wards=wards,
+            kills=kill_rows,
+        )
+        return bundle, truth
+
+    # -- oracle -------------------------------------------------------
+    def _run_oracle(self, pos, brush, alive, team, wards, turret_pos, routes, spec):
+        """Build the per-tick vision-source lists and run the independent oracle."""
+        from shadowcast.packets.synth_fog import compute_visibility
+
+        terrain = self.terrain
+        cs = terrain.grid_spec.cell_size
+        n_ticks, n_champs, _ = pos.shape
+
+        def to_cells(x, z):
+            return (x - C.WORLD_MIN_X) / cs, (z - C.WORLD_MIN_Z) / cs
+
+        def brush_at(x, z):
+            i, j = world_to_cell(x, z)
+            if 0 <= i < terrain.grid and 0 <= j < terrain.grid:
+                return int(terrain.brush_id[j, i])
+            return -1
+
+        src_off = np.zeros(n_ticks * 2, dtype=np.int64)
+        src_n = np.zeros(n_ticks * 2, dtype=np.int32)
+        sx: list[float] = []
+        sz: list[float] = []
+        srad: list[float] = []
+        sb: list[int] = []
+
+        # Static per-team sources, computed once.
+        static: dict[int, list[tuple[float, float, float, int]]] = {0: [], 1: []}
+        for x, z, tteam in turret_pos:
+            cx, cz = to_cells(x, z)
+            static[tteam].append((cx, cz, C.SIGHT_TURRET / cs, brush_at(x, z)))
+
+        dt = spec.dt
+        for tick in range(n_ticks):
+            t = tick * dt
+            for obs in (0, 1):
+                slot = tick * 2 + obs
+                src_off[slot] = len(sx)
+                start = len(sx)
+
+                for cx, cz, r, b in static[obs]:
+                    sx.append(cx)
+                    sz.append(cz)
+                    srad.append(r)
+                    sb.append(b)
+
+                for c in range(n_champs):
+                    if team[c] != obs or alive[tick, c] == 0:
+                        continue
+                    cx, cz = to_cells(*pos[tick, c])
+                    sx.append(cx)
+                    sz.append(cz)
+                    srad.append(C.SIGHT_CHAMPION / cs)
+                    sb.append(int(brush[tick, c]))
+
+                for w in wards:
+                    if int(w["team"]) != obs or not (w["t0"] <= t <= w["t1"]):
+                        continue
+                    cx, cz = to_cells(float(w["x"]), float(w["z"]))
+                    sx.append(cx)
+                    sz.append(cz)
+                    srad.append(C.WARD_SIGHT_BY_KIND[str(w["kind"])] / cs)
+                    sb.append(brush_at(float(w["x"]), float(w["z"])))
+
+                # Minion clumps: three per lane per team, drifting with lane pressure.
+                for lane in ("top", "mid", "bot"):
+                    route = routes[f"lane_{lane}"]
+                    base = 0.40 if obs == 0 else 0.60
+                    drift = 0.09 * np.sin(t / 70.0 + (0 if lane == "mid" else 2.0))
+                    for k in (-1, 0, 1):
+                        s = float(
+                            np.clip(base + (1 if obs == 0 else -1) * drift + k * 0.03, 0.03, 0.97)
+                        )
+                        p = _lut_point(route, s)
+                        cx, cz = to_cells(float(p[0]), float(p[1]))
+                        sx.append(cx)
+                        sz.append(cz)
+                        srad.append(C.SIGHT_MINION / cs)
+                        sb.append(brush_at(float(p[0]), float(p[1])))
+
+                src_n[slot] = len(sx) - start
+
+        champ_cx = np.empty((n_ticks, n_champs))
+        champ_cz = np.empty((n_ticks, n_champs))
+        for tick in range(n_ticks):
+            for c in range(n_champs):
+                champ_cx[tick, c], champ_cz[tick, c] = to_cells(*pos[tick, c])
+
+        return compute_visibility(
+            terrain.blocks_vision,
+            terrain.brush_id,
+            champ_cx,
+            champ_cz,
+            brush,
+            alive,
+            team,
+            src_off,
+            src_n,
+            np.asarray(sx, dtype=np.float64),
+            np.asarray(sz, dtype=np.float64),
+            np.asarray(srad, dtype=np.float64),
+            np.asarray(sb, dtype=np.int16),
+        )
+
+
+def _fog_rows(visible, team, net_ids, dt) -> np.ndarray:
+    from shadowcast.packets.synth_fog import transitions_from_visibility
+
+    return transitions_from_visibility(visible, team, net_ids, dt)
+
+
+def _jitter_order(arr: np.ndarray, window: float, rng) -> None:
+    """Permute rows within a short time window, in place.
+
+    Real packets do not arrive perfectly ordered. Anything that assumes monotone
+    arrival — a running clock, a state accumulator — has to tolerate this, so the
+    generator produces it rather than leaving the assumption untested.
+    """
+    if arr.size < 2:
+        return
+    t = arr["t"]
+    start = 0
+    while start < arr.size:
+        end = int(np.searchsorted(t, t[start] + window, side="right"))
+        if end - start > 1:
+            block = arr[start:end].copy()
+            rng.shuffle(block)
+            arr[start:end] = block
+        start = max(end, start + 1)

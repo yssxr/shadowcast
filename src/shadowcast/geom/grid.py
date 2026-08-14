@@ -30,17 +30,17 @@ from shadowcast.constants import (
 )
 
 __all__ = [
-    "in_radius_sq",
-    "radius_cells_sq",
-    "world_to_cell",
-    "world_to_cell_array",
     "cell_to_world",
-    "flat_index",
-    "unflatten",
-    "in_bounds",
     "disc_mask",
     "disc_mask_cells",
+    "flat_index",
+    "in_bounds",
+    "in_radius_sq",
+    "radius_cells_sq",
     "ring_offsets",
+    "unflatten",
+    "world_to_cell",
+    "world_to_cell_array",
 ]
 
 

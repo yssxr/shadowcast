@@ -57,7 +57,7 @@ from numba import njit
 from shadowcast.constants import RMAX_CELLS
 from shadowcast.terrain.terrain import Terrain
 
-__all__ = ["fov_into", "fov_bool", "new_scratch", "SCRATCH_FRAMES", "StackOverflowInFOV"]
+__all__ = ["SCRATCH_FRAMES", "StackOverflowInFOV", "fov_bool", "fov_into", "new_scratch"]
 
 #: Pending-frame capacity for the explicit scan stack.
 #:

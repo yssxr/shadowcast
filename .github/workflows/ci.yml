@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # The Summoner's Rift navgrid is not committed — it is Riot's data and 9.4 MB.
+      # Without it the terrain and FOV tests skip cleanly, which would mean CI passing
+      # while never exercising the load-bearing radius-monotonicity check. So it is
+      # fetched and cached, and the job then asserts nothing skipped for want of it.
+      - name: Cache navgrid
+        id: navgrid
+        uses: actions/cache@v4
+        with:
+          path: data/terrain/AIPath_SRX.aimesh_ngrid
+          key: navgrid-AIPath_SRX-v7.1
+
+      - name: Fetch navgrid
+        if: steps.navgrid.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p data/terrain
+          curl -fsSL -o data/terrain/AIPath_SRX.aimesh_ngrid \
+            "https://raw.githubusercontent.com/FrankTheBoxMonster/LoL-NGRID-converter/master/test%20files/SummonersRiftSeason10/AIPath_SRX.aimesh_ngrid"
+
+      - name: Verify navgrid integrity
+        run: |
+          echo "816b8460633050f9e1d24ab2a69726574d16a134bc2889dc445ef94535e6bea6  data/terrain/AIPath_SRX.aimesh_ngrid" | sha256sum -c -
+
+      - run: uv sync --all-extras
+      # No `-m "not slow"` here. The whole suite including the exhaustive
+      # brute-force FOV oracle runs in under four seconds warm, so there is nothing
+      # to gain from splitting it and something to lose: a deselected marker is a
+      # test that quietly stops running.
+      - name: Tests
+        run: uv run pytest -q --durations=10

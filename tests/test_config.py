@@ -128,6 +128,7 @@ def test_fov_table_path_changes_with_terrain():
 
 def test_git_sha_is_reported():
     sha = cfg.git_sha()
-    assert isinstance(sha, str) and sha
+    assert isinstance(sha, str)
+    assert sha
     # In this repo it should resolve; "unknown" would mean the git probe broke.
     assert sha != "unknown"

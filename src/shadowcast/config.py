@@ -31,15 +31,15 @@ from typing import Any, Literal
 from shadowcast import constants as C
 
 __all__ = [
+    "ExportSpec",
+    "FilterSpec",
     "GridSpec",
+    "StageHeader",
     "TerrainSpec",
     "TickSpec",
-    "FilterSpec",
-    "ExportSpec",
-    "StageHeader",
-    "git_sha",
     "content_hash",
     "file_hash",
+    "git_sha",
 ]
 
 _HASH_LEN = 16  # 64 bits of hex; ample for collision-free artifact keying

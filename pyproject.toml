@@ -36,6 +36,8 @@ shadowcast = "shadowcast.cli:app"
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.6",
+    "ruff>=0.9",
+    "pre-commit>=4.0",
 ]
 
 [build-system]
@@ -52,3 +54,57 @@ addopts = "-q --strict-markers"
 markers = [
     "slow: exhaustive oracles and precomputes; deselect with -m 'not slow'",
 ]
+
+# ---------------------------------------------------------------------------
+# Lint and format
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear: likely bugs and design problems
+    "C4",   # comprehension clarity
+    "SIM",  # simplifiable constructs
+    "RUF",  # ruff's own rules
+    "NPY",  # numpy-specific correctness (legacy random, deprecated aliases)
+    "PIE",  # misc lints
+    "PT",   # pytest style
+    "RET",  # return-path clarity
+    "TID",  # tidy imports
+]
+ignore = [
+    # The engine is full of short mathematical names — dx, dj, r2, si, wj — that read
+    # better than any expansion would. Ambiguous single letters (l, I, O) stay banned
+    # via E741, which is not ignored.
+    "E731",  # lambda assignment; used deliberately in a couple of sort keys
+    "B905",  # zip() strict=; noisy on numpy zips where lengths are structurally equal
+    "RET504", # named return values often document what is being returned
+    "SIM108", # ternary-instead-of-if; frequently less readable for numeric branches
+    # Docstrings here are prose and deliberately use typographic characters — em
+    # dashes, multiplication signs, >=. Flagging them as "ambiguous unicode" would
+    # mean writing worse documentation to satisfy a lint for source identifiers.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests deliberately reach into internals and use magic numbers as fixtures.
+"tests/*" = ["E501"]
+# The constants module is a wall of documented literals; import order there is
+# semantic (grouped by subsystem) rather than alphabetical.
+"src/shadowcast/constants.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["shadowcast"]
+
+[tool.ruff.format]
+docstring-code-format = true

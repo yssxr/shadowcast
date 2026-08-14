@@ -59,7 +59,7 @@ def test_mask_range():
     assert bs.mask_range(63, 64) == np.uint64(1) << np.uint64(63)
     assert bs.mask_range(8, 16) == np.uint64(0xFF00)
     for bad in [(0, 0), (5, 5), (-1, 4), (0, 65), (10, 9)]:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="out of bounds"):
             bs.mask_range(*bad)
 
 

@@ -25,13 +25,15 @@ import numpy as np
 from numba import njit
 
 __all__ = [
-    "STEP_COST",
     "DIAG_COST",
+    "STEP_COST",
     "UNREACHABLE",
     "astar",
-    "geodesic_field",
+    "chord_walkable",
     "field_to_units",
+    "geodesic_field",
     "nearest_walkable",
+    "simplify_path",
 ]
 
 STEP_COST = 70
@@ -252,6 +254,74 @@ def astar(walkable: np.ndarray, start: int, goal: int) -> np.ndarray:
         if not walkable[k // w, k % w]:
             raise ValueError(f"{name} cell {k} is not walkable")
     return _astar(walkable, int(start), int(goal))
+
+
+@njit(cache=True)
+def chord_walkable(walkable: np.ndarray, j0: int, i0: int, j1: int, i1: int) -> bool:
+    """Is the straight line between two cell centres entirely on walkable ground?
+
+    Sampled at 0.25-cell steps in cell space. Used to simplify a dense path into the
+    handful of waypoints a real movement order carries, while guaranteeing the
+    resulting chords stay legal — otherwise the simplification would cut wall corners
+    and put the synthetic ground truth somewhere no champion could walk.
+    """
+    h, w = walkable.shape
+    di = i1 - i0
+    dj = j1 - j0
+    length = np.sqrt(float(di * di + dj * dj))
+    if length == 0.0:
+        return walkable[j0, i0]
+    steps = int(length / 0.25) + 1
+    # Sampled from cell CENTRE to cell centre (index + 0.5) and truncated, matching
+    # `geom.grid.world_to_cell` exactly. Using `round(index)` instead is equivalent
+    # everywhere except on exact half-cell ties, where NumPy rounds half-to-even and
+    # truncation rounds half-up — which put roughly 22 synthetic ground-truth
+    # positions per match one cell inside a wall.
+    for s in range(steps + 1):
+        t = s / steps
+        ci = int(i0 + 0.5 + di * t)
+        cj = int(j0 + 0.5 + dj * t)
+        if ci < 0 or ci >= w or cj < 0 or cj >= h or not walkable[cj, ci]:
+            return False
+    return True
+
+
+def simplify_path(walkable: np.ndarray, cells: np.ndarray, max_points: int = 8) -> np.ndarray:
+    """Reduce a dense path to at most `max_points` cells, keeping every chord walkable.
+
+    Greedy: from the current vertex, reach as far ahead as a legal straight chord
+    allows, then repeat. This is what a movement order actually looks like — a client
+    sends a few waypoints, not a cell-by-cell route — and the walkability guarantee is
+    what keeps the shortcut honest.
+
+    If the greedy pass still needs more than `max_points`, the path is returned
+    subsampled to that budget rather than silently dropping the destination; callers
+    that care about exactness should raise the budget.
+    """
+    walkable = np.ascontiguousarray(walkable, dtype=np.bool_)
+    w = walkable.shape[1]
+    if cells.size <= 2:
+        return cells.copy()
+
+    js, is_ = np.divmod(cells, w)
+    keep = [0]
+    cursor = 0
+    n = len(cells)
+    while cursor < n - 1:
+        best = cursor + 1
+        # Binary search would assume monotone visibility, which corners violate.
+        for cand in range(n - 1, cursor, -1):
+            if chord_walkable(walkable, js[cursor], is_[cursor], js[cand], is_[cand]):
+                best = cand
+                break
+        keep.append(best)
+        cursor = best
+    out = cells[np.array(keep, dtype=np.int64)]
+
+    if out.size > max_points:
+        idx = np.unique(np.linspace(0, out.size - 1, max_points).astype(np.int64))
+        out = out[idx]
+    return out
 
 
 def field_to_units(field: np.ndarray, cell_size: float) -> np.ndarray:

@@ -113,17 +113,32 @@ def test_walkable_fraction_is_stable(navgrid):
 # Error handling
 # ---------------------------------------------------------------------------
 def _header_bytes(**over) -> bytes:
-    vals = dict(
-        major=7, minor=1, min_x=0.0, min_y=0.0, min_z=0.0,
-        max_x=14750.0, max_y=0.0, max_z=14800.0,
-        cell_size=50.0, cells_x=295, cells_z=296,
-    )
+    vals = {
+        "major": 7,
+        "minor": 1,
+        "min_x": 0.0,
+        "min_y": 0.0,
+        "min_z": 0.0,
+        "max_x": 14750.0,
+        "max_y": 0.0,
+        "max_z": 14800.0,
+        "cell_size": 50.0,
+        "cells_x": 295,
+        "cells_z": 296,
+    }
     vals.update(over)
     return struct.Struct("<BH3f3ffII").pack(
-        vals["major"], vals["minor"],
-        vals["min_x"], vals["min_y"], vals["min_z"],
-        vals["max_x"], vals["max_y"], vals["max_z"],
-        vals["cell_size"], vals["cells_x"], vals["cells_z"],
+        vals["major"],
+        vals["minor"],
+        vals["min_x"],
+        vals["min_y"],
+        vals["min_z"],
+        vals["max_x"],
+        vals["max_y"],
+        vals["max_z"],
+        vals["cell_size"],
+        vals["cells_x"],
+        vals["cells_z"],
     )
 
 

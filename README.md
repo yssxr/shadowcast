@@ -132,8 +132,20 @@ uv run shadowcast pipeline data/synth/m0001
 cd web && npm install && npm run dev
 ```
 
-`uv run pytest` runs the test suite. `uv run shadowcast doctor` reports versions, config hashes,
-and whether any derived artifact is stale relative to its inputs.
+## Development
+
+```bash
+uv sync                      # includes dev tools
+uv run pytest                # full suite, ~4s warm (slow oracles included)
+uv run ruff check --fix .     # lint
+uv run ruff format .          # format
+uv run pre-commit install    # optional: lint + format on commit
+uv run shadowcast doctor     # versions, config hashes, stale artifacts
+```
+
+CI runs lint, format-check and the full test suite. It fetches the navgrid and verifies its
+SHA-256, because without that file the terrain and FOV tests skip cleanly — which would mean CI
+passing while never exercising the radius-monotonicity check the whole table design rests on.
 
 ## Validation
 

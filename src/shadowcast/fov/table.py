@@ -46,11 +46,11 @@ from shadowcast.geom.grid import radius_cells_sq
 from shadowcast.terrain.terrain import Terrain
 
 __all__ = [
+    "MISS",
+    "STAGE_VERSION",
     "FovTable",
     "build_table",
     "load_table",
-    "MISS",
-    "STAGE_VERSION",
     "row_words_for",
 ]
 
@@ -311,13 +311,9 @@ def load_table(
     src = Path(table_dir) if table_dir else fov_table_dir(grid, terrain.spec)
     meta_path = src / "meta.json"
     if not meta_path.exists():
-        raise FileNotFoundError(
-            f"no FOV table at {src}. Build it with `shadowcast fov build`."
-        )
+        raise FileNotFoundError(f"no FOV table at {src}. Build it with `shadowcast fov build`.")
     header = StageHeader.from_dict(json.loads(meta_path.read_text()))
-    header.validate_against(
-        config_hash=grid.content_hash, input_hash=terrain.spec.content_hash
-    )
+    header.validate_against(config_hash=grid.content_hash, input_hash=terrain.spec.content_hash)
     if header.stage_version != STAGE_VERSION:
         raise StaleArtifactError(
             f"table at {src} is stage version {header.stage_version}, "

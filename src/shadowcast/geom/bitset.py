@@ -33,15 +33,15 @@ from numba import njit
 
 __all__ = [
     "WORD_BITS",
-    "words_for",
-    "pack_rows",
-    "unpack_rows",
     "bit_get",
     "bit_set",
+    "mask_range",
     "or_row_into",
     "or_row_into_ref",
+    "pack_rows",
     "popcount",
-    "mask_range",
+    "unpack_rows",
+    "words_for",
 ]
 
 WORD_BITS = 64

@@ -38,7 +38,7 @@ import numpy as np
 
 from shadowcast import constants as C
 
-__all__ = ["NavGrid", "read_navgrid", "NavGridFormatError"]
+__all__ = ["NavGrid", "NavGridFormatError", "read_navgrid"]
 
 _HEADER_STRUCT = struct.Struct("<BH3f3ffII")
 _HEADER_SIZE = _HEADER_STRUCT.size  # 39

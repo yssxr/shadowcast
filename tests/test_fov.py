@@ -221,14 +221,28 @@ def test_radius_monotonicity_is_exact(terrain):
 
         at_max.fill(False)
         fov_into(
-            at_max, terrain.blocks_vision, terrain.brush_id, i, j, src_brush,
-            radius_cells_sq(C.RMAX_UNITS), half, scratch,
+            at_max,
+            terrain.blocks_vision,
+            terrain.brush_id,
+            i,
+            j,
+            src_brush,
+            radius_cells_sq(C.RMAX_UNITS),
+            half,
+            scratch,
         )
         for r in GAME_RADII:
             at_r.fill(False)
             fov_into(
-                at_r, terrain.blocks_vision, terrain.brush_id, i, j, src_brush,
-                radius_cells_sq(r), half, scratch,
+                at_r,
+                terrain.blocks_vision,
+                terrain.brush_id,
+                i,
+                j,
+                src_brush,
+                radius_cells_sq(r),
+                half,
+                scratch,
             )
             if not np.array_equal(at_r, at_max & discs[r]):
                 mismatches += 1
@@ -263,14 +277,28 @@ def test_radius_monotonicity_holds_through_brush(terrain):
         assert src_brush >= 0
         at_max.fill(False)
         fov_into(
-            at_max, terrain.blocks_vision, terrain.brush_id, i, j, src_brush,
-            radius_cells_sq(C.RMAX_UNITS), half, scratch,
+            at_max,
+            terrain.blocks_vision,
+            terrain.brush_id,
+            i,
+            j,
+            src_brush,
+            radius_cells_sq(C.RMAX_UNITS),
+            half,
+            scratch,
         )
         for r in (C.SIGHT_WARD_TOTEM, C.SIGHT_CHAMPION):
             at_r.fill(False)
             fov_into(
-                at_r, terrain.blocks_vision, terrain.brush_id, i, j, src_brush,
-                radius_cells_sq(r), half, scratch,
+                at_r,
+                terrain.blocks_vision,
+                terrain.brush_id,
+                i,
+                j,
+                src_brush,
+                radius_cells_sq(r),
+                half,
+                scratch,
             )
             np.testing.assert_array_equal(at_r, at_max & disc_mask(r, window=window))
 
@@ -299,8 +327,15 @@ def test_scan_stack_headroom(terrain):
         worst = max(
             worst,
             fov_into(
-                out, terrain.blocks_vision, terrain.brush_id, i, j,
-                int(terrain.brush_id[j, i]), r2, half, scratch,
+                out,
+                terrain.blocks_vision,
+                terrain.brush_id,
+                i,
+                j,
+                int(terrain.brush_id[j, i]),
+                r2,
+                half,
+                scratch,
             ),
         )
     assert worst < scratch.shape[0] // 4, f"stack high-water mark {worst} is close to capacity"

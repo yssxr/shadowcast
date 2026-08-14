@@ -27,7 +27,7 @@ from shadowcast import constants as C
 from shadowcast.config import GridSpec, StageHeader, TerrainSpec, file_hash
 from shadowcast.terrain.navgrid import NavGrid, read_navgrid
 
-__all__ = ["Terrain", "build_terrain", "NO_BRUSH"]
+__all__ = ["NO_BRUSH", "Terrain", "build_terrain"]
 
 STAGE = "terrain"
 STAGE_VERSION = 1
@@ -154,10 +154,16 @@ def _navgrid_indices(grid_spec: GridSpec, ng: NavGrid) -> tuple[np.ndarray, np.n
     """
     cs = grid_spec.cell_size
     centres = (np.arange(grid_spec.grid, dtype=np.float64) + 0.5) * cs
-    gx = np.clip(((centres + grid_spec.world_min_x - ng.min_x) / ng.cell_size).astype(np.int32),
-                 0, ng.cells_x - 1)
-    gz = np.clip(((centres + grid_spec.world_min_z - ng.min_z) / ng.cell_size).astype(np.int32),
-                 0, ng.cells_z - 1)
+    gx = np.clip(
+        ((centres + grid_spec.world_min_x - ng.min_x) / ng.cell_size).astype(np.int32),
+        0,
+        ng.cells_x - 1,
+    )
+    gz = np.clip(
+        ((centres + grid_spec.world_min_z - ng.min_z) / ng.cell_size).astype(np.int32),
+        0,
+        ng.cells_z - 1,
+    )
     return gx, gz
 
 
@@ -221,8 +227,9 @@ def build_terrain(
     src_hash = file_hash(navgrid_path)
     # The navgrid's own bytes are part of the terrain's identity, so a different
     # dump produces a different hash and orphans every artifact built from it.
-    resolved = dataclasses.replace(spec if spec is not None else TerrainSpec(),
-                                   navgrid_hash=src_hash)
+    resolved = dataclasses.replace(
+        spec if spec is not None else TerrainSpec(), navgrid_hash=src_hash
+    )
 
     gx, gz = _navgrid_indices(grid, ng)
     # Outer product of the two index vectors: row j takes navgrid row gz[j],

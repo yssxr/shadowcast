@@ -1,0 +1,27 @@
+# Enable with: uv run pre-commit install
+#
+# Deliberately does NOT run the test suite. Numba's cold-cache JIT plus the FOV
+# table build makes a full run tens of seconds, which is the wrong thing to put in
+# front of every commit — CI covers it. These hooks are the ones that are fast
+# enough to never be worth skipping.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.3
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      # The FOV table is 286 MB and the navgrid 9.4 MB. Both are derived or
+      # downloaded, both are gitignored, and both would be easy to commit by
+      # accident with a stray `git add -f`.
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: check-merge-conflict

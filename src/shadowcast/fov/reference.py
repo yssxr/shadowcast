@@ -28,7 +28,7 @@ from numba import njit
 from shadowcast.constants import RMAX_CELLS
 from shadowcast.terrain.terrain import Terrain
 
-__all__ = ["fov_reference", "fov_reference_into", "boundary_band"]
+__all__ = ["boundary_band", "fov_reference", "fov_reference_into"]
 
 #: Ray sampling step, in cells. 0.1 cell is 2.9 world units — far finer than the
 #: 50-unit resolution of the source terrain, so the march cannot tunnel through a

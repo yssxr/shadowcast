@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from shadowcast import constants as C
-from shadowcast.config import GridSpec, StaleArtifactError, TerrainSpec
+from shadowcast.config import GridSpec, StaleArtifactError
 from shadowcast.fov.shadowcast import fov_bool
 from shadowcast.fov.table import MISS, build_table, load_table, row_words_for
 from shadowcast.fov.union import (
@@ -104,7 +104,9 @@ def test_lookup_misses_for_vision_blocking_cells(table, terrain):
     Walls are excluded from the table, and the live fallback is what makes that safe
     — wall-hop dashes and over-wall Farsight wards put real sources there.
     """
-    j, i = np.unravel_index(int(np.flatnonzero(~terrain.walkable.ravel())[0]), terrain.walkable.shape)
+    j, i = np.unravel_index(
+        int(np.flatnonzero(~terrain.walkable.ravel())[0]), terrain.walkable.shape
+    )
     assert table.lookup(int(j) * terrain.grid + int(i), -1, -1) == MISS
 
 
@@ -194,9 +196,14 @@ def test_round_trip_through_disk(terrain, table, table_dir):
 # ---------------------------------------------------------------------------
 def _sources(table, terrain, rng, n, positions=None):
     rows, oi, oj, ri = [], [], [], []
-    coords = positions if positions is not None else [
-        divmod(int(k), terrain.grid) for k in rng.choice(terrain.walkable_cells(), size=n, replace=False)
-    ]
+    coords = (
+        positions
+        if positions is not None
+        else [
+            divmod(int(k), terrain.grid)
+            for k in rng.choice(terrain.walkable_cells(), size=n, replace=False)
+        ]
+    )
     for j, i in coords:
         if not (0 <= i < terrain.grid and 0 <= j < terrain.grid) or not terrain.walkable[j, i]:
             continue
@@ -301,9 +308,7 @@ def test_assemble_equals_a_direct_field_of_view_union(table, terrain):
         x0, y0 = i - table.half, j - table.half
         sj_lo, sj_hi = max(0, -y0), min(table.window, terrain.grid - y0)
         si_lo, si_hi = max(0, -x0), min(table.window, terrain.grid - x0)
-        want[y0 + sj_lo : y0 + sj_hi, x0 + si_lo : x0 + si_hi] |= win[
-            sj_lo:sj_hi, si_lo:si_hi
-        ]
+        want[y0 + sj_lo : y0 + sj_hi, x0 + si_lo : x0 + si_hi] |= win[sj_lo:sj_hi, si_lo:si_hi]
     np.testing.assert_array_equal(got, want)
 
 
