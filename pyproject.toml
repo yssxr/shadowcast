@@ -1,0 +1,54 @@
+[project]
+name = "shadowcast"
+version = "0.1.0"
+description = "Reconstructing what League of Legends teams could actually see, from packet-level decoded replays."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Yasser" }]
+
+# Numba lags NumPy by a release or two and pins numpy<=X. Let the resolver take
+# numba first and derive numpy from it; the explicit upper bound is a tripwire so
+# a future `uv lock --upgrade` cannot silently pull a numpy numba refuses to load.
+dependencies = [
+    "numba>=0.61",
+    "numpy>=1.26,<3",
+    "typer>=0.12",
+    "pillow>=10.2",
+]
+
+[project.optional-dependencies]
+# L1 onwards: columnar store + query layer. Not needed to build terrain or FOV.
+store = [
+    "polars>=1.0",
+    "pyarrow>=16.0",
+    "duckdb>=1.0",
+]
+# L0: pulling shards from HuggingFace.
+acquire = [
+    "huggingface-hub>=0.24",
+]
+
+[project.scripts]
+shadowcast = "shadowcast.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shadowcast"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Numba's first-call JIT makes a cold test run slow and noisy; -q keeps it readable.
+addopts = "-q --strict-markers"
+markers = [
+    "slow: exhaustive oracles and precomputes; deselect with -m 'not slow'",
+]

@@ -1,0 +1,27 @@
+# Derived data. Everything under data/ is reproducible from a command in the README.
+data/
+
+# The FOV table in particular: ~160 MB, keyed by the terrain hash, rebuilt in ~5s.
+# Committing it would guarantee someone eventually runs a stale table against new
+# terrain, which produces plausible-but-wrong masks and never crashes.
+*.aimesh_ngrid
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+web/dist/
+web/.vite/
+
+# Generated artifacts served to the frontend
+web/public/matches/
+web/public/terrain/
+
+# macOS
+.DS_Store
