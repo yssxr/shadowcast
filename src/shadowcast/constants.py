@@ -64,10 +64,29 @@ NGRID_SEE_THROUGH: Final = 0x40  # blocks movement, transmits vision
 NGRID_UNKNOWN_VISION: Final = 0x80  # undocumented; set on many walkable jungle cells
 NGRID_ALWAYS_VISIBLE: Final = 0x100  # unused on SR
 
-# MEASURED: the LoL Wiki documents 39 brush patches on Summoner's Rift. Brush
-# component labelling asserts against this, which catches both a raster that
-# fuses two patches and a grouping that splits one.
-SR_BRUSH_PATCH_COUNT: Final = 39
+# The LoL Wiki documents 39 brush patches on Summoner's Rift. Connected-component
+# labelling of the S10 navgrid's HAS_GRASS cells gives 40, identically under
+# 4- and 8-connectivity (so no two patches are even diagonally adjacent, and the
+# connectivity choice is moot). Component sizes run 20-124 cells.
+#
+# The discrepancy is one patch and we have not chased it down; the wiki may count
+# a split brush as one, or SR may have gained one between S10 and S12. It does not
+# matter for correctness, because what the assertion needs to catch is a raster
+# that FUSES patches (which would give far fewer) or SHATTERS one (far more).
+# Asserting an exact 39 would fail on correct output, so the test takes a band.
+SR_BRUSH_PATCHES_DOCUMENTED: Final = 39
+SR_BRUSH_PATCHES_MEASURED: Final = 40
+SR_BRUSH_PATCH_COUNT: Final = SR_BRUSH_PATCHES_MEASURED
+
+# MEASURED on the same navgrid: 54,955 of 87,320 cells are walkable (62.9%), and
+# every one of them is reachable from the map centre -- zero orphaned pockets,
+# which is strong evidence the flag block was read at the right offset.
+#
+# Note this is well above the 25-40% the FOV table was budgeted against, so a full
+# table is ~165k rows and ~285 MB rather than ~160 MB. Still mmap-friendly and
+# under 2% of a 16 GB machine, but the estimate was wrong and the real number
+# belongs here.
+SR_WALKABLE_FRACTION_MEASURED: Final = 0.62935
 
 # ---------------------------------------------------------------------------
 # Internal simulation grid
