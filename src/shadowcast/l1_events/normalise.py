@@ -36,6 +36,7 @@ from shadowcast.l1_events.schema import (
     ANCHOR,
     ANCHOR_ATTACK,
     ANCHOR_CAST,
+    DAMAGE_EVENT,
     DEATH,
     FOG_EVENT,
     HERO,
@@ -362,6 +363,28 @@ def _wards(bundle: PacketBundle, slots: dict[int, int], times: np.ndarray) -> np
     return out
 
 
+def _damage(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
+    """Champion-on-champion damage only.
+
+    Damage to and from minions, turrets and monsters is the overwhelming majority of the
+    stream and none of it can kill a champion, so filtering here keeps the kill
+    inference from having to search past it.
+    """
+    arr = bundle.damage
+    rows: list[tuple[float, int, int, float]] = []
+    for row in arr:
+        src = slots.get(int(row["source_net_id"]))
+        tgt = slots.get(int(row["target_net_id"]))
+        if src is None or tgt is None:
+            continue
+        rows.append((float(row["t"]), src, tgt, float(row["damage"])))
+    out = np.empty(len(rows), dtype=DAMAGE_EVENT)
+    for n, r in enumerate(rows):
+        out[n] = r
+    out.sort(order=["t"], kind="stable")
+    return out
+
+
 def _anchors(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
     """Labelled champion positions, from spell casts and basic attacks."""
     rows: list[tuple[float, int, float, float, int]] = []
@@ -471,6 +494,7 @@ def normalise(
         fog=_dedupe_fog(bundle, slots),
         speed=_replication(bundle, slots, C.ATTR_MOVE_SPEED),
         hp=_replication(bundle, slots, C.ATTR_HP),
+        damage=_damage(bundle, slots),
         deaths=np.empty(0, dtype=DEATH),
         stats={
             "fog_rows_in": int(bundle.fog.size),

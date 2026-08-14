@@ -30,6 +30,7 @@ __all__ = [
     "ANCHOR",
     "ANCHOR_ATTACK",
     "ANCHOR_CAST",
+    "DAMAGE_EVENT",
     "DEATH",
     "FOG_EVENT",
     "HERO",
@@ -105,6 +106,11 @@ WARD_EVENT = np.dtype(
 #: A replicated scalar for a champion — movement speed, health.
 REPL_VALUE = np.dtype([("t", "f8"), ("slot", "i1"), ("value", "f8")])
 
+#: Champion-on-champion damage. The corpus has no killing-blow flag and no death
+#: packet, so a kill is a health value reaching zero and its killer is whoever dealt
+#: damage just before. This table is the only evidence for the second half of that.
+DAMAGE_EVENT = np.dtype([("t", "f8"), ("source", "i1"), ("target", "i1"), ("amount", "f4")])
+
 #: An inferred champion death. There is no death packet in the corpus, so both the
 #: victim and the killer are inferences and both carry a confidence.
 DEATH = np.dtype(
@@ -163,6 +169,7 @@ class MatchEvents:
     fog: np.ndarray
     speed: np.ndarray
     hp: np.ndarray
+    damage: np.ndarray
     deaths: np.ndarray
     stats: dict[str, Any] = field(default_factory=dict)
 
@@ -177,6 +184,10 @@ class MatchEvents:
 
     def team_of(self, slot: int) -> int:
         return int(self.heroes["team"][slot])
+
+    @property
+    def deaths_resolved(self) -> bool:
+        return bool(self.deaths.size > 0)
 
     @property
     def teams_resolved(self) -> bool:
@@ -233,6 +244,7 @@ class MatchEvents:
         "fog",
         "speed",
         "hp",
+        "damage",
         "deaths",
     )
 

@@ -38,16 +38,73 @@ compound. The number gets published whatever it is.
 
 ## Trajectory and attribution
 
-Movement orders carry no entity attribution, so champion paths are recovered by data association.
-The residual — the distance between a champion's predicted position and the first waypoint of the
-order assigned to it — is both the association cost and the validator.
+Movement orders carry no entity id, so champion paths are recovered by data association against
+the labelled positions in `CastSpellAns` and `BasicAttackPos`. Measured on synthetic matches
+against known ownership, with the frame offset held exact so calibration error does not leak in.
 
-| | Value |
+| | Clean stream | All pathologies |
+|---|---|---|
+| Orders attributed | 99.9% | 99.97% |
+| Raw attribution accuracy | 97.0% | 96.9% |
+| **Harmful misattribution** (owners ≥300u apart) | **0.15%** | **0.00%** |
+| Median separation of true vs assigned owner | 0 u | 0 u |
+| Accuracy at margin ≥100u (92% of orders) | 99.70% | 99.71% |
+| Accuracy at margin ≥300u (85% of orders) | 99.94% | 100.00% |
+| Trajectory error, median | 0.0003 u | 2.6 u |
+| Trajectory error, p99 | 419 u | 380 u |
+| Ticks with a position estimate | 98.6% | 98.9% |
+
+### Why raw accuracy is the wrong headline
+
+97% sounds mediocre and misrepresents the result. A misattributed order's true and assigned
+owners sit a **median of zero units apart** — the assignment is arbitrary precisely when it makes
+no difference to any position, because for the first ten seconds of a match five champions per
+team stand on the same fountain (measured nearest-same-team separation: 0 units at t=2s, 6 units
+at t=10s). No position-based method can separate them there, and nothing downstream cares.
+
+`order_margin` — the cost gap to the runner-up champion — separates the two cases using no ground
+truth at all, which is what lets later layers discount uncertain positions rather than trusting
+every attribution equally.
+
+### Two ideas that were wrong
+
+Both seemed clearly right, both measurably hurt, both are kept as ablatable knobs with a test
+asserting they still hurt:
+
+| Idea | Result |
 |---|---|
-| Residual, median / p99 | — |
-| Identity switch rate | — |
-| Position error at held-out anchors | — |
-| Error by champion mobility class | — |
+| Direction term (order heading vs champion heading) | −6.7 points of accuracy on the adversarial stream; worst trajectory error 855 u → 8,371 u |
+| Iterating assignment against the integrated trajectory | Accuracy flat across 1–4 rounds; p99 error 419 u → 691 u |
+
+### Frame calibration bounds everything
+
+The map-centred waypoint frame is recovered by maximising the fraction of waypoints landing on
+walkable ground: offset found to within half a cell, scoring 1.000 against 0.966 at the naive
+7500 guess. The method **cannot** resolve finer than one cell — offsets differing by less than a
+cell width assign every waypoint to the same cell and score identically — and the measured plateau
+is 28.0 u against a 28.8 u cell, which is that limit rather than weak signal.
+
+That propagates exactly: a 2.5 u offset error produces a 3.54 u median trajectory residual, which
+is √2 × 2.5. **No trajectory claim can be tighter than the calibration.**
+
+## Entity resolution
+
+Team, role and death are all absent from the corpus. Each is inferred, and each is measured.
+
+| | Result |
+|---|---|
+| Teams recovered (turret names + 5/5 constraint) | **100%** |
+| Roles recovered (lane occupancy + observed ward ownership) | **100%** |
+| Deaths detected (health reaching zero) | **5 / 5** |
+| Killers attributed (last damager before death) | **5 / 5** |
+| Mean killer confidence | 0.74 |
+| Respawns observed rather than computed | 5 / 5, within 0.6–2.1 s |
+
+Caveats the synthetic scenario makes easier than reality will be, stated so the numbers are not
+over-read: champions here sit at their fountain until their first anchor, so the nearest-shrine
+team signal is unusually clean — a test deliberately destroys one champion's evidence to confirm
+the 5/5 constraint carries it. Ward-share separation of support from carry is a clean split here;
+real supports and carries will overlap more.
 
 ## Belief calibration
 

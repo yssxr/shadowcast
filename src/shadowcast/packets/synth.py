@@ -658,10 +658,27 @@ class SyntheticSource:
             # Kills: damage in the second before, then health to zero.
             for kt, killer, victim in kill_script:
                 if abs(t - kt) < dt / 2:
+                    # Several damagers, not one. A real kill is contested, and the
+                    # killer inference reports its confidence as the last damager's
+                    # share of the window — a figure that stays pinned at 1.0 and
+                    # therefore untested if only one champion ever deals damage.
+                    assist = (killer + 1) % n_champs
+                    if team[assist] == team[victim]:
+                        assist = (killer + 2) % n_champs
                     for n in range(6):
+                        source = killer if n % 2 == 0 else assist
                         rows_damage.append(
-                            (kt - 1.0 + n * 0.15, int(net_ids[killer]), int(net_ids[victim]), 180.0)
+                            (
+                                kt - 1.0 + n * 0.15,
+                                int(net_ids[source]),
+                                int(net_ids[victim]),
+                                180.0 if source == killer else 90.0,
+                            )
                         )
+                    # The killing blow is the killer's, immediately before death.
+                    rows_damage.append(
+                        (kt - 0.02, int(net_ids[killer]), int(net_ids[victim]), 220.0)
+                    )
                     rows_repl.append((kt, int(net_ids[victim]), 32, 0, "mHP", 0.0, 1))
                     alive[tick, victim] = 0
                     respawn_at[victim] = respawn_lookup[kt]
