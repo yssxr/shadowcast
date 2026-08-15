@@ -447,3 +447,28 @@ def test_transitions_are_matched_one_to_one_within_a_window():
     # Nothing at all on one side is reported as unmatched, not as a perfect score.
     assert _match_transitions(np.array([5]), np.array([]), dt, 1.0) == ([], 1, 0)
     assert _match_transitions(np.array([]), np.array([5]), dt, 1.0) == ([], 0, 1)
+
+
+def test_blame_attributes_false_positives_to_a_source_class(pipeline, terrain):
+    """Every false positive must be explained by something, or the accounting is wrong.
+
+    The `sole` column is the one that matters — how often a class was the *only* thing
+    covering the cell — because that is the subset a fix to that class would move. On real
+    packets no class exceeds 17.2% and 54% of false positives are over-determined, which is
+    what ruled out "one source is modelled too generously" as the explanation.
+    """
+    from shadowcast.validate.blame import SOURCE_CLASSES, blame_false_positives
+
+    events, _, at, _, _, table = pipeline
+    report = blame_false_positives(events, at, terrain, table, stride=8)
+    d = report.describe()
+
+    assert set(d["covered"]) == set(SOURCE_CLASSES)
+    assert set(d["sole"]) == set(SOURCE_CLASSES)
+    if report.false_positives:
+        # Sole causes are a partition of a subset, so they cannot exceed the whole.
+        assert sum(d["sole"].values()) <= 1.0 + 1e-9
+        for name in SOURCE_CLASSES:
+            assert d["sole"][name] <= d["covered"][name] + 1e-9
+        # Nothing is unexplained: a covered cell with no base source is a reveal.
+        assert sum(d["covered"].values()) > 0.0

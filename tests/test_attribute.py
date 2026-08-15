@@ -345,3 +345,69 @@ def test_handles_a_match_with_no_orders(synth_clean, terrain):
     assert at.attributed_fraction == 0.0
     # Anchors alone still pin positions, so the trajectory is not empty.
     assert at.valid.any()
+
+
+# ---------------------------------------------------------------------------
+# The trajectory must not teleport
+# ---------------------------------------------------------------------------
+def test_a_track_joins_an_implausible_order_without_teleporting():
+    """A champion cannot be 2,700 units from where it was a moment ago.
+
+    `waypoints[0]` is authoritative for where the entity was — that is what makes
+    attribution work at all — so the track snaps to it. On synthetic data that snap is the
+    12-unit jitter the generator injects. On real data the order residual is 219 units at
+    the median and **2,681 at p99**, and a snap that size means the order belongs to
+    somebody else; taking it moves this champion on top of another one.
+
+    MEASURED before this gate: 15.9% of real ticks moved more than 200 units in a 125 ms
+    step — 1,600 u/s against a champion's 350 — with p99 at 16,447 u/s, and 94.1% of those
+    jumps landed exactly on an attributed order. Synthetic *truth* never exceeds 200 units
+    in a tick, not once.
+
+    Rejecting the order outright would leave the champion on a stale path, so the route is
+    adopted and the position is not: progress starts at the point of the polyline nearest
+    the current estimate.
+    """
+    from shadowcast.l1_events.resolve.attribute import _Track
+
+    track = _Track(speed=350.0)
+    track.set_order(np.array([[0.0, 0.0], [1000.0, 0.0]]))
+    assert track.pos.tolist() == [0.0, 0.0]
+
+    # A modest correction is taken as a fix: this is the normal case.
+    assert track.set_order(np.array([[50.0, 0.0], [900.0, 0.0]]), max_snap=1200.0)
+    assert track.pos.tolist() == [50.0, 0.0]
+
+    # A 5,000-unit disagreement is not a movement. The path is taken, the position is not.
+    before = track.pos.copy()
+    assert not track.set_order(np.array([[5000.0, 0.0], [6000.0, 0.0]]), max_snap=1200.0)
+    np.testing.assert_allclose(track.pos, before)
+    # And it is now on that path, so advancing walks toward it rather than standing still.
+    track.advance(1.0)
+    assert track.pos[0] > before[0]
+
+
+def test_nearest_arclength_projects_onto_segments_not_vertices():
+    """Order polylines are simplified, so their vertices can be far apart.
+
+    Snapping to the nearest *vertex* would put a champion at the end of a long segment it
+    is standing in the middle of.
+    """
+    from shadowcast.l1_events.resolve.attribute import _nearest_arclength
+
+    poly = np.array([[0.0, 0.0], [1000.0, 0.0]])
+    cum = np.array([0.0, 1000.0])
+    assert _nearest_arclength(poly, cum, np.array([400.0, 50.0])) == pytest.approx(400.0)
+    # Clamped at both ends rather than extrapolated.
+    assert _nearest_arclength(poly, cum, np.array([-500.0, 0.0])) == pytest.approx(0.0)
+    assert _nearest_arclength(poly, cum, np.array([9000.0, 0.0])) == pytest.approx(1000.0)
+    # A degenerate one-point order has no arclength to be at.
+    assert _nearest_arclength(np.zeros((1, 2)), np.zeros(1), np.array([9.0, 9.0])) == 0.0
+
+
+def test_real_trajectories_are_reported_with_their_jump_rate(run_clean):
+    """The integrator counts what it refused, so the rate is visible rather than implied."""
+    _, _, at, _ = run_clean
+    assert "rejected_orders" in at.stats
+    # A clean synthetic stream should barely trigger it: its order starts are accurate.
+    assert at.stats["rejected_orders"] / max(1, at.owner.size) < 0.02

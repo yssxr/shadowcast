@@ -505,6 +505,12 @@ WARD_CORPSE_UNIT: Final = ("WardCorpse", "S5Test_WardCorpse")
 FRONT_MIN_S: Final = 0.15
 FRONT_MAX_S: Final = 0.85
 
+#: The furthest a champion can move in a single instant without a teleport, in units.
+#: Flash is 400 at patch 12.22 and the longest champion dashes are about 1,000, so a
+#: position disagreement beyond this is not a movement — it is a misattributed order or a
+#: drifted estimate. Used to gate the trajectory integrator against teleporting.
+MAX_INSTANT_DISPLACEMENT: Final = 1200.0
+
 MINION_NAME_TOKENS: Final = ("Minion", "Melee", "Ranged", "Siege", "Super")
 MINION_SIGHT: Final = SIGHT_MINION
 

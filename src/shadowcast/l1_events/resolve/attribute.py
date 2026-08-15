@@ -126,6 +126,14 @@ class AttributionSpec:
     #: An anchor further than this from the integrated position is counted as evidence
     #: that a recent assignment was wrong. It still resets the estimate.
     suspect_anchor_error: float = 400.0
+    #: How far an order's opening waypoint may sit from the integrated position before the
+    #: order is rejected rather than snapped to. CHOSEN on physical grounds, not fitted: at
+    #: patch 12.22 Flash moves 400 units and the longest champion dashes about 1,000, so a
+    #: disagreement beyond this cannot be a real movement. It is either a misattributed
+    #: order — in which case snapping puts this champion on top of another one — or our own
+    #: drift, which the next labelled anchor corrects properly. Anchors are NOT gated: they
+    #: carry a net_id, so they cannot be misattributed and are the better evidence.
+    max_order_snap: float = C.MAX_INSTANT_DISPLACEMENT
     default_speed: float = C.MOVE_SPEED_DEFAULT
 
 
@@ -287,6 +295,26 @@ class _TrajectoryEstimate:
 # ---------------------------------------------------------------------------
 # Pass C: integration
 # ---------------------------------------------------------------------------
+def _nearest_arclength(poly: np.ndarray, cum: np.ndarray, point: np.ndarray) -> float:
+    """Arclength along `poly` of the point on it closest to `point`.
+
+    Used to join a champion onto a path without moving it: the route is adopted, the
+    position is not. Segment-wise projection rather than nearest-vertex, because a
+    movement order's polyline is simplified and its vertices can be far apart.
+    """
+    if poly.shape[0] < 2:
+        return 0.0
+    a = poly[:-1]
+    d = poly[1:] - a
+    lengths = np.einsum("ij,ij->i", d, d)
+    lengths[lengths == 0.0] = 1e-12
+    t = np.clip(np.einsum("ij,ij->i", point - a, d) / lengths, 0.0, 1.0)
+    proj = a + d * t[:, None]
+    gap = np.hypot(proj[:, 0] - point[0], proj[:, 1] - point[1])
+    k = int(np.argmin(gap))
+    return float(cum[k] + t[k] * np.sqrt(lengths[k]))
+
+
 class _Track:
     """One champion's integrated position, following its most recent order."""
 
@@ -301,14 +329,47 @@ class _Track:
         self.pos = np.zeros(2)
         self.known = False
 
-    def set_order(self, poly: np.ndarray) -> None:
-        self.poly = poly
+    def set_order(self, poly: np.ndarray, max_snap: float = np.inf) -> bool:
+        """Adopt an order, unless doing so would teleport the champion.
+
+        `waypoints[0]` is authoritative for where the entity was at that instant — that
+        is the whole basis of the attribution — so the track snaps to it. On synthetic
+        data the snap is the 12-unit jitter the generator injects. On real data the order
+        residual is 219 units at the median and **2,681 at p99**, and a champion cannot be
+        2,681 units from where it was a moment ago. Such an order belongs to somebody
+        else, and snapping to it moves this champion onto another one.
+
+        MEASURED before this gate: 15.9% of real ticks moved more than 200 units in a
+        125 ms step — 1,600 u/s against a champion's 350 — with p99 at 16,447 u/s, and
+        **94.1% of those jumps landed exactly on an attributed order**. Synthetic truth
+        never exceeds 200 units in a tick, not once.
+
+        **When the disagreement is too large, the path is still taken but the position is
+        not.** Rejecting the order outright leaves the champion following a stale path;
+        teleporting it onto `poly[0]` is the flicker. So the polyline is adopted and
+        progress is set to the point on it nearest the current estimate — the champion
+        walks the real route from where we believe it is, and the trajectory stays
+        continuous. If the order was genuinely someone else's, the next labelled anchor
+        corrects this within about 1.5 seconds; anchors carry a net_id and cannot be
+        misattributed, which is why they are trusted and this is not.
+
+        Returns whether the opening waypoint was taken as a position fix, so the caller
+        can count how often it was not.
+        """
         seg = np.hypot(*np.diff(poly, axis=0).T) if poly.shape[0] > 1 else np.zeros(0)
-        self.cum = np.concatenate([[0.0], np.cumsum(seg)])
-        self.total = float(self.cum[-1])
-        self.prog = 0.0
-        self.pos = poly[0].copy()
+        cum = np.concatenate([[0.0], np.cumsum(seg)])
+        snapped = not self.known or float(np.hypot(*(poly[0] - self.pos))) <= max_snap
+
+        self.poly = poly
+        self.cum = cum
+        self.total = float(cum[-1])
         self.known = True
+        if snapped:
+            self.prog = 0.0
+            self.pos = poly[0].copy()
+        else:
+            self.prog = _nearest_arclength(poly, cum, self.pos)
+        return snapped
 
     def fix_at(self, x: float, z: float) -> None:
         """Reset to an observed position, discarding the current order.
@@ -488,6 +549,7 @@ def _integrate(
 
     timeline = _merged_timeline(events, hp_zero)
     suspect_anchors = 0
+    rejected_orders = 0
     deaths_seen = 0
     clock = 0.0
     next_tick = 0
@@ -542,8 +604,10 @@ def _integrate(
         for row in group[group["kind"] == _KIND_ORDER]:
             oi = int(row["idx"])
             slot = int(owner[oi])
-            if slot != UNKNOWN:
-                tracks[slot].set_order(events.order_polyline(oi))
+            if slot != UNKNOWN and not tracks[slot].set_order(
+                events.order_polyline(oi), spec.max_order_snap
+            ):
+                rejected_orders += 1
 
         for row in group[group["kind"] == _KIND_DEATH]:
             # A dead champion is not where its last order was heading, and the stream
@@ -555,7 +619,15 @@ def _integrate(
         cursor = end_idx
 
     record_until((n_ticks - 1) * dt)
-    return pos, valid, speed_out, anchor_residual, suspect_anchors, deaths_seen
+    return (
+        pos,
+        valid,
+        speed_out,
+        anchor_residual,
+        suspect_anchors,
+        deaths_seen,
+        rejected_orders,
+    )
 
 
 def attribute(events: MatchEvents, spec: AttributionSpec | None = None) -> Attribution:
@@ -579,7 +651,7 @@ def attribute(events: MatchEvents, spec: AttributionSpec | None = None) -> Attri
     order_margin = np.full(events.orders.size, np.nan)
     assign_stats: dict[str, int] = {}
     pos = valid = speed_out = anchor_residual = None
-    suspect_anchors = deaths_seen = 0
+    suspect_anchors = deaths_seen = rejected_orders = 0
     changed_per_round: list[int] = []
 
     for round_index in range(max(1, spec.iterations)):
@@ -588,15 +660,22 @@ def attribute(events: MatchEvents, spec: AttributionSpec | None = None) -> Attri
             events, estimate, n_slots, spec
         )
         changed_per_round.append(int((owner != previous).sum()))
-        pos, valid, speed_out, anchor_residual, suspect_anchors, deaths_seen = _integrate(
-            events, owner, hp_zero, n_slots, n_ticks, dt, spec
-        )
+        (
+            pos,
+            valid,
+            speed_out,
+            anchor_residual,
+            suspect_anchors,
+            deaths_seen,
+            rejected_orders,
+        ) = _integrate(events, owner, hp_zero, n_slots, n_ticks, dt, spec)
         if round_index + 1 < max(1, spec.iterations):
             estimate = _TrajectoryEstimate(pos=pos, valid=valid, dt=dt)
 
     stats = {
         "unattributed": int((owner == UNKNOWN).sum()),
         "suspect_anchors": suspect_anchors,
+        "rejected_orders": rejected_orders,
         "deaths_seen": deaths_seen,
         "valid_tick_fraction": round(float(valid.mean()), 4),
         "iterations": max(1, spec.iterations),

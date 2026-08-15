@@ -70,12 +70,15 @@ the whole pipeline runs on real matches.
 | | Value |
 |---|---|
 | Conformance errors, real source | **0** across 3 matches |
+| Matches that complete the pipeline | **23 of 23**, none skipped |
 | Labelled anchors per champion | **331–483** (plan predicted 546–1,085) |
 | Frame calibration | 99.71% walkable, well determined |
-| Orders attributed | **92.8%** (99.9% synthetic) |
+| Orders attributed | **91.9% median across 23** (99.9% synthetic) |
 | Order residual, median | **219 u** (0.0003 u synthetic) |
 | Anchor residual, median | **75 u** |
 | Deaths inferred | 11 in a 12-minute match |
+| Lane minions per match | **1,218** median (720–1,842) |
+| Turrets destroyed per match | 1–3, from 11 minutes |
 
 The conformance warnings are all expected: 17 ms of timestamp jitter (one 30 Hz tick),
 references to entities created before the recording began, and the documented fog
@@ -180,7 +183,7 @@ each of that order, and each was measured on one match; they are reported here a
 single-match deltas and should be re-measured across the shard before being leaned on.
 
 **A hypothesis this killed.** The worst match in the first few was also the longest, which
-suggested agreement decays with match length through unmodelled turret destruction — the
+suggested agreement decays with match length through then-unmodelled turret destruction — the
 corpus has no building-death packet, so a dead turret keeps granting vision forever, and
 late matches have more dead turrets. The correlation between agreement and duration is
 **−0.111**: nothing. The longest match in the shard, 25 minutes, scores 70.87%, above the
@@ -255,8 +258,9 @@ merely imprecise and a single agreement percentage hides it.
 **A missing-source floor of 20.0% remains** where positions are near-exact. Down from
 23.9%, but still a fifth of visible moments with nothing modelled in range. Known gaps:
 
-- **Turret destruction is not modelled** — the corpus has no building-death packet — so a
-  dead turret keeps granting vision. That inflates false positives, not negatives.
+- **Turret destruction is now modelled** and was worth nothing — see "Turret destruction:
+  modelled, and worth nothing" below. It was thought unobservable for most of this
+  project's life; it is not.
 - **Neutral monsters grant no vision**, correctly. But the Rift Scuttler's death does, and
   scuttle crabs are present (`Sru_Crab*` in `CreateNeutral`) and unmodelled. This looked
   like the river's problem when river appeared worst on one match; across 23 it is 51.4%
@@ -379,9 +383,11 @@ downstream metric.
 
 Stated here rather than discovered later:
 
-- **Turret destruction is not modelled.** The corpus has no building-death packet — zero hits for
-  `BuildingDie`, `TurretDie` or `ObjectDie` — so a destroyed turret keeps granting vision. This
-  inflates late-game vision for whichever team is losing structures.
+- **Turret destruction was thought unobservable, and is not.** There is no `BuildingDie`,
+  `TurretDie` or `ObjectDie` packet — that much is true, and it is what the earlier version of
+  this line concluded from. But turret net_ids appear as `killed_net_id` in the ordinary
+  `NPCDieMapView` stream, which nothing had checked. Now modelled, and measured at zero effect;
+  the section below records why.
 - **A minion wave is one clump.** A real wave is six units spread over ~400 units; a single
   1,200-unit source at the centre approximates the union rather than reproducing it. Both the
   oracle and the reconstruction use the same model, so on synthetic data this cancels — on real
@@ -740,7 +746,33 @@ Calibration is correspondingly worse — the 90% credible region contains the tr
 of the time against 43.4% on synthetic — and `shadowcast diagnose` returns **mixed**, where
 synthetic returns drift. With inputs this noisy that verdict is what it should be.
 
-## Turret destruction: modelled, and worth nothing
+## Comparing two runs: use the paired difference, not the medians
+
+Every change below is measured across the same 23 matches, so the matches are a paired
+sample and the difference should be tested as one. Comparing medians throws that away and
+is badly underpowered here: between-match spread is **sd 2.8 points** while the effects
+being measured are a tenth of that, so on medians every one of them reads as zero.
+
+| Change | Mean Δ agreement | SE | t | Improved |
+|---|---|---|---|---|
+| Turret destruction | **+0.082%** | 0.022 | **3.69** | 14 / 23 |
+| Path-join instead of snapping | +0.080% | 0.059 | 1.35 | 13 / 23 |
+| Both together | **+0.162%** | 0.060 | **2.71** | 14 / 23 |
+
+Reading them honestly: turret destruction is a **real** improvement and a **negligible**
+one — significant at t = 3.69 and worth eight hundredths of a point. Path-join is not
+distinguishable from zero (t = 1.35) and is kept on physical grounds rather than measured
+ones. Together they move false negatives by −0.161% (t = −3.20, 17 of 23 improved) and
+false positives not at all.
+
+One number in that comparison must **not** be read as an improvement: transition timing
+appears to gain 18.8 points, and that is the metric changing underneath it, not the model
+getting better. The earlier runs used nearest-time matching and the later one uses the
+windowed one-to-one matching described above. Runs either side of a metric change are not
+comparable on that metric, which is exactly the trap this table exists to avoid on the
+others.
+
+## Turret destruction: modelled, and negligible
 
 Recorded as a negative result because the reasoning that motivated it was sound and the
 measurement disagreed.
@@ -754,18 +786,23 @@ A turret sees 1,350 units and never moves, so modelling a dead one as alive is a
 floodlight for exactly the team whose vision should be collapsing. The expected gain was
 large.
 
-| | Median agreement across 23 matches |
+| | Across 23 matches |
 |---|---|
-| Before | 67.99% |
-| After | **67.98%** |
+| Median before | 67.99% |
+| Median after | 67.98% |
+| **Paired mean Δ** | **+0.082%** (SE 0.022, t = 3.69, 14 of 23 improved) |
 
-Nothing. Individual matches move by ±0.3 points and the median does not move at all. Two
-reasons, both visible in the blame analysis below: only one to three turrets fall, late in
-a match, and their vision overlaps other sources so heavily that removing them changes
-almost no cell that some champion, ward or minion did not also cover.
+The median says nothing happened; the paired test says something real and tiny did. The
+paired test is the correct one — the between-match spread is 2.8 points and the effect is
+0.08, so a median comparison cannot resolve it either way.
+
+Two reasons the effect is so small, both visible in the blame analysis below: only one to
+three turrets fall, late in a match, and their vision overlaps other sources so heavily
+that removing one changes almost no cell some champion, ward or minion did not also cover.
+Turrets are the *sole* explanation for just 12.9% of false positives.
 
 It stays in, because it is correct and because the alternative is a known-wrong model kept
-for no reason. But it is not a lever.
+for no reason. But it is not a lever, and it was expected to be one.
 
 ## Which source is to blame for a false positive
 
@@ -798,6 +835,78 @@ Two candidates tested and eliminated:
   the opposite of a broken conditional occluder.
 - **Death is minor.** Dead champions are 5.0% of false positives against 2.5% of correct
   hidden moments, so they are over-represented 2× and still explain at most 5%.
+
+## How much can better positions buy? About ten points, and it saturates
+
+Before spending effort on trajectories it is worth knowing the ceiling. Anchors are
+labelled positions, so conditioning on a *fresh* anchor is the closest thing to
+substituting truth that real data allows.
+
+| Condition | n | Agreement |
+|---|---|---|
+| Everything | 42,645 | 68.8% |
+| Some observer anchored within 1 s | 33,848 | 70.2% |
+| Target anchored within 0.5 s | 7,364 | 77.6% |
+| Both | 5,883 | **78.2%** |
+| Both within 0.25 s | 1,427 | **78.5%** |
+| Both stale beyond 5 s | 965 | 22.4% |
+
+**It saturates.** Tightening from 0.5 s to 0.25 s buys 0.3 points. So essentially exact
+positions give about 78–82%, and the remaining ~20 points are modelling error that no
+trajectory work can reach.
+
+The target's own position matters far more than the observers': requiring *every* observer
+to be anchored within 2 s moves agreement from 69.5% to only 71.1%, while adding "target
+within 0.5 s" takes it to 81.7%. That is mechanical — if the target's position is wrong we
+test the wrong cell, a direct error, whereas the observers' vision is a union of five
+champions plus wards, turrets and minions and is robust to one of them being misplaced.
+
+**This corrected an earlier conclusion in this document.** The observer-staleness gradient
+(74.1% down to 54.9%) was read as "observer trajectories are the binding constraint". They
+are not: that gradient is largely a confound, because a stale nearest observer usually
+means there *is* no nearby observer, and those are exactly the moments when vision comes
+from a ward or a minion and the modelling is weakest. Stratifying by what the oracle says
+separates it — within visible-only moments, agreement still falls from 80.6% to 61.9%
+across the staleness range, so the effect is real but roughly half the size the raw
+numbers implied.
+
+## The trajectory teleports
+
+| | Direction reversals | Steps over 200 u/tick | p99 speed |
+|---|---|---|---|
+| Real reconstruction | **15.6%** | **15.9%** | **16,447 u/s** |
+| Synthetic reconstruction | 3.5% | 5.4% | 3,020 u/s |
+| Synthetic **truth** | 0.13% | 0.00% | 380 u/s |
+
+A champion moves about 350 u/s. The real reconstruction exceeds 1,600 u/s on one tick in
+six and reverses direction on one in six, while the generator's ground truth never once
+moves more than 200 units in a 125 ms tick.
+
+**94.1% of those jumps land exactly on an attributed movement order.** The integrator
+treats `waypoints[0]` as authoritative for where the entity was — which is what makes
+attribution work at all — and snaps to it. On synthetic data that snap is the 12-unit
+jitter the generator injects; on real data the order residual is 219 units at the median
+and 2,681 at p99, and a champion cannot be 2,681 units from where it was a moment ago.
+
+Two treatments were measured rather than argued:
+
+- **Reject the order** when the implied jump exceeds 1,200 units (Flash is 400 at 12.22;
+  the longest dashes about 1,000, so beyond that is not a movement). Spurious transitions
+  fell 855 → 588 on one match, and agreement fell with them, 68.61% → 68.34%: a rejected
+  order leaves the champion on a stale path.
+- **Take the path, not the position** — adopt the polyline and start progress at the point
+  on it nearest the current estimate, so the champion walks the real route from where we
+  believe it is and the trajectory stays continuous.
+
+The second is what ships, on physical grounds rather than measured ones: across 23 matches
+its paired effect is **+0.080% at SE 0.059 (t = 1.35)**, which is not distinguishable from
+zero. It is the correct statement of what is known — the route is evidence, the opening
+waypoint is contaminated by server-side smoothing — and it does not *cost* anything, which
+is the most that can be claimed for it.
+
+**It does not fix the jump rate**, which stays near 16%: the gate fires only above 1,200
+units and most jumps are between 200 and 1,200, where they are genuine reconstruction
+error rather than a gating mistake. That is the honest limit of this change.
 
 ## The reconstruction flickers, and the timing metric was hiding it
 
