@@ -397,17 +397,22 @@ ARTIFACT_SCHEMA_VERSION: Final = 1
 # RangeError on a misaligned offset, and the message does not point at the writer.
 ARTIFACT_SECTION_ALIGN: Final = 8
 
-# ---------------------------------------------------------------------------
-# Packet stream quirks
-# ---------------------------------------------------------------------------
-# MEASURED over 965,768 real packets from 12_22/batch_001.jsonl.gz.
+# MEASURED on real packets: the waypoint frame is centred on the NAVGRID, and the
+# offset is therefore the navgrid's own midpoint on each axis -- not a single scalar
+# near 7500.
 #
-# Waypoint coordinates are map-centred (x in [-7306, 7278]) while every other
-# position field is world-framed (x in [0, 14484]). The offset is near 7500, but
-# +7500 puts the observed maximum at 14778, overshooting the navgrid's 14718 by
-# 60 u -- so it is a starting point for calibration, not a constant. Calibrate by
-# maximising the fraction of waypoints landing on walkable cells.
-WAYPOINT_OFFSET_GUESS: Final = 7500.0
+# Over 37,693 real waypoints from one match, a two-axis search puts the optimum at
+# (7352.6, 7408.5) with 99.71% of waypoints on walkable ground. The navgrid midpoint
+# is (7358.6, 7412.5) and scores 99.64%; the two differ by 6 and 4 units, which is
+# well inside the one-cell (28.8 u) resolution any walkability fit can resolve. So the
+# offset IS the midpoint, and the calibration below is a CHECK rather than a fit.
+#
+# The naive single 7500 scores 90.87% -- nine points worse, and it overshoots the
+# navgrid maximum by 60 units. The axes genuinely differ: the navgrid is 14,719.5 wide
+# and 14,759.5 tall, so their midpoints are 53.8 units apart, which is exactly the
+# 55.8-unit difference the fit finds.
+WAYPOINT_OFFSET_X: Final = (NAVGRID_MIN_X + NAVGRID_MAX_X) / 2  # 7358.648
+WAYPOINT_OFFSET_Z: Final = (NAVGRID_MIN_Z + NAVGRID_MAX_Z) / 2  # 7412.483
 WAYPOINT_OFFSET_SEARCH: Final = 200.0
 
 # Hero net_ids were contiguous 0x4000001E..0x40000027 in every match sampled.

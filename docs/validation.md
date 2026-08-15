@@ -72,6 +72,34 @@ One correction the seam will have to absorb: `Replication` arrives as a **dict o
 `net_id` field. 38% of entries have a non-empty name, so the index pair is the only
 reliable key — 59 distinct pairs appear across a single match.
 
+## R2 — the waypoint frame
+
+**The offset is the navgrid midpoint, per axis.** No fitting required; the calibration is
+now a check rather than a fit.
+
+| | x | z |
+|---|---|---|
+| Recovered from 37,693 real waypoints | 7,353.65 | 7,407.98 |
+| Navgrid midpoint | 7,358.65 | 7,412.48 |
+| Difference | 5.00 u | 4.50 u |
+
+Both differences are well inside the 28.8-unit cell, which is the finest any
+walkability-based fit can resolve — so the recovered offset and the midpoint are the same
+answer. Walkable coverage is 99.71% at the fitted optimum and 99.64% at the midpoint.
+
+Two things this corrected:
+
+- **The offset is per axis, not a single scalar.** The navgrid is 14,719.5 units wide and
+  14,759.5 tall, so its midpoints are 53.8 units apart, and the two-axis fit finds them
+  55.8 apart. Forcing them equal costs nine points of walkable coverage.
+- **The naive 7500 is wrong**, scoring 90.87% against 99.64%, and it overshoots the
+  navgrid maximum by 60 units. It was the project's starting guess and is now replaced by
+  a value derived from the navgrid header rather than searched for.
+
+Also confirmed on real packets: `WaypointGroup`'s dict key is the **list length**, not a
+net_id, in **100.0000%** of 16,602 pairs. That is the bug that makes the official
+`…-gym` loader's position tracking wrong throughout.
+
 ## Fog agreement
 
 Reconstructed per-team visibility versus the fog transitions the stream itself publishes.

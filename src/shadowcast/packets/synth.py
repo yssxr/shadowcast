@@ -156,7 +156,14 @@ class ScenarioSpec:
     #: Offset from the map-centred waypoint frame to world coordinates. Deliberately
     #: NOT the 7500 that a calibrator would guess first, so the calibration step is
     #: actually tested rather than trivially satisfied.
-    waypoint_offset: float = 7462.5
+    #: Per-axis map-centred offset the synthetic stream emits its waypoints in.
+    #:
+    #: Deliberately NOT the true navgrid midpoint: perturbing it is what gives the frame
+    #: calibration something to recover, and a synthetic stream that already sat at the
+    #: right answer would let a broken calibration pass. The perturbation is under a cell
+    #: on each axis, which is the resolution the fit can actually resolve.
+    waypoint_offset_x: float = C.WAYPOINT_OFFSET_X - 6.0
+    waypoint_offset_z: float = C.WAYPOINT_OFFSET_Z + 4.0
 
     @property
     def n_ticks(self) -> int:
@@ -890,7 +897,7 @@ class SyntheticSource:
         wp = mk(rows_waypoint, WAYPOINT)
         wp_xz = np.empty(len(xz), dtype=WAYPOINT_XZ)
         for n, (x, z) in enumerate(xz):
-            wp_xz[n] = (x - spec.waypoint_offset, z - spec.waypoint_offset)
+            wp_xz[n] = (x - spec.waypoint_offset_x, z - spec.waypoint_offset_z)
 
         minions = mk(rows_minion, SPAWN_MINION)
         minions.sort(order="t", kind="stable")
@@ -972,7 +979,11 @@ class SyntheticSource:
             duration=spec.duration,
             n_packets=sum(a.size for k, a in bundle_arrays.items() if k != "waypoint_xz"),
             patch="synthetic",
-            extra={"seed": spec.seed, "waypoint_offset": spec.waypoint_offset},
+            extra={
+                "seed": spec.seed,
+                "waypoint_offset_x": spec.waypoint_offset_x,
+                "waypoint_offset_z": spec.waypoint_offset_z,
+            },
         )
         bundle = PacketBundle(meta=meta, **bundle_arrays)
         truth = Truth(

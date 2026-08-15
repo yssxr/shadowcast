@@ -32,7 +32,8 @@ def _exact_frame(truth) -> FrameCalibration:
     attribution gate secretly a calibration gate.
     """
     return FrameCalibration(
-        offset=truth.spec.waypoint_offset,
+        offset_x=truth.spec.waypoint_offset_x,
+        offset_z=truth.spec.waypoint_offset_z,
         walkable_fraction=1.0,
         plateau_width=C.GRID_CELL_SIZE,
         baseline_fraction=0.9,
@@ -225,7 +226,11 @@ def test_frame_error_propagates_into_trajectory_error(synth_clean, terrain):
     """
     bundle, truth = synth_clean
     shift = 5.0
-    skewed = dataclasses.replace(_exact_frame(truth), offset=truth.spec.waypoint_offset - shift)
+    skewed = dataclasses.replace(
+        _exact_frame(truth),
+        offset_x=truth.spec.waypoint_offset_x - shift,
+        offset_z=truth.spec.waypoint_offset_z - shift,
+    )
     at = attribute(normalise(bundle, terrain, frame=skewed))
     # The ANCHOR residual is the right quantity here, not the order residual. Order
     # residual is the skeleton-to-order-start distance, so it is dominated by the

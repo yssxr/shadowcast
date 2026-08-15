@@ -66,7 +66,8 @@ STAGE_VERSION = 1
 def calibrate_waypoint_frame(
     waypoint_xz: np.ndarray,
     terrain: Terrain,
-    guess: float = C.WAYPOINT_OFFSET_GUESS,
+    guess_x: float = C.WAYPOINT_OFFSET_X,
+    guess_z: float = C.WAYPOINT_OFFSET_Z,
     search: float = C.WAYPOINT_OFFSET_SEARCH,
     step: float = 0.5,
     max_samples: int = 40_000,
@@ -92,7 +93,7 @@ def calibrate_waypoint_frame(
     and a claim to that precision would be unfounded.
     """
     if waypoint_xz.size == 0:
-        return FrameCalibration(guess, 0.0, 0.0, 0.0, 0)
+        return FrameCalibration(guess_x, guess_z, 0.0, 0.0, 0.0, 0)
 
     rng = np.random.default_rng(seed)
     if waypoint_xz.size > max_samples:
@@ -105,31 +106,37 @@ def calibrate_waypoint_frame(
     grid = terrain.grid
     walkable = terrain.walkable
 
-    offsets = np.arange(guess - search, guess + search + step, step)
-    scores = np.empty(offsets.size)
-    for n, off in enumerate(offsets):
-        i, j = world_to_cell_array(x + off, z + off)
+    def score(ox: float, oz: float) -> float:
+        i, j = world_to_cell_array(x + ox, z + oz)
         inside = (i >= 0) & (i < grid) & (j >= 0) & (j < grid)
         if not inside.any():
-            scores[n] = 0.0
-            continue
+            return 0.0
         hit = np.zeros(i.shape, dtype=bool)
         hit[inside] = walkable[j[inside], i[inside]]
-        scores[n] = hit.mean()
+        return float(hit.mean())
 
-    best = int(np.argmax(scores))
-    peak = float(scores[best])
-    # Width of the region within 0.5% of the peak, in world units. A broad plateau
-    # means many offsets explain the data about equally well.
-    near = offsets[scores >= peak - 0.005]
+    # Searched per axis. A single shared offset was the first version and it cannot be
+    # right: the navgrid is 14,719.5 wide and 14,759.5 tall, so its two midpoints are
+    # 53.8 units apart, and forcing them equal costs about nine points of walkable
+    # coverage on real waypoints.
+    span = np.arange(-search, search + step, step)
+    sx = np.array([score(guess_x + d, guess_z) for d in span])
+    best_x = float(guess_x + span[int(np.argmax(sx))])
+    sz = np.array([score(best_x, guess_z + d) for d in span])
+    best_z = float(guess_z + span[int(np.argmax(sz))])
+
+    peak = score(best_x, best_z)
+    # Width of the region within 0.5% of the peak, in world units. A broad plateau means
+    # many offsets explain the data about equally well.
+    near = span[sx >= sx.max() - 0.005]
     plateau = float(near.max() - near.min()) if near.size else 0.0
-    baseline = float(scores[int(np.argmin(np.abs(offsets - guess)))])
 
     return FrameCalibration(
-        offset=float(offsets[best]),
+        offset_x=best_x,
+        offset_z=best_z,
         walkable_fraction=peak,
         plateau_width=plateau,
-        baseline_fraction=baseline,
+        baseline_fraction=score(guess_x, guess_z),
         n_samples=int(sample.size),
     )
 
@@ -515,8 +522,8 @@ def normalise(
     )
 
     order_xz = np.empty(bundle.waypoint_xz.size, dtype=ORDER_XZ)
-    order_xz["x"] = bundle.waypoint_xz["x"].astype(np.float64) + calibration.offset
-    order_xz["z"] = bundle.waypoint_xz["z"].astype(np.float64) + calibration.offset
+    order_xz["x"] = bundle.waypoint_xz["x"].astype(np.float64) + calibration.offset_x
+    order_xz["z"] = bundle.waypoint_xz["z"].astype(np.float64) + calibration.offset_z
 
     orders = np.empty(bundle.waypoints.size, dtype=ORDER)
     for f in ("t", "off", "n", "seq"):
@@ -533,7 +540,11 @@ def normalise(
             stage_version=STAGE_VERSION,
             config_hash=grid.content_hash,
             input_hash=bundle.meta.source,
-            extra={"frame_offset": calibration.offset, "packets": bundle.total_packets()},
+            extra={
+                "frame_offset_x": calibration.offset_x,
+                "frame_offset_z": calibration.offset_z,
+                "packets": bundle.total_packets(),
+            },
         ),
         frame=calibration,
         heroes=heroes,

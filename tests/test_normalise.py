@@ -41,12 +41,16 @@ def test_frame_offset_is_recovered_within_a_cell(events_dirty):
     """The offset nobody documented, recovered from walkability alone.
 
     Waypoints are map-centred while every other position is world-framed. The true
-    offset is deliberately not the 7500 a calibrator would guess first, so passing this
+    offset is deliberately perturbed off the navgrid midpoint, so passing this
     requires the search to actually work.
     """
     events, truth = events_dirty
-    error = abs(events.frame.offset - truth.spec.waypoint_offset)
-    assert error <= C.GRID_CELL_SIZE / 2, f"frame offset off by {error:.1f} units"
+    for axis, recovered, emitted in (
+        ("x", events.frame.offset_x, truth.spec.waypoint_offset_x),
+        ("z", events.frame.offset_z, truth.spec.waypoint_offset_z),
+    ):
+        error = abs(recovered - emitted)
+        assert error <= C.GRID_CELL_SIZE / 2, f"{axis} offset off by {error:.1f} units"
 
 
 def test_calibration_beats_the_naive_guess(events_dirty):
@@ -73,7 +77,8 @@ def test_calibration_handles_an_empty_stream(terrain):
     from shadowcast.packets.source import WAYPOINT_XZ
 
     cal = calibrate_waypoint_frame(np.empty(0, dtype=WAYPOINT_XZ), terrain)
-    assert cal.offset == C.WAYPOINT_OFFSET_GUESS
+    assert cal.offset_x == C.WAYPOINT_OFFSET_X
+    assert cal.offset_z == C.WAYPOINT_OFFSET_Z
     assert cal.n_samples == 0
     assert not cal.well_determined
 
@@ -95,10 +100,16 @@ def test_frame_can_be_supplied_to_reuse_across_matches(synth_clean, terrain):
 
     bundle, _ = synth_clean
     fixed = FrameCalibration(
-        offset=1234.0, walkable_fraction=0.5, plateau_width=1.0, baseline_fraction=0.4, n_samples=10
+        offset_x=1234.0,
+        offset_z=5678.0,
+        walkable_fraction=0.5,
+        plateau_width=1.0,
+        baseline_fraction=0.4,
+        n_samples=10,
     )
     events = normalise(bundle, terrain, frame=fixed)
-    assert events.frame.offset == 1234.0
+    assert events.frame.offset_x == 1234.0
+    assert events.frame.offset_z == 5678.0
     assert events.order_xz["x"][0] == pytest.approx(bundle.waypoint_xz["x"][0] + 1234.0, abs=1e-3)
 
 
@@ -368,7 +379,8 @@ def test_round_trips_through_disk(events_clean, tmp_path):
     events, _ = events_clean
     back = MatchEvents.load(events.save(tmp_path / "events.npz"))
     assert back.match_id == events.match_id
-    assert back.frame.offset == events.frame.offset
+    assert back.frame.offset_x == events.frame.offset_x
+    assert back.frame.offset_z == events.frame.offset_z
     for name in MatchEvents._ARRAYS:
         np.testing.assert_array_equal(getattr(back, name), getattr(events, name))
     assert back.describe() == events.describe()

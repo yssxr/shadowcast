@@ -132,7 +132,7 @@ def test_each_order_starts_at_its_owners_true_position(synth_clean):
     reconstruction can be correct, because truth and orders would disagree.
     """
     bundle, truth = synth_clean
-    offset = truth.spec.waypoint_offset
+    offset = np.array([truth.spec.waypoint_offset_x, truth.spec.waypoint_offset_z])
     worst = 0.0
     for n in range(bundle.waypoints.size):
         poly = bundle.order_polyline(n) + offset
@@ -153,7 +153,7 @@ def test_jitter_pathology_perturbs_order_starts_but_only_slightly(synth_dirty):
     so it needs to be non-zero to be tested and small enough to be recoverable.
     """
     bundle, truth = synth_dirty
-    offset = truth.spec.waypoint_offset
+    offset = np.array([truth.spec.waypoint_offset_x, truth.spec.waypoint_offset_z])
     errs = []
     for n in range(bundle.waypoints.size):
         poly = bundle.order_polyline(n) + offset
@@ -176,7 +176,7 @@ def test_order_polylines_are_walkable(synth_clean, terrain):
     from shadowcast.geom.path import chord_walkable
 
     bundle, truth = synth_clean
-    offset = truth.spec.waypoint_offset
+    offset = np.array([truth.spec.waypoint_offset_x, truth.spec.waypoint_offset_z])
     rng = np.random.default_rng(3)
     for n in rng.choice(bundle.waypoints.size, size=300, replace=False):
         poly = bundle.order_polyline(int(n)) + offset
@@ -518,15 +518,17 @@ def test_truth_round_trips_through_disk(synth_clean, tmp_path):
     assert back.spec == truth.spec
 
 
-def test_waypoint_offset_is_not_the_obvious_guess():
+def test_waypoint_offset_is_perturbed_off_the_true_frame():
     """The calibration step must be tested, not trivially satisfied.
 
-    If the synthetic frame offset were exactly the 7500 a calibrator would try first,
+    If the synthetic frame offset were exactly the navgrid midpoint the calibrator starts from,
     a broken calibrator would still pass.
     """
     spec = ScenarioSpec()
-    assert spec.waypoint_offset != C.WAYPOINT_OFFSET_GUESS
-    assert abs(spec.waypoint_offset - C.WAYPOINT_OFFSET_GUESS) < C.WAYPOINT_OFFSET_SEARCH
+    assert spec.waypoint_offset_x != C.WAYPOINT_OFFSET_X
+    assert spec.waypoint_offset_z != C.WAYPOINT_OFFSET_Z
+    assert abs(spec.waypoint_offset_x - C.WAYPOINT_OFFSET_X) < C.WAYPOINT_OFFSET_SEARCH
+    assert abs(spec.waypoint_offset_z - C.WAYPOINT_OFFSET_Z) < C.WAYPOINT_OFFSET_SEARCH
 
 
 def test_waypoints_are_map_centred(synth_clean):

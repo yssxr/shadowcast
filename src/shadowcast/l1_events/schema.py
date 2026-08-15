@@ -160,14 +160,20 @@ DEATH = np.dtype(
 class FrameCalibration:
     """The recovered map-centred to world-frame offset, with evidence for it.
 
-    Waypoint coordinates arrive in a different frame from every other position, and
-    the offset is close to 7500 but not equal to it. `walkable_fraction` is the score
-    that was maximised; `plateau_width` is how wide the near-optimal region is, and a
-    wide plateau means the offset is only weakly determined — worth knowing before
-    trusting reconstructed positions to a few units.
+    Waypoint coordinates arrive in a different frame from every other position: one
+    centred on the navgrid rather than anchored at its corner.
+
+    **Two offsets, not one.** The navgrid is 14,719.5 units wide and 14,759.5 tall, so
+    its midpoints on the two axes are 53.8 units apart, and a single shared offset
+    cannot be correct. MEASURED on 37,693 real waypoints, a per-axis fit lands within
+    6 units of the navgrid midpoint — inside the one-cell resolution any walkability fit
+    can resolve — so the offset simply IS the midpoint, and this is a check rather than
+    a fit. `baseline_fraction` is the score at the midpoint, so "calibration found the
+    same answer" is distinguishable from "calibration did something".
     """
 
-    offset: float
+    offset_x: float
+    offset_z: float
     walkable_fraction: float
     plateau_width: float
     baseline_fraction: float
@@ -259,7 +265,7 @@ class MatchEvents:
             "turret_sites": int(self.turret_sites.size),
             "minion_waves": int(self.minion_waves.size),
             "speed_samples": int(self.speed.size),
-            "frame_offset": round(self.frame.offset, 2),
+            "frame_offset": (round(self.frame.offset_x, 2), round(self.frame.offset_z, 2)),
             "frame_walkable_fraction": round(self.frame.walkable_fraction, 4),
             "teams_resolved": self.teams_resolved,
             "roles_resolved": self.roles_resolved,
@@ -292,7 +298,8 @@ class MatchEvents:
             "duration": self.duration,
             "header": self.header.to_dict(),
             "frame": {
-                "offset": self.frame.offset,
+                "offset_x": self.frame.offset_x,
+                "offset_z": self.frame.offset_z,
                 "walkable_fraction": self.frame.walkable_fraction,
                 "plateau_width": self.frame.plateau_width,
                 "baseline_fraction": self.frame.baseline_fraction,
