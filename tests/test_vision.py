@@ -399,3 +399,51 @@ def test_a_minion_wave_never_marches_into_the_enemy_base():
                     assert s <= sr.MEETING_S + 0.02, (lane, team, t, s)
                 else:
                     assert s >= sr.MEETING_S - 0.02, (lane, team, t, s)
+
+
+def test_transitions_are_matched_one_to_one_within_a_window():
+    """The obvious matching is wrong, and was shipped for a long time.
+
+    Taking the nearest of our transitions for each of the oracle's is neither exclusive
+    nor bounded: one of ours can be claimed by several of theirs, and an oracle transition
+    we never produced pairs with whatever is closest — ten seconds away is common. That
+    reports a *missing* transition as a large *timing* error, and the two need different
+    fixes.
+
+    MEASURED on real packets under the old scheme: median error +0.000 s with p10 at
+    -12.4 s and p90 at +9.7 s. Symmetric, unbiased, enormous tails — the signature of
+    mismatching rather than of lag.
+    """
+    from shadowcast.validate.fog_oracle import _match_transitions
+
+    dt = 0.125
+    # One of ours sits equidistant between two of theirs. It may answer for one, not both,
+    # and the other is *missed* rather than being given the same partner a second time.
+    errors, missed, spurious = _match_transitions(
+        np.array([10, 14]), np.array([12]), dt, window=1.0
+    )
+    assert len(errors) == 1, errors
+    assert missed == 1
+    assert spurious == 0
+    assert abs(errors[0]) == pytest.approx(0.25)
+
+    # Out of window: not a 3.75-second timing error, a missing transition and a spurious
+    # one. This is the case the old nearest-time matching reported as timing.
+    errors, missed, spurious = _match_transitions(
+        np.array([10, 40]), np.array([11]), dt, window=1.0
+    )
+    assert errors == [pytest.approx(0.125)]
+    assert missed == 1
+    assert spurious == 0
+
+    # Exclusivity: two of theirs, two of ours, each pairs with its own neighbour.
+    errors, missed, spurious = _match_transitions(
+        np.array([10, 20]), np.array([11, 21]), dt, window=1.0
+    )
+    assert missed == 0
+    assert spurious == 0
+    assert sorted(errors) == [pytest.approx(0.125), pytest.approx(0.125)]
+
+    # Nothing at all on one side is reported as unmatched, not as a perfect score.
+    assert _match_transitions(np.array([5]), np.array([]), dt, 1.0) == ([], 1, 0)
+    assert _match_transitions(np.array([]), np.array([5]), dt, 1.0) == ([], 0, 1)

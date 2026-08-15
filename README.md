@@ -5,7 +5,7 @@
 A belief-state engine for MOBA information asymmetry, built on packet-level decoded replays.
 
 > Status: in development. The engine runs end to end on real packets and the four-view site
-> renders its output; the open work is accuracy, not coverage. Numbers marked `[pending]` are not
+> renders a real match; the open work is accuracy, not coverage. Numbers marked `[pending]` are not
 > yet measured, and this file carries no figure that was not produced by a command. See
 > [`docs/validation.md`](docs/validation.md) for the full report, including the caveats that
 > matter for reading the belief numbers — in particular that **every belief figure is
@@ -209,11 +209,13 @@ a command — `shadowcast pipeline`, `realfog`, `ablate`, `diagnose`, `inspect` 
 | — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
 | Team recovery, real matches | **8 / 8**, 100.0% of damage across the split |
-| Transition timing, real packets | **23.2%** within 150 ms — weakest real result |
+| Visibility transitions we emit that the game did not | **2-3x too many** — the reconstruction flickers |
 | Conformance errors, real packet source | **0** |
 | Orders attributed, real matches | **91.9% median across 23** (99.9% synthetic) |
-| Belief calibration — does the 90% region contain the truth 90% of the time? | **43.4%** — open defect |
-| **Log-likelihood vs. the same model without negative information** | **3.887 vs 4.132 nats** |
+| Belief calibration, synthetic — does the 90% region contain the truth 90% of the time? | **43.4%** — open defect |
+| Belief calibration, real packets | **30.2%** — and "truth" is our own reconstruction |
+| **Log-likelihood vs. the same model without negative information** | **+0.243 nats** synthetic, **+0.148** on real packets — holds |
+| Full model vs. a plain geodesic disc | wins on synthetic, **loses on real** (4.372 vs 4.168) |
 | Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
 | Information-barrier leak detector | **bit-identical** |
 | Artifact size per match | **1.24 MB** gzipped (budget: 2 MB) |

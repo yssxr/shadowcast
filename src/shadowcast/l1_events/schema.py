@@ -96,10 +96,28 @@ ANCHOR = np.dtype(
 #: event about champion C can only come from C's opponents.
 FOG_EVENT = np.dtype([("t", "f8"), ("slot", "i1"), ("observer_team", "i1"), ("visible", "u1")])
 
-#: A turret, with the position recovered from its attack packets rather than read from
-#: a create packet, which carries none.
+#: A turret: position from the map by name, and the moment it was destroyed.
+#:
+#: `destroyed_t` is `inf` for a turret that survives the recorded window. It exists
+#: because turret destruction IS observable, contrary to what this project assumed for
+#: most of its life. There is no `BuildingDie` packet — grep finds zero — but turret
+#: net_ids appear as `killed_net_id` in the ordinary `NPCDieMapView` stream, which nobody
+#: checked. MEASURED across six real matches: one to three outer turrets fall per match,
+#: between 11 and 17 minutes.
+#:
+#: A turret sees 1,350 units, so a destroyed turret still granting vision is a permanent
+#: floodlight for whichever team is losing structures — precisely the team whose vision
+#: should be collapsing.
 TURRET_SITE = np.dtype(
-    [("net_id", "u4"), ("name", "U40"), ("team", "i1"), ("x", "f8"), ("z", "f8"), ("n_obs", "i4")]
+    [
+        ("net_id", "u4"),
+        ("name", "U40"),
+        ("team", "i1"),
+        ("x", "f8"),
+        ("z", "f8"),
+        ("n_obs", "i4"),
+        ("destroyed_t", "f8"),
+    ]
 )
 
 #: A ward's whole life. `t1_known` distinguishes an observed destruction from a

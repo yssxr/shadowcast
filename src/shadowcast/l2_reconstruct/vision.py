@@ -109,8 +109,11 @@ class VisionStream:
         self._live_fallbacks = 0
         self._front = estimate_front(events, attribution.pos, attribution.valid)
         self._enemy_targets = self._build_target_teams()
-        self._static = self._build_static()
-        self._ward_boundaries = self._ward_boundary_ticks()
+        self._static = self._build_static(0.0)
+        self._structure_boundaries = self._structure_boundary_ticks()
+        # A turret falling changes the static layer, so every ward rebuild after it
+        # must see the new one — hence the union rather than two separate schedules.
+        self._ward_boundaries = self._ward_boundary_ticks() | self._structure_boundaries
         self._counts = {"champion": 0, "minion": 0, "reveal": 0}
 
     def _build_target_teams(self) -> dict[int, int]:
@@ -147,14 +150,19 @@ class VisionStream:
         return out
 
     # -- layers -------------------------------------------------------
-    def _build_static(self) -> list[np.ndarray]:
-        """Turret vision. Structures do not move, so this is computed once.
+    def _build_static(self, t: float) -> list[np.ndarray]:
+        """Turret vision at time `t`. Structures do not move, but they do die.
 
-        Turret destruction is not modelled in v1: the corpus has no building-death
-        packet (grep found zero `BuildingDie`, `TurretDie` or `ObjectDie` occurrences),
-        so a destroyed turret would keep granting vision. That inflates late-game vision
-        for whichever team is losing structures, and it is a stated limitation rather
-        than a hidden one.
+        **Turret destruction is observable and this project assumed for a long time that
+        it was not.** The assumption was half right: there is no `BuildingDie` packet, and
+        no `TurretDie` or `ObjectDie` either. But turret net_ids appear as `killed_net_id`
+        in the ordinary `NPCDieMapView` stream, which nothing had checked — the earlier
+        conclusion came from grepping for packet *names* rather than for the ids.
+
+        It matters because a turret sees 1,350 units and never moves, so one modelled as
+        alive after it falls is a permanent floodlight over the lane it used to defend —
+        for exactly the team whose vision should be collapsing. Outer turrets fall from
+        about eleven minutes, and matches in this corpus run to twenty-five.
         """
         masks = [new_mask(self.grid) for _ in range(2)]
         for team in (C.TEAM_ORDER, C.TEAM_CHAOS):
@@ -164,6 +172,8 @@ class VisionStream:
                     continue
                 if not (np.isfinite(site["x"]) and np.isfinite(site["z"])):
                     continue  # no recovered position, so no vision claim
+                if t >= float(site["destroyed_t"]):
+                    continue
                 i, j = world_to_cell(float(site["x"]), float(site["z"]))
                 if not (0 <= i < self.grid and 0 <= j < self.grid):
                     continue
@@ -171,6 +181,24 @@ class VisionStream:
             if sources:
                 assemble(self.table, self.terrain, sources, out=masks[team])
         return masks
+
+    def _structure_boundary_ticks(self) -> set[int]:
+        """Ticks at which the static layer must be rebuilt, because a turret fell.
+
+        Both the floor and the ceiling of each destruction time, for the same reason the
+        ward boundaries take both: rounding one way schedules the rebuild at a tick where
+        the turret is still alive, and no later rebuild is scheduled, so it never dies.
+        """
+        out = {0}
+        for site in self.events.turret_sites:
+            t = float(site["destroyed_t"])
+            if not np.isfinite(t):
+                continue
+            exact = t / self.dt
+            for tick in (int(np.floor(exact)), int(np.ceil(exact))):
+                if 0 <= tick < self.n_ticks:
+                    out.add(tick)
+        return out
 
     def _ward_boundary_ticks(self) -> set[int]:
         """Ticks at which the semi-static layer must be rebuilt.
@@ -341,6 +369,8 @@ class VisionStream:
         self._base_visible = np.zeros((self.n_ticks, 2, self.team.size), dtype=bool)
 
         for tick in range(self.n_ticks):
+            if tick in self._structure_boundaries:
+                self._static = self._build_static(tick * self.dt)
             if tick in self._ward_boundaries:
                 self._semi_at(tick, semi)
 

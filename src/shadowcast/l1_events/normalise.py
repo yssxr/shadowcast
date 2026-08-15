@@ -280,6 +280,17 @@ def _turret_sites(bundle: PacketBundle) -> np.ndarray:
     net_ids = np.unique(turrets["net_id"])
     name_of = {int(r["net_id"]): str(r["name"]) for r in turrets}
 
+    # Turret destruction, which this project spent most of its life believing was not
+    # observable. There is no `BuildingDie` packet and grep finds no `TurretDie` either —
+    # but turret net_ids appear as `killed_net_id` in the ordinary NPC death stream, and
+    # nothing had ever looked. MEASURED across six real matches: one to three outer
+    # turrets fall per match, between 11 and 17 minutes.
+    destroyed: dict[int, float] = {}
+    for row in bundle.deaths:
+        nid = int(row["killed_net_id"])
+        if nid in name_of:
+            destroyed.setdefault(nid, float(row["t"]))
+
     rows: list[tuple] = []
     attacks = bundle.attacks
     for nid in net_ids:
@@ -308,7 +319,7 @@ def _turret_sites(bundle: PacketBundle) -> np.ndarray:
             z = float(np.median(mine["src_z"]))
         else:
             x = z = np.nan
-        rows.append((int(nid), name, team, x, z, int(mine.size)))
+        rows.append((int(nid), name, team, x, z, int(mine.size), destroyed.get(int(nid), np.inf)))
 
     out = np.empty(len(rows), dtype=TURRET_SITE)
     for n, r in enumerate(rows):

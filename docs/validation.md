@@ -695,6 +695,156 @@ Things that should hold if the model is right. A failure is either a bug or a fi
 | Supports have the lowest | — |
 | Information advantage correlates with, but does not determine, objective control | — |
 
+## Belief on REAL packets
+
+Every belief figure in this document below this section is synthetic. These are not.
+Regenerate with `shadowcast ablate --shard …` and `shadowcast diagnose --shard …`.
+
+**Read them as tracking, not accuracy.** There is no ground truth in the corpus, so
+"truth" here is *this pipeline's own reconstruction* — the positions the site draws, whose
+fog agreement is 68%. The question these answer is whether the belief tracks that, not
+whether it tracks what happened.
+
+| Model | NLL | Entropy | Area (ku²) | % map | ECE |
+|---|---|---|---|---|---|
+| uniform | 5.284 | 9.80 | 117.08 | 61.8% | 0.169 |
+| disc | 4.413 | 6.21 | 33.28 | 17.6% | 0.298 |
+| **geodisc** | **4.168** | 7.23 | 57.18 | 30.2% | 0.189 |
+| cv | 4.856 | 5.13 | 27.55 | 14.6% | 0.406 |
+| diffusion | 4.794 | 3.58 | 2.94 | 1.6% | 0.485 |
+| behavioural | 4.520 | 4.51 | 8.56 | 4.5% | 0.431 |
+| full | 4.372 | 3.94 | 5.81 | 3.1% | 0.424 |
+
+**The thesis holds: +0.1485 nats** from negative information alone, on real packets, on a
+comparison that changes one field of one spec. Smaller than the synthetic +0.243, and in
+the same direction. That is the project's central claim tested against real data for the
+first time.
+
+**And the full model loses to the geodesic disc — 4.372 against 4.168.** On synthetic data
+it wins, 3.961 against 4.106. The ordering inverts.
+
+This is not a new mystery. The synthetic ablation section below already records this exact
+inversion happening once before, when lane minion waves were floodlighting both bases: with
+darkness episodes the wrong shape, the vague model won, and fixing the minions restored the
+ordering. Real data reproduces the symptom because it has the same disease — a vision
+reconstruction that is 68% right rather than 98%. The full model concentrates belief into
+5.81 ku² and is punished for being confident and wrong; `geodisc` spreads over 57.18 ku²
+and hedges.
+
+So the real-data ablation independently confirms what the fog agreement says, from a
+completely different direction: **the vision layer is the bottleneck, not the filter.**
+Nothing about the belief machinery needs to change before the masks improve, and a filter
+tuned against these numbers would be tuned to compensate for a defect elsewhere.
+
+Calibration is correspondingly worse — the 90% credible region contains the truth **30.2%**
+of the time against 43.4% on synthetic — and `shadowcast diagnose` returns **mixed**, where
+synthetic returns drift. With inputs this noisy that verdict is what it should be.
+
+## Turret destruction: modelled, and worth nothing
+
+Recorded as a negative result because the reasoning that motivated it was sound and the
+measurement disagreed.
+
+Turret destruction turned out to be observable after all. There is no `BuildingDie` packet
+and no `TurretDie` — the original conclusion was drawn from grepping packet *names* — but
+turret net_ids appear as `killed_net_id` in the ordinary `NPCDieMapView` stream. MEASURED
+across six matches: one to three outer turrets fall per match, between 11 and 17 minutes.
+
+A turret sees 1,350 units and never moves, so modelling a dead one as alive is a permanent
+floodlight for exactly the team whose vision should be collapsing. The expected gain was
+large.
+
+| | Median agreement across 23 matches |
+|---|---|
+| Before | 67.99% |
+| After | **67.98%** |
+
+Nothing. Individual matches move by ±0.3 points and the median does not move at all. Two
+reasons, both visible in the blame analysis below: only one to three turrets fall, late in
+a match, and their vision overlaps other sources so heavily that removing them changes
+almost no cell that some champion, ward or minion did not also cover.
+
+It stays in, because it is correct and because the alternative is a known-wrong model kept
+for no reason. But it is not a lever.
+
+## Which source is to blame for a false positive
+
+`shadowcast realfog` says the reconstruction claims vision the game did not grant 11.8% of
+the time. `validate/blame.py` asks which source class is responsible, using the real
+field-of-view table rather than a distance check, so a turret behind a wall is not blamed
+for anything.
+
+The column that matters is **sole**: how often a class was the *only* thing covering the
+cell, because that is the subset a fix to that class would actually move.
+
+| Source class | Covered the cell | **Sole cause** |
+|---|---|---|
+| champion | 59.1% | **17.2%** |
+| turret | 57.4% | 12.9% |
+| minion | 56.3% | 6.8% |
+| ward | 10.4% | 9.0% |
+| reveal-on-attack | 0.0% | 0.0% |
+
+**No single class dominates, and 54% of false positives are over-determined** — two or
+more independent sources agree the cell should be visible and the game says it was not.
+That rules out "we are modelling one source too generously" as the explanation and points
+at something systematic. Reveal-on-attack, the mechanism most suspected historically,
+causes none of them.
+
+Two candidates tested and eliminated:
+
+- **Brush is working.** Champions standing in brush are 10.9% of correctly-hidden moments
+  and only 3.2% of false positives — brush makes us *more* likely to be right, which is
+  the opposite of a broken conditional occluder.
+- **Death is minor.** Dead champions are 5.0% of false positives against 2.5% of correct
+  hidden moments, so they are over-represented 2× and still explain at most 5%.
+
+## The reconstruction flickers, and the timing metric was hiding it
+
+Transition timing on real data read 23.2% within 150 ms, and the previous entry in this
+document said it was unclear whether that was a real defect or an artefact of matching
+transitions by nearest time. It was both, and separating them found a real bug.
+
+**The matching was wrong.** For each oracle transition it took the nearest of ours, which
+is neither exclusive nor bounded: one of ours could answer for several of theirs, and an
+oracle transition we never produced paired with whatever was closest. Under that scheme the
+error distribution was median **+0.000 s** with p10 at **−12.4 s** and p90 at **+9.7 s**,
+and 36% of transitions more than five seconds out. Symmetric, unbiased, enormous tails —
+that is the signature of mismatching, not of lag, because a genuine timing defect sits
+off-centre.
+
+Matching is now greedy one-to-one inside a ±2 s window, and everything unmatched is counted
+rather than absorbed into the timing distribution:
+
+| | Matched | Within 150 ms (of matched) | Missed | **Spurious** |
+|---|---|---|---|---|
+| `batch_001:0` | 59.6% | 41.4% | 185 | **855** |
+| `batch_001:1` | 34.5% | 41.9% | 363 | **657** |
+| `batch_001:2` | 41.0% | 46.9% | 328 | **910** |
+| synthetic | 90.0% | 72.7% | 47 | 87 |
+
+**We emit two to three times more transitions than the game does.** That is the defect, and
+it was invisible while it was being reported as timing error. Interval durations confirm it
+directly:
+
+| | Intervals | Median duration | Under 0.5 s | Over 10 s |
+|---|---|---|---|---|
+| Ours | 1,138 | 0.88 s | 34.1% | 16.4% |
+| Oracle | 468 | **4.88 s** | 12.4% | 38.7% |
+
+A third of our visibility intervals last under half a second; the game's median interval is
+five seconds. The reconstruction toggles visibility on a timescale the real game does not.
+
+The mechanism is position noise meeting a boolean test: a champion's cell is tested against
+the mask, the position carries a 75–219 unit error, cells are 28.75 units, so a champion
+near any vision boundary flips in and out. Synthetic data, whose positions are near-exact,
+barely flickers — 87 spurious against 855 — which is the control.
+
+This is deliberately **not** fixed by smoothing the mask. The mask is what the belief filter
+consumes, and smoothing it to improve a metric would change the information state the whole
+project claims to measure. The flicker is a measured property of the reconstruction and is
+reported as one.
+
 ## Two bugs that only the site could find
 
 The engine ran on real packets for some time before anything *rendered* one. Exporting a

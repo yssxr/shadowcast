@@ -318,3 +318,37 @@ def test_map_plants_are_not_wards():
     assert ("PlantVision", "SRU_Plant_Vision") not in C.WARD_UNITS
     # Nothing in the sight table can name a unit that is not a ward.
     assert set(C.WARD_SIGHT_BY_KIND) == set(C.WARD_UNITS.values())
+
+
+def test_turret_destruction_is_observable():
+    """It is, and this project assumed for most of its life that it was not.
+
+    The earlier conclusion — "the corpus has no building-death packet" — came from
+    grepping for packet *names*: there is no `BuildingDie`, no `TurretDie`, no `ObjectDie`.
+    All true, and it hid the answer, because turret net_ids appear as `killed_net_id` in
+    the ordinary `NPCDieMapView` stream. Nothing had looked at the ids.
+
+    It matters because a turret sees 1,350 units and never moves, so one modelled as alive
+    after it falls is a permanent floodlight over the lane it used to defend — for exactly
+    the team whose vision should be collapsing.
+    """
+    from shadowcast.l1_events.normalise import normalise
+    from shadowcast.packets.replay import ReplaySource
+    from shadowcast.terrain.terrain import build_terrain
+
+    _shard_or_skip()
+    terrain = build_terrain()
+    destroyed_per_match = []
+    for bundle in ReplaySource(SHARD, limit=6).read_all():
+        events = normalise(bundle, terrain)
+        sites = events.turret_sites
+        fell = sites[np.isfinite(sites["destroyed_t"])]
+        destroyed_per_match.append(fell.size)
+        # Whatever falls, falls once and inside the recorded window.
+        assert (fell["destroyed_t"] > 0).all()
+        assert (fell["destroyed_t"] <= bundle.meta.duration).all()
+        # Outer turrets go first; nothing should fall in the first five minutes.
+        assert (fell["destroyed_t"] > 300.0).all(), fell[["name", "destroyed_t"]]
+
+    assert sum(destroyed_per_match) > 0, "no turret fell in six matches, which is implausible"
+    assert max(destroyed_per_match) <= 11, "more turrets fell than a team has"

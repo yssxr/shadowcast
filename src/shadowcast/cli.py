@@ -148,6 +148,54 @@ def terrain_show(
     typer.echo('legend: . walkable   : partial   " brush   (blank) vision-blocking')
 
 
+def _load_match(terrain, shard: Path | None, line: int, seed: int, duration: float, clean: bool):
+    """One match, real or synthetic, normalised, attributed and resolved.
+
+    Shared by every command that needs a match so `--shard` means the same thing
+    everywhere. It also prints the caveat once, in the one place it cannot be forgotten:
+    on real data there is no ground truth, so anything scored against "truth" is scored
+    against **this pipeline's own reconstruction**. That is a real measurement — it asks
+    whether the belief tracks the positions the site draws — but it is not the same
+    question the synthetic figures answer, and reporting the two as one number would be
+    the single most misleading thing this project could do.
+    """
+    from shadowcast.l1_events import normalise
+    from shadowcast.l1_events.resolve import attribute, resolve_all
+
+    if shard is not None:
+        from shadowcast.packets.replay import ReplaySource
+
+        if not shard.exists():
+            typer.secho(f"no shard at {shard}", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        source = ReplaySource(shard, limit=line + 1)
+        bundle = source.read(source.match_ids()[line])
+        real = True
+    else:
+        from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+
+        pathologies = Pathologies.none() if clean else Pathologies.all()
+        source = SyntheticSource(
+            terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
+        )
+        bundle, _ = source.generate(source.match_ids()[0])
+        real = False
+
+    events = normalise(bundle, terrain)
+    att = attribute(events)
+    events, info = resolve_all(events, att)
+    return events, att, info, real
+
+
+def _echo_real_caveat() -> None:
+    typer.secho(
+        "  real packets: there is no ground truth here. Anything scored against 'truth' "
+        "is scored\n  against this pipeline's own reconstruction, whose fog agreement is "
+        "68%, not against\n  what actually happened. Read these as tracking, not accuracy.",
+        fg=typer.colors.YELLOW,
+    )
+
+
 def _load_terrain(explicit: Path | None = None):
     """Load the built terrain, or build it on the fly if it is absent."""
     from shadowcast.config import TerrainSpec, terrain_path
@@ -395,6 +443,11 @@ def ablate(
     clean: Annotated[bool, typer.Option("--clean", help="Disable every stream pathology.")] = False,
     stride: Annotated[int, typer.Option(help="Score every Nth tick.")] = 4,
     models: Annotated[str, typer.Option(help="Comma-separated model names.")] = "",
+    shard: Annotated[
+        Path | None,
+        typer.Option(help="Ablate on a REAL match. There is no ground truth; see below."),
+    ] = None,
+    line: Annotated[int, typer.Option(help="Which match in the shard.")] = 0,
 ) -> None:
     """Run every belief model over one match and print the ablation table.
 
@@ -412,24 +465,17 @@ def ablate(
 
     from shadowcast.config import BASELINES, THESIS_PAIR
     from shadowcast.fov.table import load_table
-    from shadowcast.l1_events import normalise
-    from shadowcast.l1_events.resolve import attribute, resolve_all
     from shadowcast.l2_reconstruct.vision import VisionStream
     from shadowcast.l3_infer.baselines import ablate as run_ablation
     from shadowcast.l3_infer.metrics import LatticeIndex
     from shadowcast.l3_infer.policy import observe
-    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
 
     terrain = _load_terrain()
     table = load_table(terrain)
-    pathologies = Pathologies.none() if clean else Pathologies.all()
-    source = SyntheticSource(
-        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
-    )
-    bundle, _ = source.generate(source.match_ids()[0])
-    events = normalise(bundle, terrain)
-    att = attribute(events)
-    events, _ = resolve_all(events, att)
+    events, att, _, real = _load_match(terrain, shard, line, seed, duration, clean)
+    if real:
+        _echo_real_caveat()
+        typer.echo("")
 
     start = time.perf_counter()
     obs, public, truth = observe(events, att, VisionStream(events, att, terrain, table))
@@ -574,6 +620,11 @@ def diagnose(
     seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
     duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,
     model: Annotated[str, typer.Option(help="Which baseline to diagnose.")] = "full",
+    shard: Annotated[
+        Path | None,
+        typer.Option(help="Diagnose a REAL match. There is no ground truth; see below."),
+    ] = None,
+    line: Annotated[int, typer.Option(help="Which match in the shard.")] = 0,
 ) -> None:
     """Ask HOW the belief is wrong, not just how much.
 
@@ -586,22 +637,16 @@ def diagnose(
     """
     from shadowcast.config import BASELINES
     from shadowcast.fov.table import load_table
-    from shadowcast.l1_events import normalise
-    from shadowcast.l1_events.resolve import attribute, resolve_all
     from shadowcast.l2_reconstruct.vision import VisionStream
     from shadowcast.l3_infer.policy import observe
-    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
     from shadowcast.validate.belief_diagnostic import diagnose_belief
 
     terrain = _load_terrain()
     table = load_table(terrain)
-    source = SyntheticSource(
-        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=Pathologies.all())
-    )
-    bundle, _ = source.generate(source.match_ids()[0])
-    events = normalise(bundle, terrain)
-    att = attribute(events)
-    events, _ = resolve_all(events, att)
+    events, att, _, real = _load_match(terrain, shard, line, seed, duration, clean=False)
+    if real:
+        _echo_real_caveat()
+        typer.echo("")
     obs, public, truth = observe(events, att, VisionStream(events, att, terrain, table))
 
     result = diagnose_belief(
