@@ -131,6 +131,7 @@ uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
 uv run shadowcast ablate             # seven belief models, one table, the thesis
 uv run shadowcast diagnose           # HOW the belief is wrong: drift or collapse
+uv run shadowcast inspect <shard>    # test the fog oracle against real packets
 uv run shadowcast export --web       # the artifact the site reads, ~1 MB per match
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
 

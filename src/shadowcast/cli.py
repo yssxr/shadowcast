@@ -490,6 +490,86 @@ def ablate(
 
 
 @app.command()
+def inspect(
+    shard: Annotated[
+        Path, typer.Argument(help="A .jsonl.gz shard from the decoded replay corpus.")
+    ] = Path("data/raw/12_22/batch_001.jsonl.gz"),
+    matches: Annotated[int, typer.Option(help="How many matches to read.")] = 1,
+) -> None:
+    """Test the fog oracle against real packets.
+
+    Everything downstream rests on one claim: a fog event naming champion C can only come
+    from C's opponents, because a team always sees its own members. That makes the
+    observer team derivable per event and gives a ground-truth visibility oracle for both
+    sides — and it had never been checked against a real shard.
+
+    The deciding test is geometric. If the fog stream is the opposing team's vision, a
+    visible champion sits close to an ENEMY and a hidden one does not, while its distance
+    to its own allies barely moves. Nothing else predicts that: interest culling around a
+    camera would move both together.
+    """
+    from shadowcast.packets.inspect import CHAMPION_SIGHT, inspect_fog, read_matches
+
+    if not shard.exists():
+        typer.secho(f"no shard at {shard}", fg=typer.colors.RED)
+        typer.echo("  fetch one with:")
+        typer.echo('    uv run python -c "from huggingface_hub import hf_hub_download"')
+        typer.echo(f"  see the README for the full command; expected at {shard}")
+        raise typer.Exit(1)
+
+    for n, match in enumerate(read_matches(shard, limit=matches)):
+        report = inspect_fog(match)
+        _echo_table(
+            f"match {n + 1} — {shard.name}",
+            {
+                "packets": f"{match.n_packets:,}",
+                "duration": f"{report.duration / 60:.1f} min",
+                "heroes": report.n_heroes,
+                "teams from the damage graph": (
+                    "bipartite, 5/5" if report.bipartite else "NOT bipartite"
+                ),
+            },
+        )
+        typer.echo("")
+        _echo_table(
+            "fog transitions",
+            {
+                "raw EnterFog : LeaveFog": f"{report.raw_ratio:.2f} : 1",
+                "after dedup, alternate": report.alternates,
+                "transitions": f"{report.n_transitions:,}",
+                "position packets while visible": (f"{report.position_packets_while_visible:.1%}"),
+            },
+        )
+        typer.echo("")
+        typer.secho("distance to the nearest champion, by fog state", bold=True)
+        typer.echo(f"  {'':>9}{'nearest ally':>15}{'nearest enemy':>16}")
+        typer.echo(
+            f"  {'visible':>9}{report.visible_ally_distance:>13,.0f} u"
+            f"{report.visible_enemy_distance:>14,.0f} u"
+        )
+        typer.echo(
+            f"  {'in fog':>9}{report.hidden_ally_distance:>13,.0f} u"
+            f"{report.hidden_enemy_distance:>14,.0f} u"
+        )
+        typer.echo(
+            f"  ({report.samples:,} samples; champion sight radius is {CHAMPION_SIGHT:.0f} u)"
+        )
+        typer.echo("")
+        if report.oracle_holds:
+            typer.secho(
+                "  the fog stream tracks ENEMY proximity, not isolation — the oracle holds",
+                fg=typer.colors.GREEN,
+                bold=True,
+            )
+        else:
+            typer.secho(
+                "  the fog stream does NOT behave like the opposing team's vision",
+                fg=typer.colors.RED,
+                bold=True,
+            )
+
+
+@app.command()
 def diagnose(
     seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
     duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,

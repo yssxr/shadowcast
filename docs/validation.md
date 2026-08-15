@@ -14,6 +14,64 @@ is a figure someone will eventually be unable to defend.
 
 ---
 
+## R1 — does the fog oracle hold on real packets?
+
+**Yes, in 23 of 23 matches.** Regenerate with `shadowcast inspect`.
+
+Everything downstream of L2 rests on one claim: a fog event naming champion C can only
+come from C's *opponents*, because a team always sees its own members — which makes the
+observer team derivable per event and turns the corpus into a ground-truth visibility
+oracle for **both** sides. It had never been tested against a real shard, and it was the
+project's largest unexamined risk.
+
+| Check | Result |
+|---|---|
+| Transitions alternate after dedup | **23 / 23** |
+| Teams recovered 5 / 5 from damage alone | **23 / 23** |
+| Hero-to-hero damage across the recovered split | **100.00%** median |
+| Labelled position packets arriving while visible | **83.7%** median |
+| Distance to nearest **enemy**, hidden ÷ visible | **2.39×** |
+| Distance to nearest **ally**, hidden ÷ visible | **0.94×** |
+
+The last two rows are the ones that settle it, and the contrast between them is the whole
+argument. Hiding moves a champion 2.4× further from its enemies and leaves its distance to
+its own team unchanged. No other reading of the packets predicts that: camera-based
+interest culling would move both together, and a stream carrying only one team's view
+would not toggle that team's own members at all.
+
+Three things the recon corrected along the way:
+
+- **The 6:1 `EnterFog`:`LeaveFog` ratio is duplication, not semantics.** `LeaveFog` is
+  65–70% of every packet in the corpus with 20+ repeats each. Deduping exact `(time, kind)`
+  pairs and then collapsing consecutive same-kind runs leaves a perfectly alternating
+  sequence. The plan flagged this ratio as possibly meaning the names were inverted; they
+  are not.
+- **`LeaveFog` means "became visible".** A packet carrying a unit's coordinates can only
+  reach a client that can see it, and 83.7% of labelled positions land in `LeaveFog`
+  intervals.
+- **Teams are recoverable from the damage graph alone**, with no turret names, spawn sides
+  or positions. Champions damage enemies and not allies, so the split is the maximum cut —
+  solved exactly, since ten champions admit only 126 balanced splits. Two-colouring the
+  graph was the obvious method and is wrong twice: it colours disconnected components
+  independently, so "colour 0" means a different team in each and a match comes out 6/4;
+  and real matches are not bipartite, because in one of twelve a champion traded 75 hits
+  with an enemy and 3 with a teammate, closing an odd cycle. A maximum cut is indifferent
+  to a few stray edges; a colouring is decided by them.
+
+This gives the resolver an independent second opinion on team assignment, derived a
+completely different way. Two unrelated methods agreeing is worth more than either passing
+its own test.
+
+## R3 — the Replication index pairs
+
+Confirmed exactly as the plan predicted, against real packets: `mHP` = (32, 0),
+`mMaxHP` = (32, 1), `mPAR` = (32, 14), `mMoveSpeed` = (32, 24).
+
+One correction the seam will have to absorb: `Replication` arrives as a **dict of
+`net_id -> {primary_index, secondary_index, name, data}`**, not as flat rows carrying a
+`net_id` field. 38% of entries have a non-empty name, so the index pair is the only
+reliable key — 59 distinct pairs appear across a single match.
+
 ## Fog agreement
 
 Reconstructed per-team visibility versus the fog transitions the stream itself publishes.
