@@ -253,7 +253,22 @@ class MatchEvents:
 
     @property
     def orders_attributed(self) -> bool:
-        return bool((self.orders["owner"] != UNKNOWN).all())
+        """Has order attribution run? Not "did every order find an owner".
+
+        Those are different questions and only the first has a yes/no answer. Some orders
+        genuinely belong to no champion — the real stream contains net_ids that act
+        without ever being created, and a pet or a misfire issues movement nobody owns —
+        so demanding all of them resolve makes this permanently False and useless as a
+        "has this stage run" flag. `order_attribution_rate` is the measurement.
+        """
+        return bool(self.orders.size) and bool((self.orders["owner"] != UNKNOWN).any())
+
+    @property
+    def order_attribution_rate(self) -> float:
+        """Fraction of movement orders assigned to a champion."""
+        if self.orders.size == 0:
+            return 0.0
+        return float((self.orders["owner"] != UNKNOWN).mean())
 
     def order_polyline(self, index: int) -> np.ndarray:
         row = self.orders[index]
@@ -286,6 +301,7 @@ class MatchEvents:
             "teams_resolved": self.teams_resolved,
             "roles_resolved": self.roles_resolved,
             "orders_attributed": self.orders_attributed,
+            "order_attribution_rate": round(self.order_attribution_rate, 4),
             **self.stats,
         }
 

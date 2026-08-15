@@ -168,7 +168,7 @@ def test_the_resolver_recovers_the_same_teams_as_the_recon():
     for index, match_id in enumerate(source.match_ids()):
         events = normalise(source.read(match_id), terrain)
         at = attribute(events)
-        events, info = resolve_all(events, at.pos, at.valid)
+        events, info = resolve_all(events, at)
 
         assert info["teams"]["method"] == "damage_max_cut", info["teams"]
         assert info["teams"]["balanced"]
@@ -199,7 +199,7 @@ def test_a_real_match_runs_the_whole_pipeline():
     source = ReplaySource(SHARD, limit=1)
     events = normalise(source.read(source.match_ids()[0]), terrain)
     at = attribute(events)
-    events, info = resolve_all(events, at.pos, at.valid)
+    events, info = resolve_all(events, at)
 
     assert events.teams_resolved
     assert events.roles_resolved

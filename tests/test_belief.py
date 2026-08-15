@@ -62,7 +62,7 @@ def match(terrain, fov_table):
     bundle, _ = src.generate(src.match_ids()[0])
     events = normalise(bundle, terrain)
     at = attribute(events)
-    events, _ = resolve_all(events, at.pos, at.valid)
+    events, _ = resolve_all(events, at)
 
     obs, public, truth = observe(events, at, VisionStream(events, at, terrain, fov_table))
     return Match(

@@ -317,7 +317,12 @@ def test_with_owners_writes_ownership_back(run_clean):
     assert not events.orders_attributed
     filled = with_owners(events, at)
     np.testing.assert_array_equal(filled.orders["owner"], at.owner)
-    assert filled.orders_attributed == (at.stats["unattributed"] == 0)
+    # `orders_attributed` answers "has attribution run", which is the only part of this
+    # with a yes/no answer — a clean stream still leaves a few orders owned by nobody.
+    # The fraction is the measurement.
+    assert filled.orders_attributed
+    expected = 1.0 - at.stats["unattributed"] / at.owner.size
+    assert filled.order_attribution_rate == pytest.approx(expected)
     for slot in range(C.N_HEROES):
         assert filled.orders_of(slot).size == at.stats["orders_per_slot"][slot]
     # The original must be untouched: MatchEvents is treated as immutable.

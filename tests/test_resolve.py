@@ -27,7 +27,7 @@ def resolved(synth_dirty, terrain):
     bundle, truth = synth_dirty
     events = normalise(bundle, terrain)
     at = attribute(events)
-    events, info = resolve_all(events, at.pos, at.valid)
+    events, info = resolve_all(events, at)
     return events, truth, at, info
 
 
@@ -288,15 +288,29 @@ def test_resolve_all_fills_everything_in(resolved):
     assert events.teams_resolved
     assert events.roles_resolved
     assert events.deaths_resolved
-    assert set(info) == {"teams", "deaths", "roles"}
+    assert events.orders_attributed
+    assert set(info) == {"teams", "deaths", "roles", "orders"}
+
+
+def test_order_ownership_reaches_the_events(resolved):
+    """Attribution computes ownership; something has to write it back.
+
+    It did not, for the whole life of the project up to this point: `with_owners` existed,
+    was exported, and was called by nothing. So `events.orders["owner"]` was `UNKNOWN` on
+    every match and `describe()` reported `orders_attributed: False` while 91% of ticks
+    had a recovered position — a QA surface that said the opposite of the truth.
+    """
+    events, _, at, _ = resolved
+    np.testing.assert_array_equal(events.orders["owner"], at.owner)
+    assert (events.orders["owner"] != UNKNOWN).mean() > 0.9
 
 
 def test_resolve_all_is_deterministic(synth_clean, terrain):
     bundle, _ = synth_clean
     events = normalise(bundle, terrain)
     at = attribute(events)
-    a, _ = resolve_all(events, at.pos, at.valid)
-    b, _ = resolve_all(events, at.pos, at.valid)
+    a, _ = resolve_all(events, at)
+    b, _ = resolve_all(events, at)
     np.testing.assert_array_equal(a.heroes, b.heroes)
     np.testing.assert_array_equal(a.deaths, b.deaths)
 

@@ -29,11 +29,16 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass
 from itertools import permutations
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from shadowcast import constants as C
 from shadowcast import sr
+
+if TYPE_CHECKING:
+    from shadowcast.l1_events.resolve.attribute import Attribution
+
 from shadowcast.l1_events.schema import MatchEvents
 
 __all__ = ["ROLES", "RoleResolution", "resolve_roles"]
@@ -194,17 +199,26 @@ def with_roles(events: MatchEvents, resolution: RoleResolution) -> MatchEvents:
 
 def resolve_all(
     events: MatchEvents,
-    pos: np.ndarray,
-    valid: np.ndarray,
+    attribution: Attribution,
     tick_hz: int = C.TICK_HZ,
 ) -> tuple[MatchEvents, dict[str, object]]:
     """Run every resolver in dependency order and return the filled-in events.
 
     Teams first, because roles are constrained per team and fog observer teams are
     derived from champion teams. Deaths are independent of both.
+
+    Takes the whole `Attribution` rather than its `pos`/`valid` arrays because order
+    ownership belongs on the events too. Passing the two arrays was how ownership came to
+    be silently dropped: the attributor computed it, nothing wrote it back, and
+    `describe()` reported `orders_attributed: False` on every match including ones where
+    91% of ticks had a recovered position.
     """
+    from shadowcast.l1_events.resolve.attribute import with_owners
     from shadowcast.l1_events.resolve.deaths import resolve_deaths, with_deaths
     from shadowcast.l1_events.resolve.teams import resolve_teams, with_teams
+
+    pos, valid = attribution.pos, attribution.valid
+    events = with_owners(events, attribution)
 
     team_res = resolve_teams(events)
     events = with_teams(events, team_res)
@@ -223,4 +237,5 @@ def resolve_all(
         },
         "deaths": death_res.stats,
         "roles": role_res.stats,
+        "orders": attribution.describe(),
     }

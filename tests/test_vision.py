@@ -46,7 +46,7 @@ def pipeline(terrain, fov_table):
     bundle, truth = src.generate(src.match_ids()[0])
     events = normalise(bundle, terrain)
     at = attribute(events)
-    events, info = resolve_all(events, at.pos, at.valid)
+    events, info = resolve_all(events, at)
 
     n = min(at.pos.shape[0], truth.pos.shape[0])
     truth_at = dataclasses.replace(at, pos=truth.pos[:n].copy(), valid=truth.alive[:n].astype(bool))

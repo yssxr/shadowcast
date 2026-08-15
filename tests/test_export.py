@@ -286,7 +286,7 @@ def artifact(terrain, fov_table, tmp_path_factory):
     bundle, _ = src.generate(src.match_ids()[0])
     events = normalise(bundle, terrain)
     at = attribute(events)
-    events, _ = resolve_all(events, at.pos, at.valid)
+    events, _ = resolve_all(events, at)
     obs, public, _ = observe(events, at, VisionStream(events, at, terrain, fov_table))
     built = build_arrays(
         events,

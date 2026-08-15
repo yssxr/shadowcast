@@ -331,7 +331,7 @@ def pipeline(
     bundle, truth = timed("generate", lambda: source.generate(match_id))
     events = timed("normalise", lambda: normalise(bundle, terrain))
     att = timed("attribute", lambda: attribute(events))
-    events, info = timed("resolve", lambda: resolve_all(events, att.pos, att.valid))
+    events, info = timed("resolve", lambda: resolve_all(events, att))
 
     _echo_table("match", events.describe())
     typer.echo("")
@@ -429,7 +429,7 @@ def ablate(
     bundle, _ = source.generate(source.match_ids()[0])
     events = normalise(bundle, terrain)
     att = attribute(events)
-    events, _ = resolve_all(events, att.pos, att.valid)
+    events, _ = resolve_all(events, att)
 
     start = time.perf_counter()
     obs, public, truth = observe(events, att, VisionStream(events, att, terrain, table))
@@ -601,7 +601,7 @@ def diagnose(
     bundle, _ = source.generate(source.match_ids()[0])
     events = normalise(bundle, terrain)
     att = attribute(events)
-    events, _ = resolve_all(events, att.pos, att.valid)
+    events, _ = resolve_all(events, att)
     obs, public, truth = observe(events, att, VisionStream(events, att, terrain, table))
 
     result = diagnose_belief(
@@ -685,7 +685,7 @@ def export(
     bundle, _ = source.generate(match_id)
     events = normalise(bundle, terrain)
     att = attribute(events)
-    events, _ = resolve_all(events, att.pos, att.valid)
+    events, _ = resolve_all(events, att)
 
     start = time.perf_counter()
     obs, public, _ = observe(events, att, VisionStream(events, att, terrain, table))
