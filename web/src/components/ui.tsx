@@ -17,19 +17,24 @@ export function Panel({
   right,
   children,
   padding = 14,
+  delay = 0,
 }: {
   title?: string;
   right?: ReactNode;
   children: ReactNode;
   padding?: number;
+  /** Stagger, in ms. Panels arriving together read as one movement rather than a flash. */
+  delay?: number;
 }) {
   return (
     <section
+      className="sc-rise"
       style={{
         background: color.panel,
         border: `1px solid ${color.borderSoft}`,
         borderRadius: 4,
         overflow: "hidden",
+        animationDelay: `${delay}ms`,
       }}
     >
       {title && (
@@ -74,6 +79,7 @@ export function Toggle({
   return (
     <button
       type="button"
+      className="sc-lift"
       onClick={() => onChange(!on)}
       style={{
         display: "flex",
@@ -130,6 +136,7 @@ export function SegmentedControl<T extends string>({
         <button
           key={option.value}
           type="button"
+          className="sc-press"
           onClick={() => onChange(option.value)}
           style={{
             flex: 1,

@@ -160,8 +160,10 @@ at all.
 region and patch do not exist in the data and a plausible aggregate would cost more than
 it is worth.
 
-The maps run at 60 fps with zero allocation in the draw loop; React state for the sidebar
-is throttled to about 9 Hz so text and canvas are never competing for the same frame.
+The maps hold **101 fps** with both boards live at 2x scale (`npm run perf`), with zero
+allocation in the draw loop; React state for the sidebar is throttled to about 9 Hz so
+text and canvas never compete for a frame, and the digits are eased back up to 60 by
+writing straight to the DOM node.
 
 ## Development
 

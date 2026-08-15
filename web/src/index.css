@@ -85,3 +85,79 @@ input[type="range"]::-moz-range-thumb {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Motion.
+
+   Everything here animates `transform` and `opacity` only. Those two are the
+   properties the compositor can handle without consulting layout or paint, so a
+   panel sliding in cannot steal frames from the map canvas rendering beside it.
+   Animating `height`, `top` or `width` would put both on the same thread and the
+   maps would hitch every time a view changed.
+   --------------------------------------------------------------------------- */
+
+@keyframes sc-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes sc-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sc-pulse {
+  0% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.55);
+  }
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+}
+
+.sc-rise {
+  animation: sc-rise 320ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.sc-fade {
+  animation: sc-fade 240ms ease-out both;
+}
+
+/* Rows and controls lift a hair on hover. `translate3d` keeps it on the
+   compositor; a margin or padding change here would reflow the sidebar. */
+.sc-lift {
+  transition:
+    transform 140ms cubic-bezier(0.2, 0.6, 0.3, 1),
+    background-color 140ms cubic-bezier(0.2, 0.6, 0.3, 1),
+    border-color 140ms cubic-bezier(0.2, 0.6, 0.3, 1);
+  will-change: transform;
+}
+.sc-lift:hover {
+  transform: translate3d(0, -1px, 0);
+}
+.sc-lift:active {
+  transform: translate3d(0, 0, 0);
+}
+
+.sc-press {
+  transition: transform 90ms cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+.sc-press:active {
+  transform: scale(0.94);
+}

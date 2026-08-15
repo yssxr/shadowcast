@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && node scripts/check.ts",
-    "shoot": "node scripts/shoot.ts"
+    "shoot": "node scripts/shoot.ts",
+    "perf": "node scripts/perf.ts"
   },
   "dependencies": {
     "react": "^19.2.0",

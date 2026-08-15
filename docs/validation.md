@@ -397,6 +397,34 @@ the bytes mean.
 | `meta.json` contained bare `NaN` from an unknown respawn time | Valid to Python's parser and to **no other JSON parser** — `JSON.parse` throws, so the artifact was unopenable in a browser while every Python test passed. Found on the conformance test's first run. |
 | `delta` and `xor` applied to a float section truncate it | Both codecs are defined on the integer representation. `[1.5, 2.25] → [1.75, 2.5]` round-trips to `[1.0, 2.0]`. It *looked* like excellent compression — delta-coded `scalars` came out 12× smaller than raw, which is what discarding the fractional part will do. Now refused at spec-definition time. |
 
+## Frontend frame rate
+
+Measured with `npm run perf` — 150 frames of playback at 1728x1080, deviceScaleFactor 2,
+both maps live. Headless Chromium is uncapped, so anything above 60 holds 60 on a real
+display.
+
+| Belief mode | Before | After |
+|---|---|---|
+| Cloud | 51.7 fps, worst frame 83 ms | **101.6 fps**, worst frame 25 ms |
+| Contour | 107.4 fps | 104.4 fps |
+| Grid | 111.8 fps | 105.0 fps |
+
+Cloud mode was the only one below 60, and toggling the belief layer off took the page
+from 67 to 110 fps — so the layer was the entire cost, and trails, wards and fog were
+free. Two changes fixed it:
+
+- **Blur at 128², not at display size.** A canvas blur is per-destination-pixel, so
+  blurring during the upscale to 800² cost 640,000 pixels per cloud. The field is 32
+  cells; there is no detail there that a blur at display resolution can preserve.
+- **Composite terrain and belief at 512², then blit once.** `screen` blending 2.56
+  million pixels per map per frame was magnifying an image with nothing to magnify.
+  Entities are still drawn at full display resolution, because a champion dot is vector
+  work that does want the pixels.
+
+Also folded in: all five enemies on a map are the same team and therefore the same
+colour, so their fields are merged before compositing — one blended draw per map instead
+of five.
+
 ## Engine self-consistency
 
 Tests with analytically known answers, not comparisons against the data.

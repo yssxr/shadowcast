@@ -27,12 +27,12 @@ interface Props {
   height?: number;
 }
 
-export function Timeline({ artifact, clock, width, height = 96 }: Props) {
+export function Timeline({ artifact, clock, width, height = 112 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas) return;
+    if (!canvas || width <= 0 || height <= 0) return;
     const ctx = canvas.getContext("2d")!;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = width * dpr;
@@ -139,12 +139,24 @@ export function Timeline({ artifact, clock, width, height = 96 }: Props) {
       ctx.clearRect(0, 0, width, height);
       ctx.drawImage(cache, 0, 0, width, height);
       const x = (t / artifact.duration) * width;
-      ctx.strokeStyle = color.text[1];
+
+      // Everything ahead of the playhead is dimmed. It costs one fill and it makes the
+      // strip read as a position in a match rather than as a chart with a line on it.
+      ctx.fillStyle = "rgba(8,8,11,.45)";
+      ctx.fillRect(x, 0, width - x, height);
+
+      ctx.strokeStyle = color.text[0];
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, height);
       ctx.stroke();
+
+      // A grabbable-looking handle, because this strip is the only scrubber.
+      ctx.fillStyle = color.text[0];
+      ctx.beginPath();
+      ctx.arc(x, height - 5, 4, 0, Math.PI * 2);
+      ctx.fill();
     };
 
     draw(clock.t);
@@ -160,7 +172,13 @@ export function Timeline({ artifact, clock, width, height = 96 }: Props) {
   return (
     <canvas
       ref={ref}
-      style={{ width, height, display: "block", cursor: "ew-resize", touchAction: "none" }}
+      style={{
+        width,
+        height,
+        display: "block",
+        cursor: "ew-resize",
+        touchAction: "none",
+      }}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         scrub(e);

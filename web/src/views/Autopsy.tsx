@@ -68,7 +68,7 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
   const observer = victim?.team ?? 0;
 
   return (
-    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", justifyContent: "center" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <MapCanvas
           artifact={artifact}
@@ -92,6 +92,7 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
                 <button
                   key={k}
                   type="button"
+                  className="sc-lift"
                   onClick={() => setIndex(k)}
                   style={{
                     display: "flex",
@@ -138,7 +139,7 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
           </div>
         </Panel>
 
-        <Panel title="verdict">
+        <Panel title="verdict" delay={60}>
           <Heading>{verdict.label}</Heading>
           <Note>{verdict.explanation}</Note>
           <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
@@ -156,7 +157,7 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
           </div>
         </Panel>
 
-        <Panel title="how this is judged">
+        <Panel title="how this is judged" delay={120}>
           <Note>
             Over the {WINDOW} seconds before the death, the killer is either inside the
             victim team's vision or not. <strong>Predictable</strong> means visible for more

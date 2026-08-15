@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMeasure } from "./state/motion.ts";
 import { Artifact, loadArtifact } from "./artifact/load.ts";
 import { loadTerrain, type TerrainImage } from "./canvas/terrain.ts";
 import { PlaybackClock } from "./state/playback.ts";
@@ -30,13 +31,16 @@ type ViewId = (typeof VIEWS)[number]["id"];
 
 const MATCH = "synth-0007-000";
 
+/** Sidebar width plus the gap beside it. */
+const SIDEBAR = 250 + 16;
+
 export function App() {
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [terrain, setTerrain] = useState<TerrainImage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<ViewId>(() => readHash().view);
   const [settings, setSettings] = useState<MapSettings>(defaultSettings);
-  const [mapSize, setMapSize] = useState(() => fitMapSize());
+  const [board, boardBox] = useMeasure<HTMLDivElement>();
 
   const clockRef = useRef<PlaybackClock | null>(null);
 
@@ -66,12 +70,6 @@ export function App() {
   }, [artifact]);
 
   useEffect(() => () => clockRef.current?.dispose(), []);
-
-  useEffect(() => {
-    const onResize = () => setMapSize(fitMapSize());
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
 
   // Without this, the hash is write-only: a pasted deep link into an already-open tab
   // does nothing, and the browser's back button appears broken. Both are the ways
@@ -132,32 +130,45 @@ export function App() {
 
   return (
     <Shell view={view} onView={changeView} matchId={artifact.meta.match_id}>
-      {view === "replay" && (
-        <Replay
-          artifact={artifact}
-          terrain={terrain}
-          clock={clock}
-          settings={settings}
-          onSettings={(next) => {
-            setSettings(next);
-            // Redraw immediately: a toggle that waits for the next animation frame while
-            // paused looks like it did not register.
-            requestAnimationFrame(() => clock.refresh());
-          }}
-          mapSize={mapSize}
-        />
-      )}
-      {view === "autopsy" && (
-        <Autopsy
-          artifact={artifact}
-          terrain={terrain}
-          clock={clock}
-          settings={settings}
-          mapSize={Math.min(mapSize * 1.4, 660)}
-        />
-      )}
-      {view === "wards" && <WardYield artifact={artifact} />}
-      {view === "method" && <Method artifact={artifact} />}
+      {/* Keyed on the view so React remounts on change and the entrance animation runs.
+          A cross-fade between two mounted trees would mean two live canvases competing
+          for the frame budget during the transition, which is the one moment it is most
+          visible. */}
+      {/* Outside the keyed wrapper: it must not be remounted when the view changes, or
+          the width would drop to zero for a frame and every canvas would resize twice. */}
+      <div ref={board} style={{ width: "100%", height: 0 }} aria-hidden />
+      <div key={view} className="sc-fade" style={{ width: "100%" }}>
+        {/* Nothing canvas-backed renders until the board has been measured. A canvas
+            sized from a width of zero throws on the first `drawImage`, and sizing it from
+            a guess means every map is drawn once at the wrong size and then again. */}
+        {boardBox.width > 0 && view === "replay" && (
+          <Replay
+            artifact={artifact}
+            terrain={terrain}
+            clock={clock}
+            settings={settings}
+            onSettings={(next) => {
+              setSettings(next);
+              // Redraw immediately: a toggle that waits for the next animation frame
+              // while paused looks like it did not register.
+              requestAnimationFrame(() => clock.refresh());
+            }}
+            mapSize={fitMapSize(boardBox.width - SIDEBAR)}
+            boardWidth={Math.max(0, boardBox.width - SIDEBAR)}
+          />
+        )}
+        {boardBox.width > 0 && view === "autopsy" && (
+          <Autopsy
+            artifact={artifact}
+            terrain={terrain}
+            clock={clock}
+            settings={settings}
+            mapSize={Math.max(320, Math.min(boardBox.width - 360, 780))}
+          />
+        )}
+        {view === "wards" && <WardYield artifact={artifact} />}
+        {view === "method" && <Method artifact={artifact} />}
+      </div>
     </Shell>
   );
 }
@@ -245,7 +256,18 @@ function Shell({
           </span>
         )}
       </header>
-      <main style={{ padding: 20 }}>{children}</main>
+      <main
+        style={{
+          padding: "20px 20px 40px",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        {/* Capped, because two maps stretched across an ultrawide are unreadable — but
+            capped generously, so a normal laptop fills its screen instead of leaving a
+            third of it empty. */}
+        <div style={{ width: "100%", maxWidth: 1680 }}>{children}</div>
+      </main>
     </div>
   );
 }
@@ -262,7 +284,16 @@ function readHash(): { view: ViewId; t: number } {
 }
 
 /** Two maps side by side plus a sidebar, without ever inducing a horizontal scrollbar. */
-function fitMapSize(): number {
-  const available = window.innerWidth - 250 - 16 - 40 - 12;
-  return Math.max(260, Math.min(560, Math.floor(available / 2)));
+/**
+ * Two maps side by side inside the measured board width.
+ *
+ * Measured rather than derived from `window.innerWidth`: the sidebar, the padding and the
+ * scrollbar all take width, and every attempt to predict their total is a guess that goes
+ * wrong on somebody's machine. A `ResizeObserver` on the actual element is the answer the
+ * browser already has.
+ */
+function fitMapSize(boardWidth: number): number {
+  if (boardWidth <= 0) return 420;
+  // 12 px gap between the two panels, 2 px of border each.
+  return Math.max(240, Math.floor((boardWidth - 12) / 2) - 2);
 }

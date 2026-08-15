@@ -52,7 +52,7 @@ export function WardYield({ artifact }: Props) {
   const silent = scores.filter((s) => s.exclusive === 0).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 1080, margin: "0 auto" }}>
       <Panel title="ward information yield">
         <Heading>Counting wards is not measuring vision.</Heading>
         <Note>
@@ -75,6 +75,7 @@ export function WardYield({ artifact }: Props) {
       </Panel>
 
       <Panel
+        delay={60}
         title="leaderboard"
         right={
           <div style={{ display: "flex", gap: 10 }}>
@@ -107,6 +108,7 @@ export function WardYield({ artifact }: Props) {
               return (
                 <div
                   key={ward.index}
+                  className="sc-lift"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "52px 1fr 130px 74px",
@@ -169,7 +171,7 @@ export function WardYield({ artifact }: Props) {
         )}
       </Panel>
 
-      <Panel title="what this does not claim">
+      <Panel title="what this does not claim" delay={120}>
         <Note>
           This is an <strong>attribution</strong>, not a counterfactual. It says the ward
           was the only plausible source of vision for those sightings — not that they would

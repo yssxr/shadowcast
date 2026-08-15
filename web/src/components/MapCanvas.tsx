@@ -96,7 +96,7 @@ export function MapCanvas({
 
   useEffect(() => {
     const canvas = ref.current;
-    if (!canvas) return;
+    if (!canvas || size <= 0) return;
     const ctx = canvas.getContext("2d", { alpha: false })!;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = size * dpr;
@@ -105,18 +105,36 @@ export function MapCanvas({
 
     // Everything the draw loop needs, allocated once.
     const field = new Float32Array(DISPLAY_GRID * DISPLAY_GRID);
+    const one = new Float32Array(DISPLAY_GRID * DISPLAY_GRID);
     const components = new Float64Array(artifact.meta.dims.components * 4);
     const scratch = createScratch();
     const trail = new Float64Array((TRAIL_TICKS + 1) * 2);
     const here = new Float64Array(2);
 
+    // The fog composite is built at the TERRAIN's own resolution, not the display's.
+    // Its source images are 512² and the map is drawn at roughly 800 CSS px on a 2x
+    // display, so compositing at display size was doing 1600² of work — five million
+    // pixels per rebuild — to upscale a 512² image. Building at 512² and letting the
+    // per-frame blit do the magnification is the same picture for a tenth of the cost,
+    // and it was most of the 26 ms worst frame.
     const fog = document.createElement("canvas");
-    fog.width = size * dpr;
-    fog.height = size * dpr;
+    fog.width = terrain.grid;
+    fog.height = terrain.grid;
     const fogCtx = fog.getContext("2d", { alpha: false })!;
-    fogCtx.scale(dpr, dpr);
     let fogTick = -1;
     let fogVision = live.current.showVision;
+
+    // Terrain and belief are composited together at 512² and blitted once. Both are
+    // inherently low-resolution — the terrain source IS 512² and the belief is a 32-cell
+    // field — so compositing them at display size was doing 2.56 million pixels of
+    // `screen` blending per map per frame to magnify images that had no detail to
+    // magnify. MEASURED: the belief layer alone took the page from 110 fps to 67.
+    // Entities are drawn afterwards at full display resolution, because a champion dot
+    // is vector work and does want the pixels.
+    const compose = document.createElement("canvas");
+    compose.width = terrain.grid;
+    compose.height = terrain.grid;
+    const composeCtx = compose.getContext("2d", { alpha: false })!;
 
     const draw = (t: number) => {
       const s = live.current;
@@ -130,24 +148,45 @@ export function MapCanvas({
         drawTerrain(
           fogCtx,
           terrain,
-          size,
+          terrain.grid,
           s.showVision ? (i, j) => artifact.visible(maskTick, observer, i, j) : () => true,
         );
       }
-      ctx.drawImage(fog, 0, 0, size, size);
+      composeCtx.imageSmoothingEnabled = false;
+      composeCtx.drawImage(fog, 0, 0);
 
       if (s.showBelief) {
+        // Every enemy on this map is on the same team, so every cloud is the same
+        // colour — which means they can be merged into one field and composited once
+        // instead of five times. Taking the per-enemy maximum rather than the sum keeps
+        // each cloud's own peak normalisation, and is what a `screen` blend of five
+        // separately-drawn clouds approximates anyway.
+        let any = false;
         for (let e = 0; e < artifact.meta.dims.enemies; e++) {
           if (artifact.seen(belTick, observer, e)) continue;
           const slot = artifact.enemySlot(observer, e);
           if (s.focusSlot >= 0 && slot !== s.focusSlot) continue;
           if (!artifact.alive(posTick, slot)) continue;
           artifact.belief(belTick, observer, e, components);
-          rasteriseMixture(components, field);
-          maskToWalkable(normalise(field), terrain.walkable, terrain.grid);
-          drawBelief(ctx, field, 1 - observer, size, s.beliefMode, scratch);
+          rasteriseMixture(components, one);
+          normalise(one);
+          if (!any) {
+            field.set(one);
+            any = true;
+          } else {
+            for (let k = 0; k < field.length; k++) {
+              if (one[k] > field[k]) field[k] = one[k];
+            }
+          }
+        }
+        if (any) {
+          maskToWalkable(field, terrain.walkable, terrain.grid);
+          drawBelief(composeCtx, field, 1 - observer, terrain.grid, s.beliefMode, scratch);
         }
       }
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(compose, 0, 0, size, size);
 
       if (s.showWards) {
         for (const ward of artifact.wards) {

@@ -61,7 +61,7 @@ export function Method({ artifact }: { artifact: Artifact }) {
   const config = artifact.meta.config as Record<string, string>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 900 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 1080, margin: "0 auto" }}>
       <Panel title="what you are looking at">
         <Heading level={1}>Every number here was produced by a command.</Heading>
         <Note>
@@ -78,8 +78,8 @@ export function Method({ artifact }: { artifact: Artifact }) {
         </Note>
       </Panel>
 
-      {MEASURED.map((section) => (
-        <Panel key={section.group} title={section.group}>
+      {MEASURED.map((section, index) => (
+        <Panel key={section.group} title={section.group} delay={60 + index * 50}>
           <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {section.rows.map(([label, value, note]) => (
               <div
@@ -112,7 +112,7 @@ export function Method({ artifact }: { artifact: Artifact }) {
         </Panel>
       ))}
 
-      <Panel title="this artifact">
+      <Panel title="this artifact" delay={220}>
         <div style={{ display: "flex", gap: 26, flexWrap: "wrap" }}>
           <Stat label="match" value={artifact.meta.match_id} />
           <Stat label="duration" value={`${Math.round(artifact.duration / 60)}`} unit="min" />
@@ -139,7 +139,7 @@ export function Method({ artifact }: { artifact: Artifact }) {
         </div>
       </Panel>
 
-      <Panel title="not yet measured">
+      <Panel title="not yet measured" delay={260}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {PENDING.map((item) => (
             <span key={item} style={{ font: `300 13px ${font.sans}`, color: color.text[4] }}>
@@ -150,7 +150,7 @@ export function Method({ artifact }: { artifact: Artifact }) {
         </div>
       </Panel>
 
-      <Panel title="the data">
+      <Panel title="the data" delay={300}>
         <Note>
           Built on Henry Zhu's decoded replay corpus, released under Apache 2.0. The
           published dataset is rougher than its documentation: movement orders carry no
