@@ -73,6 +73,7 @@ _HERO_NETID_BASE = C.HERO_NETID_HINT_LO
 _TURRET_NETID_BASE = 0x40000004
 _WARD_NETID_BASE = 0x40001000
 _NEUTRAL_NETID_BASE = 0x40002000
+_MINION_NETID_BASE = 0x40003000
 _GHOST_NETID = 0x40009999
 
 ROLES = ("top", "jungle", "mid", "bot", "support")
@@ -740,6 +741,7 @@ class SyntheticSource:
 
         rows_neutral: list[tuple] = []
         rows_death: list[tuple] = []
+
         for n, (_label, p) in enumerate(sr.WARD_SPOTS[:6]):
             snapped, _ = sr.snap_polyline(terrain, p[None, :])
             rows_neutral.append(
@@ -753,6 +755,23 @@ class SyntheticSource:
                     67,
                 )
             )
+
+        # Lane minion waves. Emitted as observable packets — a SpawnMinion at the lane
+        # entrance and an NPC death when the wave is cleared — so the reconstruction can
+        # derive their positions from the same shared wave model in `sr` without needing
+        # to track individual minions, which is impossible: movement orders carry no
+        # entity id and minions have no labelled position packets.
+        wave_specs: list[tuple[float, str, int, int]] = []
+        for n, (wave_t, lane, wave_team) in enumerate(sr.minion_wave_schedule(spec.duration)):
+            net_id = _MINION_NETID_BASE + n
+            point = sr.minion_spawn_point(lane, wave_team)
+            name = "Blue_Minion_Basic" if wave_team == C.TEAM_ORDER else "Red_Minion_Basic"
+            rows_minion.append((wave_t, net_id, float(point[0]), float(point[1]), name, name, 0, 1))
+            death_t = wave_t + sr.MINION_CLUMP_LIFETIME
+            if death_t < spec.duration:
+                rows_death.append((death_t, 0, net_id, 0))
+            wave_specs.append((wave_t, lane, wave_team, net_id))
+
         # Camp clears. Death packets exist in the real stream but NEVER name a
         # champion as the victim — verified across 45,851 real rows — so the generator
         # emits them only for neutrals. Anything downstream that hoped to read
@@ -772,7 +791,32 @@ class SyntheticSource:
                 if 0 <= i < terrain.grid and 0 <= j < terrain.grid:
                     brush[tick, c] = terrain.brush_id[j, i]
 
-        visible = self._run_oracle(pos, brush, alive, team, wards, turret_pos, routes, spec)
+        # Reveal-on-attack needs two passes. Base visibility decides which attacks came
+        # from fog; those attacks then become temporary 400-unit vision sources for the
+        # opposing team and visibility is recomputed. Two passes rather than one because
+        # the gate depends on the answer, and a reveal must never be able to trigger
+        # another reveal.
+        base = self._run_oracle(
+            pos, brush, alive, team, wards, turret_pos, wave_specs, spec, reveals=[]
+        )
+        net_set = set(net_ids.tolist())
+        slot_of = {int(n): k for k, n in enumerate(net_ids)}
+        reveals: list[tuple[float, float, int, float, float]] = []
+        for row in rows_attack:
+            at_t, attacker = float(row[0]), int(row[1])
+            if attacker not in net_set:
+                continue  # a turret, which is never in fog
+            slot = slot_of[attacker]
+            obs = 1 - int(team[slot])
+            tick = min(n_ticks - 1, max(0, round(at_t / dt)))
+            if base[tick, obs, slot]:
+                continue  # not attacking from fog
+            reveals.append(
+                (at_t, at_t + C.FOG_ATTACK_REVEAL_DURATION, obs, float(row[3]), float(row[4]))
+            )
+        visible = self._run_oracle(
+            pos, brush, alive, team, wards, turret_pos, wave_specs, spec, reveals=reveals
+        )
 
         fog_rows = _fog_rows(visible, team, net_ids, dt)
         if pth.duplicate_fog_max > 1 and fog_rows.size:
@@ -914,7 +958,7 @@ class SyntheticSource:
         return bundle, truth
 
     # -- oracle -------------------------------------------------------
-    def _run_oracle(self, pos, brush, alive, team, wards, turret_pos, routes, spec):
+    def _run_oracle(self, pos, brush, alive, team, wards, turret_pos, wave_specs, spec, reveals=()):
         """Build the per-tick vision-source lists and run the independent oracle."""
         from shadowcast.packets.synth_fog import compute_visibility
 
@@ -976,21 +1020,30 @@ class SyntheticSource:
                     srad.append(C.WARD_SIGHT_BY_KIND[str(w["kind"])] / cs)
                     sb.append(brush_at(float(w["x"]), float(w["z"])))
 
-                # Minion clumps: three per lane per team, drifting with lane pressure.
-                for lane in ("top", "mid", "bot"):
-                    route = routes[f"lane_{lane}"]
-                    base = 0.40 if obs == 0 else 0.60
-                    drift = 0.09 * np.sin(t / 70.0 + (0 if lane == "mid" else 2.0))
-                    for k in (-1, 0, 1):
-                        s = float(
-                            np.clip(base + (1 if obs == 0 else -1) * drift + k * 0.03, 0.03, 0.97)
-                        )
-                        p = _lut_point(route, s)
-                        cx, cz = to_cells(float(p[0]), float(p[1]))
-                        sx.append(cx)
-                        sz.append(cz)
-                        srad.append(C.SIGHT_MINION / cs)
-                        sb.append(brush_at(float(p[0]), float(p[1])))
+                # Minion waves, from the same shared model the reconstruction uses.
+                # Sharing it is deliberate: minion vision then becomes a constant on both
+                # sides, so the fog-agreement figure measures champion trajectories, ward
+                # lifetimes and field-of-view geometry rather than minion modelling.
+                for r_t0, r_t1, r_team, r_x, r_z in reveals:
+                    if r_team != obs or not (r_t0 <= t <= r_t1):
+                        continue
+                    cx, cz = to_cells(r_x, r_z)
+                    sx.append(cx)
+                    sz.append(cz)
+                    srad.append(C.FOG_ATTACK_REVEAL_RADIUS / cs)
+                    sb.append(brush_at(r_x, r_z))
+
+                for wave_t, lane, wave_team, _net_id in wave_specs:
+                    if wave_team != obs:
+                        continue
+                    p = sr.minion_clump_position(lane, wave_team, wave_t, t)
+                    if p is None:
+                        continue
+                    cx, cz = to_cells(float(p[0]), float(p[1]))
+                    sx.append(cx)
+                    sz.append(cz)
+                    srad.append(C.SIGHT_MINION / cs)
+                    sb.append(brush_at(float(p[0]), float(p[1])))
 
                 src_n[slot] = len(sx) - start
 

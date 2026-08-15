@@ -4,9 +4,9 @@
 
 A belief-state engine for MOBA information asymmetry, built on packet-level decoded replays.
 
-> Status: in development. Numbers marked `[pending]` below are not yet measured, and this file
-> will not carry a figure that has not been produced by `shadowcast validate`. See
-> [`docs/validation.md`](docs/validation.md) for whatever has been measured so far.
+> Status: in development, engine complete through per-team visibility. Numbers marked
+> `[pending]` are not yet measured, and this file carries no figure that was not produced by
+> `shadowcast pipeline`. See [`docs/validation.md`](docs/validation.md) for the full report.
 
 ---
 
@@ -127,16 +127,15 @@ hf download maknee/league-of-legends-decoded-replay-packets --repo-type dataset 
 uv sync
 uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
-uv run shadowcast synth make --seed 7
-uv run shadowcast pipeline data/synth/m0001
-cd web && npm install && npm run dev
+uv run shadowcast pipeline           # synthetic match end to end + fog agreement
+uv run shadowcast doctor             # versions, config hashes, stale artifacts
 ```
 
 ## Development
 
 ```bash
 uv sync                      # includes dev tools
-uv run pytest                # full suite, ~4s warm (slow oracles included)
+uv run pytest                # full suite, ~65s warm (synthetic matches + fog validation)
 uv run ruff check --fix .     # lint
 uv run ruff format .          # format
 uv run pre-commit install    # optional: lint + format on commit
@@ -155,14 +154,23 @@ hand.
 
 | | |
 |---|---|
-| Visibility agreement vs. fog events | `[pending]` |
-| — brush-adjacent cells specifically | `[pending]` (expected to be the worst category) |
-| Movement-order attribution residual, p99 | `[pending]` |
+| Fog agreement, reconstructed positions | **96.90%** (synthetic) |
+| Fog agreement, true positions substituted — the floor | **98.53%** (synthetic) |
+| — brush-adjacent cells specifically | 93.98% (worst category, as predicted) |
+| Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
+| Team / role recovery | **100% / 100%** (synthetic) |
 | Belief calibration (does the 90% region contain the truth 90% of the time?) | `[pending]` |
 | Log-likelihood vs. navmesh diffusion without negative information | `[pending]` |
 
 The last row is the one that matters: if the full model does not beat navmesh-constrained
 diffusion, negative information is not doing anything and the central claim is empty.
+
+Every figure above is measured on **synthetic** matches, where ground truth is known.
+Real-corpus numbers are still pending and will be worse. The fog agreement is deliberately
+reported as a pair — substituting true positions separates the irreducible floor (cell
+snapping, shadowcasting's permissiveness, ward and minion models) from what the
+reconstruction itself costs, and a single percentage cannot tell a modelling limit from a
+bug.
 
 ## Limitations, stated plainly
 

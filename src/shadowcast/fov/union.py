@@ -26,6 +26,7 @@ from numba import njit
 from shadowcast.fov.table import MISS, FovTable
 
 __all__ = [
+    "mask_bit",
     "mask_popcount",
     "mask_to_bool",
     "new_mask",
@@ -170,6 +171,11 @@ def or_live_window(out: np.ndarray, window_bool: np.ndarray, x0: int, y0: int) -
             sj_lo:sj_hi, si_lo:si_hi
         ]
     out[:] = pack_rows(acc, row_words=out.shape[1])
+
+
+def mask_bit(mask: np.ndarray, i: int, j: int) -> bool:
+    """Read one cell from a packed mask, without unpacking the whole row."""
+    return bool((mask[j, i >> 6] >> np.uint64(i & 63)) & np.uint64(1))
 
 
 def mask_to_bool(mask: np.ndarray, grid: int) -> np.ndarray:

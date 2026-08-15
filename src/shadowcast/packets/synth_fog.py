@@ -28,7 +28,22 @@ from __future__ import annotations
 import numpy as np
 from numba import njit
 
-__all__ = ["compute_visibility", "segment_clear", "transitions_from_visibility"]
+__all__ = [
+    "FOG_ATTACK_REVEAL_DURATION",
+    "compute_visibility",
+    "segment_clear",
+    "transitions_from_visibility",
+]
+
+#: Duration of reveal-on-attack, patch 12.22. It became 2.0 seconds in V13.22.
+#:
+#: The reveal is an AREA, not a follow: "reveal a 400-radius area centred on top of the
+#: attacker". A first attempt modelled it as revealing the attacker itself for the whole
+#: duration, which is a materially different rule — a champion that attacks and then walks
+#: away stays revealed under the wrong version and does not under the right one. It cost
+#: 11 points of fog agreement in false negatives before being caught, so the reveal is now
+#: a temporary vision source in the oracle's source list like any other.
+FOG_ATTACK_REVEAL_DURATION = 4.5
 
 #: March step, in cells. Fine enough that the ray cannot tunnel through a one-cell
 #: wall, which is the only failure mode that would matter here.

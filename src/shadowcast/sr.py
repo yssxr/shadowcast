@@ -198,3 +198,90 @@ def snap_polyline(terrain, pts: np.ndarray, max_radius: int = 24) -> tuple[np.nd
         out[n] = (wx, wz)
         worst = max(worst, float(np.hypot(wx - x, wz - z)))
     return out, worst
+
+
+# ---------------------------------------------------------------------------
+# Minion waves
+# ---------------------------------------------------------------------------
+#: Game knowledge, not map data: waves spawn on a fixed cadence and walk their lane.
+#: Lane vision in League is mostly minion vision, so omitting waves would badly
+#: overstate fog — but tracking individual minions is not possible, because movement
+#: orders carry no entity id and minions have none of the labelled position packets that
+#: make champion attribution work.
+#:
+#: So a wave is modelled as ONE clump at the wave centre. That is a real simplification:
+#: an actual wave is six units spread over roughly 400 units, and a single 1,200-unit
+#: sight source at the centre approximates the union of theirs rather than reproducing it.
+#: What makes it defensible is that both the ground-truth oracle and the reconstruction
+#: use this same model, so minion vision is a shared constant and the fog-agreement figure
+#: measures champion trajectories, ward lifetimes and field-of-view geometry instead.
+#: On real data the model's own error becomes part of the measured disagreement, and that
+#: has to be said when the number is published.
+MINION_WAVE_INTERVAL = 30.0
+FIRST_WAVE_SPAWN = 65.0
+MINION_SPEED = 325.0
+#: How long a clump survives before the opposing wave clears it. Real waves persist as
+#: long as they keep trading; this is the average that puts the meeting point near the
+#: lane midpoint.
+MINION_CLUMP_LIFETIME = 62.0
+#: Arclength fraction along the lane where each team's minions enter.
+MINION_SPAWN_S = {TEAM_ORDER: 0.055, TEAM_CHAOS: 0.945}
+
+
+def minion_wave_schedule(duration: float) -> list[tuple[float, str, int]]:
+    """Every (spawn time, lane, team) wave within a match window."""
+    out: list[tuple[float, str, int]] = []
+    t = FIRST_WAVE_SPAWN
+    while t < duration:
+        for lane in LANES:
+            for team in (TEAM_ORDER, TEAM_CHAOS):
+                out.append((t, lane, team))
+        t += MINION_WAVE_INTERVAL
+    return out
+
+
+def minion_spawn_point(lane: str, team: int) -> np.ndarray:
+    return lerp_polyline(LANES[lane], MINION_SPAWN_S[team])
+
+
+def minion_clump_position(
+    lane: str, team: int, spawn_t: float, t: float, death_t: float | None = None
+) -> np.ndarray | None:
+    """Where a wave's clump is at time `t`, or None if it has not spawned or has died.
+
+    Walks its lane from its own end toward the enemy's at `MINION_SPEED`. Everything it
+    needs — the lane, the side, the spawn time and the death time — is observable from
+    `SpawnMinion` and `NPCDieMapView`, so the reconstruction needs no minion tracking.
+    """
+    if t < spawn_t:
+        return None
+    end = death_t if death_t is not None else spawn_t + MINION_CLUMP_LIFETIME
+    if t > end:
+        return None
+    length = polyline_length(LANES[lane])
+    if length <= 0:
+        return None
+    travelled = MINION_SPEED * (t - spawn_t) / length
+    sign = 1.0 if team == TEAM_ORDER else -1.0
+    s = MINION_SPAWN_S[team] + sign * travelled
+    return lerp_polyline(LANES[lane], float(np.clip(s, 0.0, 1.0)))
+
+
+def arclength_fraction(lane: str, point: np.ndarray) -> float:
+    """Where along a lane a point sits, as an arclength fraction in [0, 1]."""
+    pts = LANES[lane]
+    samples = np.linspace(0.0, 1.0, 400)
+    ref = np.stack([lerp_polyline(pts, s) for s in samples])
+    return float(samples[int(np.argmin(np.hypot(*(ref - point).T)))])
+
+
+def nearest_lane(point: np.ndarray) -> tuple[str, float]:
+    """The lane whose centre line passes closest to a point, and that distance."""
+    best, best_d = next(iter(LANES)), np.inf
+    for lane, pts in LANES.items():
+        samples = np.linspace(0.0, 1.0, 240)
+        ref = np.stack([lerp_polyline(pts, s) for s in samples])
+        d = float(np.hypot(*(ref - point).T).min())
+        if d < best_d:
+            best_d, best = d, lane
+    return best, best_d

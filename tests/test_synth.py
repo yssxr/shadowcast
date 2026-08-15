@@ -243,7 +243,10 @@ def test_wards_arrive_as_recognised_spawn_minion_units(synth_clean):
     # One ward expires with no corpse when that pathology is off... it is off here,
     # so every ward should be accounted for.
     assert len(corpses) == truth.wards.size
-    owners = set(bundle.minions["targetable_on_client"].tolist())
+    # Only WARD rows name an owner. Lane minions also arrive as SpawnMinion and carry
+    # zero there, so the check has to select the ward rows rather than the whole array.
+    is_ward = np.array([p in C.WARD_UNITS for p in pairs])
+    owners = set(bundle.minions["targetable_on_client"][is_ward].tolist())
     assert owners <= set(truth.net_ids.tolist())
 
 

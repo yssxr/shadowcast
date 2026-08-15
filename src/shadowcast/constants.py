@@ -338,6 +338,13 @@ WARD_UNITS: Final = {
 }
 WARD_CORPSE_UNIT: Final = ("WardCorpse", "S5Test_WardCorpse")
 
+# Lane minions also arrive as SpawnMinion. Matched on a name substring rather than an
+# exact table because the real internal names are not confirmed — the dataset research
+# enumerated ward and plant units but not the regular minion ones. A substring match is
+# robust to whatever they turn out to be, and confirming them is a recon item.
+MINION_NAME_TOKENS: Final = ("Minion", "Melee", "Ranged", "Siege", "Super")
+MINION_SIGHT: Final = SIGHT_MINION
+
 WARD_SIGHT_BY_KIND: Final = {
     "totem": SIGHT_WARD_TOTEM,
     "control": SIGHT_WARD_CONTROL,

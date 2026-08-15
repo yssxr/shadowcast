@@ -288,6 +288,107 @@ def fov_verify(
 
 
 @app.command()
+def pipeline(
+    seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
+    duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,
+    clean: Annotated[bool, typer.Option("--clean", help="Disable every stream pathology.")] = False,
+    stride: Annotated[int, typer.Option(help="Sample every Nth tick when validating.")] = 1,
+) -> None:
+    """Run a synthetic match end to end and report the fog agreement.
+
+    Reports the agreement twice: once with reconstructed positions (what would ship) and
+    once with the true positions substituted. The gap between them is the reconstruction's
+    cost, and the lower figure is the irreducible floor from cell snapping, shadowcasting's
+    permissiveness and the ward and minion models. A single number cannot distinguish a
+    modelling limit from a bug; the pair can.
+    """
+    import dataclasses
+    import time
+
+    from shadowcast.fov.table import load_table
+    from shadowcast.l1_events import normalise
+    from shadowcast.l1_events.resolve import attribute, resolve_all
+    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+    from shadowcast.validate import validate_fog
+
+    terrain = _load_terrain()
+    table = load_table(terrain)
+
+    pathologies = Pathologies.none() if clean else Pathologies.all()
+    source = SyntheticSource(
+        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
+    )
+    match_id = source.match_ids()[0]
+
+    timings: dict[str, str] = {}
+
+    def timed(label, fn):
+        start = time.perf_counter()
+        out = fn()
+        timings[label] = f"{time.perf_counter() - start:.1f}s"
+        return out
+
+    bundle, truth = timed("generate", lambda: source.generate(match_id))
+    events = timed("normalise", lambda: normalise(bundle, terrain))
+    att = timed("attribute", lambda: attribute(events))
+    events, info = timed("resolve", lambda: resolve_all(events, att.pos, att.valid))
+
+    _echo_table("match", events.describe())
+    typer.echo("")
+    _echo_table("attribution", att.describe())
+    typer.echo("")
+    for name, block in info.items():
+        _echo_table(name, block)  # type: ignore[arg-type]
+        typer.echo("")
+
+    reconstructed = timed(
+        "validate", lambda: validate_fog(events, att, terrain, table, stride=stride)
+    )
+    n = min(att.pos.shape[0], truth.pos.shape[0])
+    reference = validate_fog(
+        events,
+        dataclasses.replace(att, pos=truth.pos[:n].copy(), valid=truth.alive[:n].astype(bool)),
+        terrain,
+        table,
+        stride=stride,
+    )
+
+    _echo_table(
+        "fog agreement",
+        {
+            "compared": f"{reconstructed.compared:,}",
+            "reconstructed positions": f"{reconstructed.rate:.3%}",
+            "reconstructed false positive": f"{reconstructed.false_positive_rate:.3%}",
+            "reconstructed false negative": f"{reconstructed.false_negative_rate:.3%}",
+            "true positions (floor)": f"{reference.rate:.3%}",
+            "floor false positive": f"{reference.false_positive_rate:.3%}",
+            "floor false negative": f"{reference.false_negative_rate:.3%}",
+            "reconstruction cost": f"{reference.rate - reconstructed.rate:.3%}",
+        },
+    )
+    typer.echo("")
+    _echo_table(
+        "by region (reconstructed)",
+        {k: f"{v:.3%}" for k, v in reconstructed.region_rates().items()},
+    )
+    typer.echo("")
+    _echo_table(
+        "transition timing",
+        {
+            "within 150 ms": f"{reconstructed.timing().get('within_150ms', 0):.1%}",
+            "abs median": f"{reconstructed.timing().get('abs_median_s', 0):.3f}s",
+            "abs p98": f"{reconstructed.timing().get('abs_p98_s', 0):.2f}s",
+            "ours / oracle": (
+                f"{reconstructed.stats['our_transitions']} / "
+                f"{reconstructed.stats['oracle_transitions']}"
+            ),
+        },
+    )
+    typer.echo("")
+    _echo_table("timings", timings)
+
+
+@app.command()
 def doctor() -> None:
     """Report versions, config hashes, and whether derived artifacts are stale."""
     import numpy

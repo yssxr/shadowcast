@@ -30,6 +30,7 @@ from __future__ import annotations
 import numpy as np
 
 from shadowcast import constants as C
+from shadowcast import sr
 from shadowcast.config import GridSpec, StageHeader, TerrainSpec
 from shadowcast.geom.grid import world_to_cell_array
 from shadowcast.l1_events.schema import (
@@ -40,6 +41,7 @@ from shadowcast.l1_events.schema import (
     DEATH,
     FOG_EVENT,
     HERO,
+    MINION_WAVE,
     ORDER,
     ORDER_XZ,
     REPL_VALUE,
@@ -385,6 +387,52 @@ def _damage(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
     return out
 
 
+def _minion_waves(bundle: PacketBundle, times: np.ndarray) -> np.ndarray:
+    """Lane minion waves, reduced to one clump each.
+
+    Everything needed is observable: `SpawnMinion` gives the spawn position (hence the
+    lane, and hence the side from which end it entered) and the stream clock gives the
+    time, while the NPC death packets give the end. No minion tracking is required, which
+    matters because none is possible — minions have no labelled position packets.
+
+    Names are matched on a substring, not an exact table, because the real internal minion
+    names are unconfirmed: the dataset research enumerated the ward and plant units but
+    not the regular ones.
+    """
+    minions = bundle.minions
+    if minions.size == 0:
+        return np.empty(0, dtype=MINION_WAVE)
+
+    deaths = {}
+    if bundle.deaths.size:
+        for row in bundle.deaths:
+            deaths.setdefault(int(row["killed_net_id"]), float(row["t"]))
+
+    rows: list[tuple] = []
+    for k in np.argsort(times, kind="stable"):
+        row = minions[k]
+        name = str(row["name"])
+        if (str(name), str(row["skin_name"])) in C.WARD_UNITS:
+            continue
+        if not any(token in name for token in C.MINION_NAME_TOKENS):
+            continue
+        point = np.array([float(row["x"]), float(row["z"])])
+        lane, dist = sr.nearest_lane(point)
+        if dist > 2000.0:
+            continue  # not on a lane, so not a lane minion
+        team = C.TEAM_ORDER if sr.arclength_fraction(lane, point) < 0.5 else C.TEAM_CHAOS
+        t0 = float(times[k])
+        net_id = int(row["net_id"])
+        observed = net_id in deaths
+        t1 = deaths[net_id] if observed else t0 + sr.MINION_CLUMP_LIFETIME
+        rows.append((net_id, lane, team, t0, t1, 1 if observed else 0))
+
+    out = np.empty(len(rows), dtype=MINION_WAVE)
+    for n, r in enumerate(rows):
+        out[n] = r
+    return out
+
+
 def _anchors(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
     """Labelled champion positions, from spell casts and basic attacks."""
     rows: list[tuple[float, int, float, float, int]] = []
@@ -495,6 +543,7 @@ def normalise(
         speed=_replication(bundle, slots, C.ATTR_MOVE_SPEED),
         hp=_replication(bundle, slots, C.ATTR_HP),
         damage=_damage(bundle, slots),
+        minion_waves=_minion_waves(bundle, times),
         deaths=np.empty(0, dtype=DEATH),
         stats={
             "fog_rows_in": int(bundle.fog.size),

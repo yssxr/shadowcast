@@ -34,6 +34,7 @@ __all__ = [
     "DEATH",
     "FOG_EVENT",
     "HERO",
+    "MINION_WAVE",
     "ORDER",
     "ORDER_XZ",
     "REPL_VALUE",
@@ -106,6 +107,22 @@ WARD_EVENT = np.dtype(
 #: A replicated scalar for a champion — movement speed, health.
 REPL_VALUE = np.dtype([("t", "f8"), ("slot", "i1"), ("value", "f8")])
 
+#: A minion wave, reduced to one clump. Lane and side come from the spawn position,
+#: spawn time from the stream clock, and death from the NPC death packets — so no minion
+#: tracking is needed, which is fortunate because none is possible: movement orders carry
+#: no entity id and minions have none of the labelled position packets that make champion
+#: attribution work.
+MINION_WAVE = np.dtype(
+    [
+        ("net_id", "u4"),
+        ("lane", "U4"),
+        ("team", "i1"),
+        ("t0", "f8"),
+        ("t1", "f8"),
+        ("t1_known", "u1"),
+    ]
+)
+
 #: Champion-on-champion damage. The corpus has no killing-blow flag and no death
 #: packet, so a kill is a health value reaching zero and its killer is whoever dealt
 #: damage just before. This table is the only evidence for the second half of that.
@@ -171,6 +188,7 @@ class MatchEvents:
     hp: np.ndarray
     damage: np.ndarray
     deaths: np.ndarray
+    minion_waves: np.ndarray
     stats: dict[str, Any] = field(default_factory=dict)
 
     # ---- lookups ------------------------------------------------------
@@ -224,6 +242,7 @@ class MatchEvents:
             "wards": int(self.wards.size),
             "wards_with_observed_end": int(self.wards["t1_known"].sum()) if self.wards.size else 0,
             "turret_sites": int(self.turret_sites.size),
+            "minion_waves": int(self.minion_waves.size),
             "speed_samples": int(self.speed.size),
             "frame_offset": round(self.frame.offset, 2),
             "frame_walkable_fraction": round(self.frame.walkable_fraction, 4),
@@ -246,6 +265,7 @@ class MatchEvents:
         "hp",
         "damage",
         "deaths",
+        "minion_waves",
     )
 
     def save(self, path: str | Path) -> Path:
