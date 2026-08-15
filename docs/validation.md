@@ -62,6 +62,50 @@ This gives the resolver an independent second opinion on team assignment, derive
 completely different way. Two unrelated methods agreeing is worth more than either passing
 its own test.
 
+## Real data end to end
+
+`packets/replay.py` reads decoded shards behind the same seam as the synthetic source, and
+the whole pipeline runs on real matches.
+
+| | Value |
+|---|---|
+| Conformance errors, real source | **0** across 3 matches |
+| Labelled anchors per champion | **331–483** (plan predicted 546–1,085) |
+| Frame calibration | 99.71% walkable, well determined |
+| Orders attributed | **92.8%** (99.9% synthetic) |
+| Order residual, median | **219 u** (0.0003 u synthetic) |
+| Anchor residual, median | **75 u** |
+| Deaths inferred | 11 in a 12-minute match |
+
+The conformance warnings are all expected: 17 ms of timestamp jitter (one 30 Hz tick),
+references to entities created before the recording began, and the documented fog
+duplication.
+
+### Team resolution was wrong on real data, and only real data could show it
+
+The turret-proximity resolver scores **100% on synthetic matches** and is wrong on **2–4
+champions in 7 of 8 real ones**. The synthetic scenario holds champions at their fountain
+until their first anchor — which this report already flagged as unusually clean — while
+real champions leave base immediately, so "whose structures were you standing among at
+your first observation" is a far weaker signal than it looked.
+
+Teams now come from the **damage graph**: champions damage enemies and not allies, so the
+true split is the one carrying essentially all hero-to-hero damage, and with ten champions
+there are only 126 balanced splits so the maximum cut is found exactly. It needs no
+positions, no turret names and no trajectory quality.
+
+| | Before | After |
+|---|---|---|
+| Agrees with an independent recovery | 1 / 8 | **8 / 8** |
+| Hero damage across the recovered split | — | **100.0%** (99.5% in one) |
+
+**A tie means the graph does not decide.** A sparse damage graph can put 100% of its edges
+across many splits at once, and the cut fraction cannot see that — it is 100% for every
+one of them. The synthetic generator emits about 35 hero-to-hero damage events where a
+real twelve-minute match has 18,465, and dozens of partitions tie there. So a non-unique
+maximum falls back to geometry, which is what keeps the synthetic tests meaningful and
+would also cover a real match truncated before any fighting.
+
 ## R3 — the Replication index pairs
 
 Confirmed exactly as the plan predicted, against real packets: `mHP` = (32, 0),

@@ -200,7 +200,9 @@ hand.
 | Fog agreement, true positions substituted — the floor | **98.84%** (synthetic) |
 | — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
-| Team / role recovery | **100% / 100%** (synthetic) |
+| Team recovery, real matches | **8 / 8**, 100.0% of damage across the split |
+| Conformance errors, real packet source | **0** |
+| Orders attributed, real matches | **92.8%** (99.9% synthetic) |
 | Belief calibration — does the 90% region contain the truth 90% of the time? | **43.4%** — open defect |
 | **Log-likelihood vs. the same model without negative information** | **3.887 vs 4.132 nats** |
 | Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
