@@ -308,6 +308,15 @@ class SectionEntry:
         )
 
 
+#: What produced the match an artifact describes. Carried in `meta.json` and displayed,
+#: because a viewer cannot tell from the pixels and the difference is enormous: fog
+#: agreement is 98% on a generated match and 68% on a real one, so a synthetic artifact
+#: shows the engine's geometry rather than its accuracy. Shipping one unlabelled would
+#: misrepresent the project to exactly the audience the site exists for.
+PROVENANCE_REAL = "real"
+PROVENANCE_SYNTHETIC = "synthetic"
+
+
 @dataclass(frozen=True, slots=True)
 class ArtifactMeta:
     """`meta.json`: everything needed to read `data.bin` and nothing that belongs in it."""
@@ -322,6 +331,10 @@ class ArtifactMeta:
     heroes: list[dict[str, Any]] = field(default_factory=list)
     events: dict[str, Any] = field(default_factory=dict)
     stats: dict[str, Any] = field(default_factory=dict)
+    #: `real` or `synthetic`. Defaults to synthetic on an artifact that predates the
+    #: field, which is the safe direction: mislabelling a real match as generated
+    #: understates the work, while the reverse overstates it.
+    provenance: str = PROVENANCE_SYNTHETIC
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -329,6 +342,7 @@ class ArtifactMeta:
             "match_id": self.match_id,
             "duration": self.duration,
             "tick_hz": self.tick_hz,
+            "provenance": self.provenance,
             "dims": self.dims,
             "sections": [s.to_dict() for s in self.sections],
             "config": self.config,
@@ -356,6 +370,7 @@ class ArtifactMeta:
             heroes=list(raw.get("heroes", [])),
             events=dict(raw.get("events", {})),
             stats=dict(raw.get("stats", {})),
+            provenance=str(raw.get("provenance", PROVENANCE_SYNTHETIC)),
         )
 
     def section(self, name: str) -> SectionEntry:

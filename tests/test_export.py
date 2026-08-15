@@ -36,7 +36,14 @@ from shadowcast.l3_infer.policy import observe
 from shadowcast.l4_export import encode
 from shadowcast.l4_export.artifact import read_artifact, write_artifact
 from shadowcast.l4_export.build import build_arrays, downsample_mask
-from shadowcast.l4_export.spec import SCALAR_NAMES, SECTIONS, ArtifactDims
+from shadowcast.l4_export.spec import (
+    PROVENANCE_REAL,
+    PROVENANCE_SYNTHETIC,
+    SCALAR_NAMES,
+    SECTIONS,
+    ArtifactDims,
+    ArtifactMeta,
+)
 from shadowcast.l4_export.ts_codegen import generate_typescript
 
 _DURATION = 120.0
@@ -469,3 +476,34 @@ def test_node_decodes_every_section_identically(artifact):
         assert (
             reported["sections"][name]["decoded_crc32"] == zlib.crc32(arr.tobytes()) & 0xFFFFFFFF
         ), f"section {name} decodes differently in Node than in Python"
+
+
+def test_provenance_defaults_to_synthetic_and_round_trips(artifact, tmp_path):
+    """A viewer cannot tell a reconstructed real match from a generated one by looking.
+
+    The difference is the entire claim — fog agreement is 98% on synthetic and 68% on
+    real — so an unlabelled artifact shows the engine's geometry while reading as its
+    accuracy. The default is `synthetic` on purpose: mislabelling a real match as
+    generated understates the work, while the reverse overstates it, and only one of
+    those is a lie worth guarding against.
+    """
+    written, _, _ = artifact
+    meta = read_artifact(written).meta
+    assert meta.provenance == PROVENANCE_SYNTHETIC
+
+    raw = json.loads((written / "meta.json").read_text())
+    assert raw["provenance"] == PROVENANCE_SYNTHETIC
+    assert ArtifactMeta.from_dict(raw).provenance == meta.provenance
+
+    # An artifact written before the field existed still reads, as synthetic.
+    del raw["provenance"]
+    assert ArtifactMeta.from_dict(raw).provenance == PROVENANCE_SYNTHETIC
+
+    raw["provenance"] = PROVENANCE_REAL
+    assert ArtifactMeta.from_dict(raw).provenance == PROVENANCE_REAL
+
+
+def test_generated_typescript_types_provenance_as_a_closed_set():
+    """`string` would let the site compare against a value the writer never emits."""
+    source = Path("web/src/generated/artifact.ts").read_text()
+    assert 'provenance: "real" | "synthetic";' in source

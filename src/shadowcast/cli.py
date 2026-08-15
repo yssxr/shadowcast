@@ -647,6 +647,11 @@ def export(
     seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
     duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,
     clean: Annotated[bool, typer.Option("--clean", help="Disable every stream pathology.")] = False,
+    shard: Annotated[
+        Path | None,
+        typer.Option(help="Export a REAL match from this shard instead of a generated one."),
+    ] = None,
+    line: Annotated[int, typer.Option(help="Which match in the shard. Requires --shard.")] = 0,
     out: Annotated[
         Path | None, typer.Option(help="Artifact directory. Defaults to data/artifacts/<id>.")
     ] = None,
@@ -660,6 +665,11 @@ def export(
     Two files: `meta.json` and `data.bin.gz`. Serve the payload with
     `Content-Encoding: gzip` and the browser inflates it during transfer, so the site
     ships no decompression code at all.
+
+    With `--shard` the match comes from decoded replay packets rather than the generator,
+    and `meta.provenance` says so. That field is not decoration: fog agreement is 98% on a
+    generated match and 68% on a real one, so an unlabelled synthetic artifact shows the
+    engine's geometry while looking like its accuracy.
     """
     import time
 
@@ -671,18 +681,39 @@ def export(
     from shadowcast.l3_infer.policy import observe
     from shadowcast.l4_export.artifact import write_artifact
     from shadowcast.l4_export.build import build_arrays
+    from shadowcast.l4_export.spec import PROVENANCE_REAL, PROVENANCE_SYNTHETIC
     from shadowcast.l4_export.terrain_png import TERRAIN_PNG_NAME, write_terrain_png
     from shadowcast.l4_export.ts_codegen import write_typescript
     from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
 
     terrain = _load_terrain()
     table = load_table(terrain)
-    pathologies = Pathologies.none() if clean else Pathologies.all()
-    source = SyntheticSource(
-        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
-    )
-    match_id = source.match_ids()[0]
-    bundle, _ = source.generate(match_id)
+
+    if shard is not None:
+        from shadowcast.packets.replay import ReplaySource
+
+        if not shard.exists():
+            typer.secho(f"no shard at {shard}", fg=typer.colors.RED)
+            raise typer.Exit(1)
+        source = ReplaySource(shard, limit=line + 1)
+        bundle = source.read(source.match_ids()[line])
+        provenance = PROVENANCE_REAL
+        # `/` and `:` both appear in a real match id and neither belongs in a path
+        # segment — the id is `12_22/batch_001:0`, which would silently become a nested
+        # directory the site cannot fetch back.
+        match_id = bundle.meta.match_id
+        slug = match_id.replace("/", "-").replace(":", "-")
+        duration = bundle.meta.duration
+    else:
+        pathologies = Pathologies.none() if clean else Pathologies.all()
+        source = SyntheticSource(
+            terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
+        )
+        match_id = source.match_ids()[0]
+        bundle, _ = source.generate(match_id)
+        provenance = PROVENANCE_SYNTHETIC
+        slug = match_id
+
     events = normalise(bundle, terrain)
     att = attribute(events)
     events, _ = resolve_all(events, att)
@@ -699,11 +730,12 @@ def export(
         terrain,
     )
     root = Path("web/public") if web else data_dir()
-    dest = Path(out) if out else root / "artifacts" / match_id
+    dest = Path(out) if out else root / "artifacts" / slug
     path, report = write_artifact(
         dest,
         match_id=match_id,
         duration=duration,
+        provenance=provenance,
         dims=built.dims,
         arrays=built.arrays,
         heroes=[

@@ -695,6 +695,52 @@ Things that should hold if the model is right. A failure is either a bug or a fi
 | Supports have the lowest | — |
 | Information advantage correlates with, but does not determine, objective control | — |
 
+## Two bugs that only the site could find
+
+The engine ran on real packets for some time before anything *rendered* one. Exporting a
+real match with `shadowcast export --shard …` found both of these immediately, and neither
+was reachable from the Python side, because the synthetic generator does not produce the
+shapes that caused them.
+
+### 39% of "wards" on a real match were map plants
+
+Ward information yield is the project's headline metric, and `WARD_UNITS` counted
+`PlantVision` and `FakeCrab` as player wards on the strength of the dataset research.
+MEASURED across three real matches:
+
+| Unit | n | With an owner | Distinct sites | Mean nearest-neighbour |
+|---|---|---|---|---|
+| `SightWard` | 219 | **219** | 77 | 8 u |
+| `VisionWard` | 56 | **56** | 20 | 62 u |
+| `JammerDevice` | 55 | **55** | 12 | 3 u |
+| `PlantVision` | 141 | **0** | **6** | 0 u |
+| `FakeCrab` | 29 | **0** | 13 | 148 u |
+
+Two independent facts, either sufficient. Every real ward carries its owner in
+`targetable_on_client` and neither of these ever does — and `PlantVision` respawns at
+**exactly six fixed sites**, which is how many Scryer's Blooms Summoner's Rift has. A
+player ward goes where the player puts it, across 77 distinct sites.
+
+They are dropped for being map furniture rather than for being unowned, which would be
+circular. A Scryer's Bloom grants no passive vision at all: it reveals a cone when *used*,
+which is not modelled and is now stated as a limitation rather than approximated by a
+900-unit disc that is always on.
+
+Latent alongside it: `WARD_SIGHT_BY_KIND` gave the scuttle decoy **1,350 units**, a full
+champion's sight radius. It never fired only because nothing owned it, so it resolved to
+no team and joined neither side's mask. One line assigning a team would have lit a dozen
+champion-sized discs across the map.
+
+Ward count on the first real match: **129 → 79**.
+
+### An unresolved team rendered the site as a blank page
+
+`color.team` is an array of two and the engine writes `-1` for unresolved, so
+`color.team[-1]` is `undefined`, which reaches `hexToRgb` and throws on `.slice`. The Ward
+yield view rendered as pure black with one line in the console. Colour lookups now go
+through a total `teamColor()`, so the next unresolved field is a grey dot rather than a
+dead tab. The screenshot script catches page errors and is what surfaced it.
+
 ## Artifact export
 
 One 900-second match, regenerate with `shadowcast export`.

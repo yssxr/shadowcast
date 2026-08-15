@@ -18,6 +18,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from shadowcast import constants as C
+
 SHARD = Path("data/raw/12_22/batch_001.jsonl.gz")
 
 
@@ -271,3 +273,48 @@ def test_read_all_respects_the_source_limit():
     assert len(list(ReplaySource(SHARD).read_all(limit=2))) == 2
     # The tighter of the two wins, so a caller cannot widen a constrained source.
     assert len(list(ReplaySource(SHARD, limit=2).read_all(limit=9))) == 2
+
+
+def test_real_wards_all_have_an_owner():
+    """A player ward is owned. Map furniture is not, and used to be counted as a ward.
+
+    `PlantVision` (the Scryer's Bloom) and `FakeCrab` were in `WARD_UNITS` on the strength
+    of the dataset research, and they are 39% of the ward-shaped units in a real match.
+    Two independent facts say they are not wards: `targetable_on_client` never resolves to
+    a champion for either, and `PlantVision` respawns at exactly **six** fixed sites, which
+    is how many Scryer's Blooms Summoner's Rift has. A player ward goes where the player
+    puts it — real `SightWard` placements span 77 distinct sites across three matches.
+
+    Asserting on ownership rather than on the name list is deliberate: it keeps catching
+    the mistake if some other map object is added to the table later.
+    """
+    from shadowcast.l1_events.normalise import normalise
+    from shadowcast.l1_events.schema import UNKNOWN
+    from shadowcast.packets.replay import ReplaySource
+    from shadowcast.terrain.terrain import build_terrain
+
+    _shard_or_skip()
+    terrain = build_terrain()
+    for bundle in ReplaySource(SHARD, limit=3).read_all():
+        events = normalise(bundle, terrain)
+        assert events.wards.size > 0
+        unowned = events.wards[events.wards["owner_slot"] == UNKNOWN]
+        assert unowned.size == 0, (
+            f"{unowned.size} of {events.wards.size} wards have no owner; "
+            f"kinds {sorted(set(unowned['kind'].tolist()))}"
+        )
+
+
+def test_map_plants_are_not_wards():
+    """The Scryer's Bloom grants no passive vision, and gave 900 u of it for free."""
+    from shadowcast.packets.replay import ReplaySource
+
+    _shard_or_skip()
+    bundle = next(ReplaySource(SHARD, limit=1).read_all())
+    names = {str(r["name"]) for r in bundle.minions}
+    # Still present in the stream — this is a classification fix, not a parsing one.
+    assert "PlantVision" in names
+    assert ("PlantVision", "SRU_Plant_Vision") in C.NON_WARD_UNITS
+    assert ("PlantVision", "SRU_Plant_Vision") not in C.WARD_UNITS
+    # Nothing in the sight table can name a unit that is not a ward.
+    assert set(C.WARD_SIGHT_BY_KIND) == set(C.WARD_UNITS.values())

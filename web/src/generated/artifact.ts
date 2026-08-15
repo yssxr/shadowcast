@@ -41,6 +41,8 @@ export interface Meta {
   match_id: string;
   duration: number;
   tick_hz: number;
+  /** "real" for decoded replay packets, "synthetic" for a generated match. */
+  provenance: "real" | "synthetic";
   dims: Dims;
   sections: SectionEntry[];
   config: Record<string, string>;

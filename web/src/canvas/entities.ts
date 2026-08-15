@@ -12,7 +12,7 @@
  * not what happened.
  */
 
-import { color, rgba } from "../theme.ts";
+import { color, rgba, teamColor } from "../theme.ts";
 import { WORLD } from "../artifact/load.ts";
 
 export interface Projection {
@@ -61,7 +61,7 @@ export function drawChampion(
 
   ctx.beginPath();
   ctx.arc(px, py, r, 0, Math.PI * 2);
-  ctx.fillStyle = mark.dead ? rgba(color.team[mark.team], 0.28) : color.team[mark.team];
+  ctx.fillStyle = mark.dead ? rgba(teamColor(mark.team), 0.28) : teamColor(mark.team);
   ctx.fill();
 
   if (mark.jungler) {
@@ -98,7 +98,7 @@ export function drawTrail(
   ctx.lineWidth = Math.max(1, size / 400);
   ctx.lineCap = "round";
   for (let k = 1; k < count; k++) {
-    ctx.strokeStyle = rgba(color.team[team], (k / count) * 0.26);
+    ctx.strokeStyle = rgba(teamColor(team), (k / count) * 0.26);
     ctx.beginPath();
     const ax = ((points[(k - 1) * 2] - WORLD.minX) / WORLD.span) * size;
     const ay = size - ((points[(k - 1) * 2 + 1] - WORLD.minZ) / WORLD.span) * size;
@@ -163,7 +163,7 @@ export function drawDeath(
   const [px, py] = project(x, z, size);
   const s = Math.max(4, size / 90) * (1 + (1 - fade) * 0.6);
   ctx.save();
-  ctx.strokeStyle = rgba(color.team[team], fade * 0.9);
+  ctx.strokeStyle = rgba(teamColor(team), fade * 0.9);
   ctx.lineWidth = 1.6;
   ctx.beginPath();
   ctx.moveTo(px - s, py - s);

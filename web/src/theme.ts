@@ -66,7 +66,21 @@ export const terrainPalette = {
 
 /** The enemy's colour, not the observer's — see `BeliefLayer` for why. */
 export function beliefColor(enemyTeam: number): string {
-  return color.team[enemyTeam] ?? color.blue;
+  return teamColor(enemyTeam);
+}
+
+/**
+ * A team's colour, total over every integer.
+ *
+ * `color.team[t]` is an array of two and the engine writes `-1` for a team it could not
+ * resolve, so a direct index yields `undefined`, which reaches `hexToRgb` and throws on
+ * `.slice`. That is not hypothetical: the first real match exported had 50 wards with an
+ * unresolved team — they were map plants misclassified as wards — and the Ward yield view
+ * rendered as a blank black page with one line in the console. The underlying data is
+ * fixed, and this exists so the next unresolved field is a grey dot instead of a dead tab.
+ */
+export function teamColor(team: number): string {
+  return color.team[team] ?? color.text[5];
 }
 
 export function hexToRgb(hex: string): [number, number, number] {

@@ -464,8 +464,33 @@ WARD_UNITS: Final = {
     ("VisionWard", "SightWard"): "control",
     ("JammerDevice", "JammerDevice"): "control",
     ("Ward", "PerksZombieWard"): "zombie",
-    ("PlantVision", "SRU_Plant_Vision"): "scryer",
-    ("FakeCrab", "Sru_CrabWard"): "scuttle",
+}
+
+# Ward-shaped units that are NOT player wards, and were in the table above until the
+# geometry said otherwise. Ward yield is the project's headline metric, so counting map
+# objects as wards inflated it by 39% on the first real match measured.
+#
+# MEASURED across 3 real matches, and the separation is not subtle:
+#
+#     unit           n   owned  distinct sites  mean nn distance
+#     SightWard    219     219              77         8 u
+#     VisionWard    56      56              20        62 u
+#     JammerDevice  55      55              12         3 u
+#     PlantVision  141       0               6         0 u
+#     FakeCrab      29       0              13       148 u
+#
+# Every real ward has an owner in `targetable_on_client`; neither of these ever does.
+# And `PlantVision` respawns at **exactly six** fixed sites, which is how many Scryer's
+# Blooms Summoner's Rift has. A player ward goes where the player wants it.
+#
+# Neither is dropped for being unowned — that would be circular, since the ownerless case
+# is what needed explaining. They are dropped because they are map furniture: a Scryer's
+# Bloom grants no passive vision at all (it reveals a cone when *used*, which is not
+# modelled and is noted in `docs/validation.md`), and neither belongs in a metric about
+# what players chose to reveal.
+NON_WARD_UNITS: Final = {
+    ("PlantVision", "SRU_Plant_Vision"): "scryer_bloom",
+    ("FakeCrab", "Sru_CrabWard"): "scuttle_decoy",
 }
 WARD_CORPSE_UNIT: Final = ("WardCorpse", "S5Test_WardCorpse")
 
@@ -488,9 +513,12 @@ WARD_SIGHT_BY_KIND: Final = {
     "control": SIGHT_WARD_CONTROL,
     "farsight": SIGHT_WARD_FARSIGHT,
     "zombie": SIGHT_WARD_ZOMBIE,
-    "scryer": SIGHT_WARD_TOTEM,
-    "scuttle": SIGHT_CHAMPION,
 }
+# `scryer` (900 u) and `scuttle` (1,350 u, a champion's radius) used to be here. Both were
+# inert only because their team never resolved — nothing owns them, so they matched
+# neither side's mask. Had anything ever assigned them a team, six Scryer's Blooms and a
+# dozen crab decoys would each have lit 900 to 1,350 units of map for someone. Removed
+# with the units themselves; see `NON_WARD_UNITS`.
 
 # Turret internal names encode team: T1 is ORDER (blue), T2 is CHAOS (red).
 # CreateTurret carries no position, so positions come from a static SR table and

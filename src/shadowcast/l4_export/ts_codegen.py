@@ -80,6 +80,8 @@ def generate_typescript() -> str:
     lines.append("  match_id: string;")
     lines.append("  duration: number;")
     lines.append("  tick_hz: number;")
+    lines.append('  /** "real" for decoded replay packets, "synthetic" for a generated match. */')
+    lines.append('  provenance: "real" | "synthetic";')
     lines.append("  dims: Dims;")
     lines.append("  sections: SectionEntry[];")
     lines.append("  config: Record<string, string>;")

@@ -25,7 +25,7 @@ import type { PlaybackClock } from "../state/playback.ts";
 import { formatClock } from "../state/playback.ts";
 import { MapCanvas, type MapSettings } from "../components/MapCanvas.tsx";
 import { Heading, Note, Panel, Stat, transition } from "../components/ui.tsx";
-import { color, font, rgba } from "../theme.ts";
+import { color, font, rgba, teamColor } from "../theme.ts";
 import { APPROACH_WINDOW as WINDOW, analyseDeath, type Verdict } from "../metrics/autopsy.ts";
 
 
@@ -119,7 +119,7 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
                   <span
                     style={{
                       font: `400 12px ${font.sans}`,
-                      color: who ? color.team[who.team] : color.text[3],
+                      color: who ? teamColor(who.team) : color.text[3],
                       flex: 1,
                     }}
                   >

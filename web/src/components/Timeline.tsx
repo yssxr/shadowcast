@@ -18,7 +18,7 @@
 import { useEffect, useRef } from "react";
 import type { Artifact } from "../artifact/load.ts";
 import type { PlaybackClock } from "../state/playback.ts";
-import { color, font, rgba } from "../theme.ts";
+import { color, font, rgba, teamColor } from "../theme.ts";
 
 interface Props {
   artifact: Artifact;
@@ -94,9 +94,9 @@ export function Timeline({ artifact, clock, width, height = 112 }: Props) {
         }
         c.lineTo(width, mid);
         c.closePath();
-        c.fillStyle = rgba(color.team[team], 0.3);
+        c.fillStyle = rgba(teamColor(team), 0.3);
         c.fill();
-        c.strokeStyle = rgba(color.team[team], 0.65);
+        c.strokeStyle = rgba(teamColor(team), 0.65);
         c.lineWidth = 1;
         c.stroke();
       }
@@ -115,7 +115,7 @@ export function Timeline({ artifact, clock, width, height = 112 }: Props) {
         const victim = artifact.heroes[death.victim];
         if (!victim) continue;
         const x = (death.t / artifact.duration) * width;
-        c.strokeStyle = rgba(color.team[victim.team], 0.85);
+        c.strokeStyle = rgba(teamColor(victim.team), 0.85);
         c.lineWidth = 1.5;
         c.beginPath();
         c.moveTo(x + 0.5, 4);

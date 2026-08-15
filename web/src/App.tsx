@@ -29,7 +29,8 @@ const VIEWS = [
 
 type ViewId = (typeof VIEWS)[number]["id"];
 
-const MATCH = "synth-0007-000";
+/** Which artifact the site loads. Written by `shadowcast export --web`. */
+const MATCH = "12_22-batch_001-0";
 
 /** Sidebar width plus the gap beside it. */
 const SIDEBAR = 250 + 16;
@@ -129,7 +130,12 @@ export function App() {
   }
 
   return (
-    <Shell view={view} onView={changeView} matchId={artifact.meta.match_id}>
+    <Shell
+      view={view}
+      onView={changeView}
+      matchId={artifact.meta.match_id}
+      provenance={artifact.meta.provenance}
+    >
       {/* Keyed on the view so React remounts on change and the entrance animation runs.
           A cross-fade between two mounted trees would mean two live canvases competing
           for the frame budget during the transition, which is the one moment it is most
@@ -177,11 +183,13 @@ function Shell({
   view,
   onView,
   matchId,
+  provenance,
   children,
 }: {
   view: ViewId;
   onView: (v: ViewId) => void;
   matchId?: string;
+  provenance?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -252,7 +260,24 @@ function Shell({
         {matchId && (
           <span style={{ font: `400 10px ${font.mono}`, color: color.text[6] }}>
             {matchId}
-            <span style={{ color: color.text[7] }}> · synthetic</span>
+            {/* Never hardcoded. A viewer cannot tell a reconstructed real match from a
+                generated one by looking, and the difference is the whole claim: fog
+                agreement is 98% on synthetic and 68% on real. This label said
+                "synthetic" unconditionally for as long as the site existed, which was
+                true then and would have quietly become a lie the moment it was not. */}
+            <span
+              style={{
+                color: provenance === "real" ? color.accent : color.text[7],
+              }}
+              title={
+                provenance === "real"
+                  ? "Decoded replay packets. Positions, vision and belief are all reconstructed."
+                  : "A generated match with known ground truth, used to validate the engine."
+              }
+            >
+              {" · "}
+              {provenance === "real" ? "real packets" : "synthetic"}
+            </span>
           </span>
         )}
       </header>

@@ -34,6 +34,7 @@ from shadowcast import constants as C
 from shadowcast.config import ExportSpec
 from shadowcast.l4_export.encode import apply_codec, invert_codec
 from shadowcast.l4_export.spec import (
+    PROVENANCE_SYNTHETIC,
     SECTIONS,
     SECTIONS_BY_NAME,
     ArtifactDims,
@@ -102,6 +103,7 @@ def write_artifact(
     stats: dict[str, Any] | None = None,
     config: dict[str, str] | None = None,
     spec: ExportSpec | None = None,
+    provenance: str = PROVENANCE_SYNTHETIC,
 ) -> tuple[Path, dict[str, Any]]:
     """Encode, concatenate and write. Returns the directory and a size report.
 
@@ -164,6 +166,7 @@ def write_artifact(
         heroes=heroes or [],
         events=events or {},
         stats=stats or {},
+        provenance=provenance,
     )
 
     data_path = out_dir / DATA_NAME

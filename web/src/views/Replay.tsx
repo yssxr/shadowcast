@@ -28,7 +28,7 @@ import { useEasedText } from "../state/motion.ts";
 import { MapCanvas, type MapSettings } from "../components/MapCanvas.tsx";
 import { Timeline } from "../components/Timeline.tsx";
 import { Bar, Panel, Toggle, transition } from "../components/ui.tsx";
-import { color, font, rgba } from "../theme.ts";
+import { color, font, rgba, teamColor } from "../theme.ts";
 
 interface Props {
   artifact: Artifact;
@@ -231,7 +231,7 @@ function TeamBoard({
   }
 
   const side = observer === 0 ? "Blue" : "Red";
-  const tint = color.team[observer];
+  const tint = teamColor(observer);
 
   return (
     <section
@@ -273,7 +273,7 @@ function TeamBoard({
         <span
           style={{
             font: `500 11px ${font.mono}`,
-            color: hidden > 0 ? color.team[1 - observer] : color.text[5],
+            color: hidden > 0 ? teamColor(1 - observer) : color.text[5],
             transition: `color ${transition}`,
           }}
         >
@@ -403,7 +403,7 @@ function ChampionList({
                 width: 6,
                 height: 6,
                 borderRadius: "50%",
-                background: dead ? rgba(color.team[hero.team], 0.3) : color.team[hero.team],
+                background: dead ? rgba(teamColor(hero.team), 0.3) : teamColor(hero.team),
                 // A living, currently-visible champion breathes. It is the one piece of
                 // ambient motion in the sidebar and it maps to the thing being measured:
                 // the dot is lit exactly while the enemy has eyes on them.
@@ -431,7 +431,7 @@ function ChampionList({
               <Bar
                 value={dead ? 0 : entropy}
                 max={maxEntropy}
-                tint={rgba(color.team[hero.team], 0.75)}
+                tint={rgba(teamColor(hero.team), 0.75)}
               />
             </span>
             <span

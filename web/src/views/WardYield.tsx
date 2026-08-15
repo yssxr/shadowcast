@@ -28,7 +28,7 @@ import { useMemo, useState } from "react";
 import type { Artifact } from "../artifact/load.ts";
 import { formatClock } from "../state/playback.ts";
 import { Bar, Heading, Note, Panel, Stat } from "../components/ui.tsx";
-import { color, font, rgba } from "../theme.ts";
+import { color, font, rgba, teamColor } from "../theme.ts";
 import { scoreWards } from "../metrics/wards.ts";
 
 interface Props {
@@ -140,7 +140,7 @@ export function WardYield({ artifact }: Props) {
                     <Bar
                       value={ward.exclusive}
                       max={best}
-                      tint={rgba(color.team[ward.team], 0.8)}
+                      tint={rgba(teamColor(ward.team), 0.8)}
                     />
                   </span>
                   <span
