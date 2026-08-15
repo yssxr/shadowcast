@@ -330,14 +330,19 @@ def test_the_full_model_is_overconfident_and_this_is_tracked(ablation):
     assert score.nll < ablation.scores["uniform"].nll
 
 
-def test_negative_information_improves_calibration(ablation):
-    """Removing territory the observer has ruled out should make the belief more honest.
+def test_negative_information_does_not_cost_calibration(ablation):
+    """It should not buy its likelihood by becoming more overconfident.
 
-    Worth checking separately from NLL: a model can win on likelihood while becoming
-    more overconfident, and that would be a worse model dressed as a better one.
+    A weaker claim than the one this test used to make. Negative information DID improve
+    calibration measurably — 0.208 against 0.181 — while the scenario had enemies visible
+    84% of the time. With realistic darkness the two are a tie (0.371 against 0.370), so
+    the honest assertion is that the negative update improves the likelihood without
+    making the belief more overconfident, which is the failure mode that would matter.
     """
     a, b = THESIS_PAIR
-    assert ablation.scores[b].calibration_error < ablation.scores[a].calibration_error
+    before, after = ablation.scores[a], ablation.scores[b]
+    assert after.nll < before.nll
+    assert after.calibration_error <= before.calibration_error + 0.02
 
 
 def test_vagueness_calibrates_easily(ablation):

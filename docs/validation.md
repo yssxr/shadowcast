@@ -26,9 +26,9 @@ from a bug.
 
 | | Agreement | False positive | False negative |
 |---|---|---|---|
-| Reconstructed positions (what ships) | **98.32%** | 1.04% | 0.64% |
-| True positions substituted (the floor) | **99.09%** | 0.70% | 0.21% |
-| Reconstruction cost | 0.77% | | |
+| Reconstructed positions (what ships) | **98.17%** | 1.37% | 0.46% |
+| True positions substituted (the floor) | **98.84%** | 1.01% | 0.16% |
+| Reconstruction cost | 0.67% | | |
 
 A **false positive** claims vision the game did not grant, which understates darkness and
 entropy and overstates what a team knew. A **false negative** does the reverse. Different
@@ -38,11 +38,11 @@ By region, reconstructed positions:
 
 | Region | Agreement |
 |---|---|
+| Base | 100.00% |
 | Jungle | 99.86% |
-| Base | 99.42% |
 | River | 99.14% |
-| Lane | 98.74% |
-| Brush-adjacent | 94.36% |
+| Lane | 99.09% |
+| Brush-adjacent | 90.81% |
 
 Brush-adjacent is the worst category, as predicted: brush is a conditional occluder and the grid
 quantises its boundary, so a champion a few units either side of an entrance is genuinely
@@ -52,11 +52,22 @@ mean something is wrong rather than merely quantised.
 Transition timing is measured separately, because getting the state right while flickering would
 score well on state agreement and still ruin any metric that integrates over a ward's lifetime:
 
-| | Reconstructed | True positions |
-|---|---|---|
-| Within 150 ms | 77.9% | 93.6% |
-| Absolute median error | 0.000 s | 0.000 s |
-| Our transitions vs the oracle's | 2,027 / 2,027 | — |
+| | Value |
+|---|---|
+| Within 150 ms | **67.4%** |
+| Absolute median error | 0.125 s |
+| Absolute p98 | 7.62 s |
+| Our transitions vs the oracle's | 516 / 472 |
+
+**Transition timing regressed and is not yet understood.** It read 93.6%, then 74.4% after
+the fog-attack reveal was gated on having an enemy target, then 67.4% after minion waves were
+stopped at the lane meeting point. State agreement went *up* across both fixes, so the
+reconstruction is more accurate — what changed is the denominator. Reveals used to manufacture
+transitions, 2,027 of them against 472 now, and a metric averaged over thousands of spurious
+events is easy to score well on. With only real transitions left, the ~9% we emit that the
+oracle does not are each matched to a distant partner, which is what the 7.6 s p98 is. Whether
+that is a real defect or an artefact of matching transitions by nearest time is an open
+question; the test asserts a floor rather than a target until it is settled.
 
 ### The plan's ≥99.9% gate was mis-specified
 
@@ -73,7 +84,8 @@ downstream metric.
 
 | Bug | Symptom |
 |---|---|
-| Reveal-on-attack fired on attacks with **no target**, ignoring the rule's requirement of an enemy | Both teams lit each other's fountain at 0:00 — 488 spurious reveals in four seconds. Fixing it took agreement 96.90% → **98.32%** and match-wide visibility 84.5% → **41.7%**, against a real-game 25–40%. |
+| Reveal-on-attack fired on attacks with **no target**, ignoring the rule's requirement of an enemy | Both teams lit each other's fountain at 0:00 — 488 spurious reveals in four seconds. |
+| Minion waves marched the **whole lane** and parked in the enemy fountain | A clump's arclength was clipped to [0, 1] rather than to the meeting point, and at 325 u/s a 55-second wave covers 18,000 units on a 20,000-unit lane. By five minutes each team had three permanent 1,200-unit floodlights inside the other team's spawn. Found because a reader asked what the unexplained circle on the map was. |
 | Reveal-on-attack applied unconditionally instead of gated on the attacker having been in fog | Agreement 98.8% → 43.4%, false-positive rate 56.6% |
 | Reveal modelled as revealing the *champion* for 4.5 s rather than a static *area* | 11 points of false negatives |
 | Ward boundary ticks rounded to nearest, so a ward whose placement time rounded down was excluded and never re-added | No vision at all for that ward's whole lifetime, roughly half of all wards |
@@ -169,19 +181,21 @@ with `shadowcast ablate`. Lower NLL is better; area is the 90% credible region.
 
 | Model | NLL | Entropy (bits) | Area (ku²) | % of map | ECE |
 |---|---|---|---|---|---|
-| B0 uniform over walkable | 5.230 | 9.80 | 117.09 | 61.8% | 0.135 |
-| B1 last known + growing Euclidean disc | 3.980 | 6.50 | 35.07 | 18.5% | 0.218 |
-| B1′ last known + **geodesic** disc | **3.572** | 7.54 | 59.28 | 31.3% | 0.058 |
-| B2 constant velocity | 4.227 | 5.49 | 27.91 | 14.7% | 0.357 |
-| B3 navmesh diffusion | 4.110 | 3.70 | 3.01 | 1.6% | 0.404 |
-| B3′ navmesh + behavioural prior | 3.949 | 4.50 | 8.01 | 4.2% | 0.383 |
-| **Full (with negative information)** | 3.669 | 3.91 | 4.75 | 2.5% | 0.376 |
+| B0 uniform over walkable | 5.224 | 9.80 | 117.09 | 61.8% | 0.132 |
+| B1 last known + growing Euclidean disc | 4.602 | 6.54 | 37.59 | 19.9% | 0.300 |
+| B1′ last known + **geodesic** disc | 4.106 | 8.28 | 77.77 | 41.1% | 0.080 |
+| B2 constant velocity | 4.660 | 6.43 | 40.00 | 21.1% | 0.359 |
+| B3 navmesh diffusion | 4.547 | 4.07 | 3.80 | 2.0% | 0.434 |
+| B3′ navmesh + behavioural prior | 4.204 | 5.14 | 11.70 | 6.2% | 0.371 |
+| **Full (with negative information)** | **3.961** | 4.49 | 6.81 | 3.6% | 0.370 |
 
-**The thesis holds: +0.280 nats** from negative information alone, on a comparison that changes
-one field of one spec.
+**The thesis holds: +0.243 nats** from negative information alone, on a comparison that changes
+one field of one spec — and the full model is the best in the table, ahead of the geodesic
+disc (3.961 against 4.106).
 
-**But `geodisc` now beats the full model on likelihood (3.572 against 3.669), and that is an
-open defect rather than a nuance.** See the calibration section below. These figures replace an
+There was a point during the vision fixes when `geodisc` beat it, which is recorded here
+because it was informative: with waves floodlighting both bases the darkness episodes were the
+wrong shape, and vagueness won. Correcting the minion model restored the ordering. These figures replace an
 earlier set — 0.418 for the full model against 0.822 — measured when the scenario had enemies
 visible 84.5% of the time. Nothing about the filter changed; fixing the fog-attack reveal made
 darkness episodes realistic, and the models that looked strong over short episodes do not hold
@@ -211,15 +225,16 @@ filter's truth falls inside its `q` region exactly `q` of the time.
 
 | Region | Contains the truth | Target | Previously |
 |---|---|---|---|
-| 50% | 8.3% | 50% | 10.0% |
-| 75% | 22.3% | 75% | 53.9% |
-| 90% | **39.1%** | 90% | 84.0% |
-| 95% | 47.1% | 95% | 88.3% |
+| 50% | 8.4% | 50% | 10.0% |
+| 75% | 22.8% | 75% | 53.9% |
+| 90% | **40.2%** | 90% | 84.0% |
+| 95% | 47.5% | 95% | 88.3% |
 
 **This is an open defect and it is the project's most important outstanding problem.** The
 "previously" column was measured when enemies were visible 84.5% of the time. Fixing the
-fog-attack reveal dropped that to a realistic 41.7%, darkness episodes got long, and the
-propagated models turned out to concentrate far faster than the truth actually disperses.
+fog-attack reveal and the minion wave model dropped that to a realistic 45.9%, darkness
+episodes got long, and the propagated models turned out to concentrate far faster than the
+truth actually disperses.
 
 What has been ruled out so far:
 
@@ -288,7 +303,7 @@ ends up slightly too spread rather than too confident.
 
 ## Read the belief numbers against this caveat
 
-Enemies are visible **41.7%** of the time, against a real-game figure nearer 25–40%. That is
+Enemies are visible **45.9%** of the time, against a real-game figure nearer 25–40%. That is
 close enough to be representative, and it was not always: the figure was **84.5%** until the
 fog-attack reveal was found to be firing on attacks with no target, so every champion revealed
 itself roughly once a second wherever it stood.
@@ -296,8 +311,9 @@ itself roughly once a second wherever it stood.
 An earlier version of this section blamed the generator, claiming it "sends champions to
 uniformly random destinations". That was written without checking and is **false** — the
 generator walks champions along their lanes, cycles junglers through camps, roams supports and
-recalls everyone periodically. The visibility figure was a bug in the vision model, not
-unrealism in the scenario.
+recalls everyone periodically. The visibility figure was two bugs in the vision model — the
+untargeted fog-attack reveal and minion waves parking in the enemy base — not unrealism in
+the scenario.
 
 ## The two tests that carry the milestone
 

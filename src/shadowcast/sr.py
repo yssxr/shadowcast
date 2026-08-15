@@ -220,12 +220,25 @@ def snap_polyline(terrain, pts: np.ndarray, max_radius: int = 24) -> tuple[np.nd
 MINION_WAVE_INTERVAL = 30.0
 FIRST_WAVE_SPAWN = 65.0
 MINION_SPEED = 325.0
-#: How long a clump survives before the opposing wave clears it. Real waves persist as
-#: long as they keep trading; this is the average that puts the meeting point near the
-#: lane midpoint.
-MINION_CLUMP_LIFETIME = 62.0
+#: How long a clump survives before the opposing wave clears it.
+#:
+#: MEASURED from the geometry: a wave reaches the meeting point 18.7 s after spawn on mid
+#: and 27.6 s on top and bot, and the next wave arrives one interval — 30 s — after that.
+#: So a clump lives roughly until its replacement shows up, which is 49-58 s depending on
+#: the lane. 55 s is one constant across all three.
+#:
+#: The old value of 62 s was justified as "the average that puts the meeting point near
+#: the lane midpoint", which stopped being the mechanism when the meeting point became
+#: explicit — and was never really the mechanism, since the clump used to march past the
+#: midpoint and out the far end of the lane regardless.
+MINION_CLUMP_LIFETIME = 55.0
 #: Arclength fraction along the lane where each team's minions enter.
 MINION_SPAWN_S = {TEAM_ORDER: 0.055, TEAM_CHAOS: 0.945}
+#: Arclength fraction where the two waves meet and stop advancing. Both teams spawn
+#: simultaneously and move at the same speed, so it is the midpoint. The real equilibrium
+#: shifts as turrets fall; turret destruction is absent from the corpus and is not
+#: modelled, so this is the early-game answer.
+MEETING_S = 0.5
 
 
 def minion_wave_schedule(duration: float) -> list[tuple[float, str, int]]:
@@ -264,7 +277,21 @@ def minion_clump_position(
     travelled = MINION_SPEED * (t - spawn_t) / length
     sign = 1.0 if team == TEAM_ORDER else -1.0
     s = MINION_SPAWN_S[team] + sign * travelled
-    return lerp_polyline(LANES[lane], float(np.clip(s, 0.0, 1.0)))
+
+    # **A wave stops where it meets the opposing wave.** Clipping to [0, 1] instead let
+    # it march the entire lane and park in the enemy fountain: at 325 u/s a 62-second
+    # clump covers 20,150 units on a lane about 16,000 long, so by five minutes every
+    # wave was sitting in the enemy base granting 1,200 units of vision there — three
+    # permanent floodlights per team inside the other team's spawn, which showed up as
+    # unexplained circles on the map.
+    #
+    # Both teams spawn together and move at the same speed, so they meet at the lane
+    # midpoint. That equilibrium shifts as turrets fall, which this does not model —
+    # turret destruction is absent from the corpus — so 0.5 is the early-game answer and
+    # is stated as such.
+    spawn_s = MINION_SPAWN_S[team]
+    lo, hi = (spawn_s, MEETING_S) if spawn_s < MEETING_S else (MEETING_S, spawn_s)
+    return lerp_polyline(LANES[lane], float(np.clip(s, lo, hi)))
 
 
 def arclength_fraction(lane: str, point: np.ndarray) -> float:

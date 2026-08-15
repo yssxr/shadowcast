@@ -194,16 +194,16 @@ hand.
 
 | | |
 |---|---|
-| Fog agreement, reconstructed positions | **98.32%** (synthetic) |
-| Fog agreement, true positions substituted — the floor | **99.09%** (synthetic) |
-| — brush-adjacent cells specifically | 94.36% (worst category, as predicted) |
+| Fog agreement, reconstructed positions | **98.17%** (synthetic) |
+| Fog agreement, true positions substituted — the floor | **98.84%** (synthetic) |
+| — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
 | Team / role recovery | **100% / 100%** (synthetic) |
-| Belief calibration — does the 90% region contain the truth 90% of the time? | **39.1%** — open defect |
-| **Log-likelihood vs. the same model without negative information** | **3.669 vs 3.949 nats** |
+| Belief calibration — does the 90% region contain the truth 90% of the time? | **40.2%** — open defect |
+| **Log-likelihood vs. the same model without negative information** | **3.961 vs 4.204 nats** |
 | Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
 | Information-barrier leak detector | **bit-identical** |
-| Artifact size per match | **1.47 MB** gzipped (budget: 2 MB) |
+| Artifact size per match | **1.24 MB** gzipped (budget: 2 MB) |
 | Python writer vs TypeScript reader | **identical** across all 6 sections |
 
 The fourth row is the one that matters: if the full model did not beat the same model without
@@ -214,9 +214,8 @@ so nothing else can explain it.
 **The third row is an open defect, and it is stated here rather than buried.** The belief is
 overconfident: its 90% region contains the truth 39% of the time, and a plain geodesic disc —
 enormously vague, and better calibrated — now beats the full model on likelihood over a whole
-match. This surfaced when a bug in the fog-attack reveal was fixed: enemies had been visible
-84.5% of the time instead of a realistic 41.7%, darkness episodes were short, and short episodes
-hid it. [`docs/validation.md`](docs/validation.md) records what has been ruled out.
+match. This surfaced when two vision bugs were fixed: enemies had been visible 84.5% of the time
+instead of a realistic 45.9%, darkness episodes were short, and short episodes hid it. [`docs/validation.md`](docs/validation.md) records what has been ruled out.
 
 Every figure above is measured on **synthetic** matches, where ground truth is known.
 Real-corpus numbers are still pending and will be worse. The fog agreement is deliberately
@@ -225,10 +224,11 @@ snapping, shadowcasting's permissiveness, ward and minion models) from what the
 reconstruction itself costs, and a single percentage cannot tell a modelling limit from a
 bug.
 
-Enemies are visible **41.7%** of the time here, against 25–40% in a real game — close enough to
-be representative. It read 84.5% until the fog-attack reveal was found to be firing on attacks
-that had no target, which meant every champion revealed itself roughly once a second wherever it
-stood, including in its own fountain before the game had started.
+Enemies are visible **45.9%** of the time here, against 25–40% in a real game. It read 84.5%
+until two vision bugs were found: the fog-attack reveal fired on attacks that had no target, so
+every champion revealed itself roughly once a second wherever it stood; and minion waves marched
+the entire lane and parked in the enemy fountain, giving each team three permanent floodlights
+inside the other team's spawn.
 
 ## Limitations, stated plainly
 
