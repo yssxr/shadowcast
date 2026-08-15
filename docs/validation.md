@@ -146,21 +146,19 @@ net_id, in **100.0000%** of 16,602 pairs. That is the bug that makes the officia
 
 ## Fog agreement on REAL packets
 
-**68.4%.** The synthetic figure is 98.0%. This is the number that matters and it is
-published as it stands. Regenerate with `shadowcast realfog`.
+**68.0% ± 2.8, across all 23 matches in a shard.** The synthetic figure is 98.0%. This is
+the number that matters and it is published as it stands. Regenerate with
+`shadowcast realfog --matches 23`; every match completed, none was skipped.
 
-| | Agreement | False positive | False negative |
+| | Median | Range | SD |
 |---|---|---|---|
-| Real match, `12_22/batch_001:0` | **68.37%** | 8.59% | **23.04%** |
-| Synthetic, same code | 98.02% | 1.51% | 0.47% |
-
-| Region | Real |
-|---|---|
-| Lane | 76.2% |
-| Jungle | 59.0% |
-| River | 44.8% |
-| Base | 54.9% |
-| Brush-adjacent | 54.3% |
+| **Agreement** | **67.99%** | 61.25 – 73.35% | 2.81 |
+| False positive | 11.83% | 8.59 – 17.10% | 2.01 |
+| **False negative** | **20.43%** | 11.24 – 27.10% | 3.06 |
+| Order attribution | 91.94% | 89.87 – 93.21% | 1.14 |
+| Transitions within 150 ms | 23.2% | 14.6 – 33.0% | — |
+| Lane minions modelled | 1,218 | 720 – 1,842 | — |
+| Synthetic, same code | 98.02% | — | — |
 
 The failure is mostly **false negatives** — we claim darkness the game did not have.
 
@@ -168,6 +166,52 @@ It started at 65.83%. Three fixes since, each measured separately: turret positi
 from the map by name rather than derived from attack packets (**+1.2**), lane minions
 carried through the packet seam at all (**+1.0**), and a measured lane front line
 replacing the assumed midpoint (**+1.5**).
+
+### One match was not enough, and knowing that changes what can be claimed
+
+Every real figure this project published before now came from `12_22/batch_001:0`. That
+match scores **68.37%**, which lands at the **65th percentile** of the 23 — so it was
+mildly flattering but broadly representative, and the headline survives.
+
+What does not survive is any claim built on a small difference. Agreement spans **12
+points** across matches at a standard deviation of 2.81, so an improvement under about
+three points cannot be demonstrated on a single match at all. The three fixes above are
+each of that order, and each was measured on one match; they are reported here as
+single-match deltas and should be re-measured across the shard before being leaned on.
+
+**A hypothesis this killed.** The worst match in the first few was also the longest, which
+suggested agreement decays with match length through unmodelled turret destruction — the
+corpus has no building-death packet, so a dead turret keeps granting vision forever, and
+late matches have more dead turrets. The correlation between agreement and duration is
+**−0.111**: nothing. The longest match in the shard, 25 minutes, scores 70.87%, above the
+median. False positives do correlate with duration in the predicted direction (**+0.279**)
+but far too weakly to carry the explanation.
+
+### Where the disagreement lands, by region
+
+| Region | Median | Range | SD |
+|---|---|---|---|
+| Lane | 73.6% | 66.4 – 79.3% | 3.2 |
+| Base | 61.3% | 42.9 – 78.2% | 8.6 |
+| Brush-adjacent | 58.8% | 48.4 – 65.5% | 4.7 |
+| River | 51.4% | 30.5 – 65.5% | 7.9 |
+| **Jungle** | **52.9%** | 36.3 – 62.9% | 5.7 |
+
+**The single-match region breakdown was noise.** It put river worst at 44.8% and jungle at
+59.0%; across 23 matches river is **51.4%** and jungle is **52.9%**, and river's standard
+deviation of 7.9 points is wide enough that one match said almost nothing about it. Base is
+worse still at 8.6. Only lane is stable enough (3.2) for a single match to have meant
+something, which is exactly the region with the most sources in it.
+
+Jungle being the worst region is consistent with the observer-staleness finding below
+rather than with missing vision sources: a jungler is alone, goes unanchored for long
+stretches, and has no nearby ally whose position could correct it. The scuttle-crab lead
+that the one-match river figure suggested is correspondingly weaker than it looked.
+
+Brush-adjacent is *not* the worst category on real data, which contradicts the project
+plan's prediction. It is the worst on synthetic data, where it is the only category that
+misses — the difference is that real data has larger errors elsewhere, not that brush
+suddenly became easy.
 
 ### The disagreement splits by *whose* position is stale
 
@@ -214,8 +258,10 @@ merely imprecise and a single agreement percentage hides it.
 - **Turret destruction is not modelled** — the corpus has no building-death packet — so a
   dead turret keeps granting vision. That inflates false positives, not negatives.
 - **Neutral monsters grant no vision**, correctly. But the Rift Scuttler's death does, and
-  scuttle crabs are present (`Sru_Crab*` in `CreateNeutral`) and unmodelled. River is the
-  worst region at 44.8%, which is where they live.
+  scuttle crabs are present (`Sru_Crab*` in `CreateNeutral`) and unmodelled. This looked
+  like the river's problem when river appeared worst on one match; across 23 it is 51.4%
+  against jungle's 52.9%, so the lead is real but small and not where the region evidence
+  points.
 - **Champion-ability vision** — traps, charms, revealed areas — is not modelled at all.
 
 ### What the lane minion fix actually was
@@ -302,6 +348,11 @@ events is easy to score well on. With only real transitions left, the ~9% we emi
 oracle does not are each matched to a distant partner, which is what the 7.6 s p98 is. Whether
 that is a real defect or an artefact of matching transitions by nearest time is an open
 question; the test asserts a floor rather than a target until it is settled.
+
+**On real packets it is far worse: 23.2% median across 23 matches, range 14.6–33.0%.**
+Every figure in this section is synthetic. Timing is the weakest real-data result the
+project has — state agreement is 68% while barely a fifth of transitions land within
+150 ms — and it is the one number here with no explanation attached to it yet.
 
 ### The plan's ≥99.9% gate was mis-specified
 

@@ -4,10 +4,12 @@
 
 A belief-state engine for MOBA information asymmetry, built on packet-level decoded replays.
 
-> Status: in development, engine complete through artifact export; the frontend is next. Numbers marked `[pending]`
-> are not yet measured, and this file carries no figure that was not produced by `shadowcast
-> pipeline` or `shadowcast ablate`. See [`docs/validation.md`](docs/validation.md) for the full
-> report, including the caveats that matter for reading the belief numbers.
+> Status: in development. The engine runs end to end on real packets and the four-view site
+> renders its output; the open work is accuracy, not coverage. Numbers marked `[pending]` are not
+> yet measured, and this file carries no figure that was not produced by a command. See
+> [`docs/validation.md`](docs/validation.md) for the full report, including the caveats that
+> matter for reading the belief numbers — in particular that **every belief figure is
+> synthetic**, because the filter has not yet been run on real matches.
 
 ---
 
@@ -132,6 +134,7 @@ uv run shadowcast pipeline           # synthetic match end to end + fog agreemen
 uv run shadowcast ablate             # seven belief models, one table, the thesis
 uv run shadowcast diagnose           # HOW the belief is wrong: drift or collapse
 uv run shadowcast inspect <shard>    # test the fog oracle against real packets
+uv run shadowcast realfog --matches 23   # real fog agreement across a whole shard
 uv run shadowcast export --web       # the artifact the site reads, ~1 MB per match
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
 
@@ -141,6 +144,10 @@ cd web && npm install && npm run dev  # the site, at localhost:5173
 ## The site
 
 Four views, all rendered from the artifact above — no backend, no API key, no rate limit.
+
+> The published artifact is currently a **synthetic** match: `shadowcast export` reads the
+> generator, not a shard, so the site has not yet displayed a real game. The engine runs on real
+> packets end to end — see the fog-agreement figures above — but the demo does not.
 
 **Replay** puts the same instant on screen twice, once per team's knowledge. The left map
 is everything Blue could see and everything Blue believed about Red; the right is the
@@ -196,14 +203,15 @@ a command — `shadowcast pipeline`, `realfog`, `ablate`, `diagnose`, `inspect` 
 
 | | |
 |---|---|
-| **Fog agreement, real packets** | **68.37%** — 23.0% false negative |
+| **Fog agreement, real packets** | **67.99% median across 23 matches** (61.3–73.4%, sd 2.8) — 20.4% false negative |
 | Fog agreement, reconstructed positions | 98.17% (synthetic) |
 | Fog agreement, true positions substituted — the floor | **98.84%** (synthetic) |
 | — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
 | Team recovery, real matches | **8 / 8**, 100.0% of damage across the split |
+| Transition timing, real packets | **23.2%** within 150 ms — weakest real result |
 | Conformance errors, real packet source | **0** |
-| Orders attributed, real matches | **92.8%** (99.9% synthetic) |
+| Orders attributed, real matches | **91.9% median across 23** (99.9% synthetic) |
 | Belief calibration — does the 90% region contain the truth 90% of the time? | **43.4%** — open defect |
 | **Log-likelihood vs. the same model without negative information** | **3.887 vs 4.132 nats** |
 | Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
