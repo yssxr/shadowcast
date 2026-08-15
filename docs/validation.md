@@ -324,6 +324,79 @@ Things that should hold if the model is right. A failure is either a bug or a fi
 | Supports have the lowest | — |
 | Information advantage correlates with, but does not determine, objective control | — |
 
+## Artifact export
+
+One 900-second match, regenerate with `shadowcast export`.
+
+| Section | Codec | Raw | Gzipped |
+|---|---|---|---|
+| `masks` — 128² per team at 4 Hz | xor | 14.75 MB | 750 kB |
+| `belief` — 16-component mixture at 8 Hz | xor | 4.61 MB | 66 kB |
+| `scalars` — 25 metrics per tick | raw | 0.72 MB | 106 kB |
+| `positions` — 10 champions at 8 Hz, 12-bit | delta | 0.29 MB | 64 kB |
+| `belief_seen` | raw | 0.07 MB | 3 kB |
+| `alive` | raw | 0.07 MB | 0.1 kB |
+| **total shipped** (with `meta.json`) | | **20.51 MB** | **1.00 MB** |
+
+**1.00 MB against a 2 MB budget**, a 20.7× compression. The site is two files per match —
+`meta.json` and `data.bin.gz` — served with `Content-Encoding: gzip`, so the browser
+inflates during transfer and the reader ships no decompression code at all.
+
+### Every codec choice was measured, not assumed
+
+Over a 200-second match, gzipped kB per section under each codec. Bold is what ships.
+
+| Section | raw | delta | xor |
+|---|---|---|---|
+| `positions` | 22.2 | **13.8** | — |
+| `alive` | **0.1** | 0.1 | 0.1 |
+| `masks` | 172.0 | 134.7 | **129.6** |
+| `belief_seen` | **0.7** | 0.7 | 0.6 |
+| `belief` | 19.4 | 19.9 | **17.5** |
+| `scalars` | **24.4** | *2.0 — see below* | — |
+
+Two of these went against the plan:
+
+- **`belief` uses XOR, not delta.** A component that jitters by one unit encodes as
+  `0xFF` under a modular delta — a high-entropy byte gzip cannot exploit — and as `0x01`
+  under XOR. Worth 2.4 kB on 19.9.
+- **`alive` is raw.** Ten booleans that change a handful of times compress to 0.1 kB
+  whatever is done to them, so it stays readable.
+
+### Warm-starting the mixture is worth 6.5×
+
+| | Gzipped `belief` |
+|---|---|
+| k-means warm-started from the previous tick's centres | **19.9 kB** |
+| k-means re-seeded each tick | 129.5 kB |
+
+Cold-starting reorders the components whenever the cloud changes shape, and a delta or
+XOR against a permuted set of centres is noise — it encodes larger than the raw values it
+replaced. This is the single reason a 16-component mixture fits the byte budget.
+
+### Mixture fit loss
+
+**KL divergence 0.0054 nats**, particle cloud against its mixture, both rasterised onto
+the 32² display grid with the same kernel. A lossy encoding whose loss has never been
+measured is a claim rather than a format.
+
+The first version of this measurement reported 0.32 nats and was wrong: it compared a
+spiky thousand-particle histogram against smooth Gaussians, so it was measuring
+discretisation rather than fit quality. Comparing like with like is the whole difficulty
+of the metric.
+
+### Two bugs the cross-language test caught
+
+`tests/test_export.py` has Node decode the same file with the generated reader, and both
+sides checksum the **decoded** arrays. Checksumming the stored bytes would prove only
+that they read the same offsets; checksumming what comes out proves they agree on what
+the bytes mean.
+
+| Bug | Symptom |
+|---|---|
+| `meta.json` contained bare `NaN` from an unknown respawn time | Valid to Python's parser and to **no other JSON parser** — `JSON.parse` throws, so the artifact was unopenable in a browser while every Python test passed. Found on the conformance test's first run. |
+| `delta` and `xor` applied to a float section truncate it | Both codecs are defined on the integer representation. `[1.5, 2.25] → [1.75, 2.5]` round-trips to `[1.0, 2.0]`. It *looked* like excellent compression — delta-coded `scalars` came out 12× smaller than raw, which is what discarding the fractional part will do. Now refused at spec-definition time. |
+
 ## Engine self-consistency
 
 Tests with analytically known answers, not comparisons against the data.
@@ -350,7 +423,13 @@ Tests with analytically known answers, not comparisons against the data.
 | **Information-barrier leak detector** | **passing** — bit-identical over 2,000+ perturbed positions |
 | Belief never leaves the navmesh | **passing** |
 | Credible regions are nested (coverage rises with level) | **passing**, all 7 models |
-| Artifact round trip, Python writer vs TypeScript reader | — |
+| **Artifact round trip, Python writer vs TypeScript reader** | **passing** — all 6 sections decode to identical checksums |
+| Artifact under its size budget | **passing** — 1.00 MB against 2 MB |
+| Committed `artifact.ts` matches the regenerated one | **passing** |
+| Codec round trip at dtype extremes, every keyframe period | **passing** |
+| Partial decode from a keyframe equals a full decode | **passing** |
+| A corrupted section is caught rather than returned | **passing** |
+| Mixture kernel vs its NumPy reference | **passing** |
 
 ### FOV table, via `shadowcast fov verify`
 

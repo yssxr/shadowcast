@@ -47,6 +47,7 @@ __all__ = [
     "CALIBRATION_LEVELS",
     "BeliefScore",
     "LatticeIndex",
+    "belief_summary",
     "evaluate",
 ]
 
@@ -184,6 +185,26 @@ def _pit(p: np.ndarray, truth_bin: int) -> float:
     """
     pt = p[truth_bin]
     return float(p[p > pt].sum() + pt)
+
+
+def belief_summary(
+    lattice: LatticeIndex,
+    cell: np.ndarray,
+    weights: np.ndarray,
+    spec: FilterSpec,
+) -> tuple[float, float]:
+    """`(entropy in bits, 90% credible-region area in ku²)` for one belief.
+
+    The pair the artifact ships per tick. Exported here rather than recomputed in
+    `l4_export` so the number on the site and the number in the validation report come
+    from the same three lines — a display that quietly used a different lattice or
+    skipped the Miller–Madow correction would disagree with the report and nobody would
+    know which was right.
+    """
+    p = lattice.histogram(cell, weights)
+    ess = 1.0 / float((weights * weights).sum()) if weights.size else 0.0
+    bins, _ = _credible(p, spec.credible_mass)
+    return _entropy_bits(p, ess, lattice.max_bits), bins * lattice.bin_area_ku2
 
 
 @dataclass(frozen=True, slots=True)

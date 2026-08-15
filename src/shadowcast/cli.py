@@ -490,6 +490,139 @@ def ablate(
 
 
 @app.command()
+def export(
+    seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
+    duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,
+    clean: Annotated[bool, typer.Option("--clean", help="Disable every stream pathology.")] = False,
+    out: Annotated[
+        Path | None, typer.Option(help="Artifact directory. Defaults to data/artifacts/<id>.")
+    ] = None,
+    codegen: Annotated[bool, typer.Option(help="Also regenerate the TypeScript reader.")] = True,
+) -> None:
+    """Export one match as the artifact the static site reads.
+
+    Two files: `meta.json` and `data.bin.gz`. Serve the payload with
+    `Content-Encoding: gzip` and the browser inflates it during transfer, so the site
+    ships no decompression code at all.
+    """
+    import time
+
+    from shadowcast.config import data_dir
+    from shadowcast.fov.table import load_table
+    from shadowcast.l1_events import normalise
+    from shadowcast.l1_events.resolve import attribute, resolve_all
+    from shadowcast.l2_reconstruct.vision import VisionStream
+    from shadowcast.l3_infer.policy import observe
+    from shadowcast.l4_export.artifact import write_artifact
+    from shadowcast.l4_export.build import build_arrays
+    from shadowcast.l4_export.ts_codegen import write_typescript
+    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+
+    terrain = _load_terrain()
+    table = load_table(terrain)
+    pathologies = Pathologies.none() if clean else Pathologies.all()
+    source = SyntheticSource(
+        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
+    )
+    match_id = source.match_ids()[0]
+    bundle, _ = source.generate(match_id)
+    events = normalise(bundle, terrain)
+    att = attribute(events)
+    events, _ = resolve_all(events, att.pos, att.valid)
+
+    start = time.perf_counter()
+    obs, public, _ = observe(events, att, VisionStream(events, att, terrain, table))
+    built = build_arrays(
+        events,
+        att.pos,
+        att.valid,
+        obs,
+        public,
+        lambda: VisionStream(events, att, terrain, table).masks(),
+        terrain,
+    )
+    dest = Path(out) if out else data_dir() / "artifacts" / match_id
+    path, report = write_artifact(
+        dest,
+        match_id=match_id,
+        duration=duration,
+        dims=built.dims,
+        arrays=built.arrays,
+        heroes=[
+            {
+                "slot": int(h["slot"]),
+                "name": str(h["name"]),
+                "champion": str(h["champion"]),
+                "team": int(h["team"]),
+                "role": str(h["role"]),
+            }
+            for h in events.heroes
+        ],
+        events=_export_events(events),
+        stats=built.stats,
+    )
+    elapsed = time.perf_counter() - start
+
+    _echo_table(
+        "sections (encoded, before gzip)",
+        {k: f"{v / 1e3:,.0f} kB" for k, v in report["sections"].items()},
+    )
+    typer.echo("")
+    _echo_table(
+        "artifact",
+        {
+            "raw": f"{report['raw_bytes'] / 1e6:,.2f} MB",
+            "gzipped": f"{report['gzipped_bytes'] / 1e6:,.2f} MB",
+            "meta.json": f"{report['meta_bytes'] / 1e3:,.0f} kB",
+            "total shipped": f"{report['total_bytes'] / 1e6:,.2f} MB",
+            "compression": f"{report['ratio']}x",
+            "mixture KL (mean)": f"{built.stats['mixture_kl_mean']:.4f} nats",
+            "elapsed": f"{elapsed:.1f}s",
+        },
+    )
+    budget = 2.0
+    total_mb = report["total_bytes"] / 1e6
+    colour = typer.colors.GREEN if total_mb <= budget else typer.colors.RED
+    typer.secho(f"\n  {total_mb:.2f} MB against a {budget:.0f} MB budget", fg=colour, bold=True)
+    typer.secho(f"  wrote {path}", fg=typer.colors.GREEN)
+
+    if codegen:
+        ts, changed = write_typescript(Path("web/src/generated/artifact.ts"))
+        typer.secho(
+            f"  {'regenerated' if changed else 'unchanged'} {ts}",
+            fg=typer.colors.YELLOW if changed else typer.colors.GREEN,
+        )
+
+
+def _export_events(events) -> dict[str, object]:
+    """The event streams the site draws as ticks on a timeline."""
+    return {
+        "wards": [
+            {
+                "t0": round(float(w["t0"]), 2),
+                "t1": round(float(w["t1"]), 2),
+                "x": round(float(w["x"]), 1),
+                "z": round(float(w["z"]), 1),
+                "team": int(w["team"]),
+                "owner": int(w["owner_slot"]),
+                "sight": float(w["sight"]),
+            }
+            for w in events.wards
+        ],
+        "deaths": [
+            {
+                "t": round(float(d["t"]), 2),
+                "victim": int(d["victim"]),
+                "killer": int(d["killer"]),
+                "respawn": round(float(d["respawn_t"]), 2),
+                "confidence": round(float(d["killer_confidence"]), 3),
+            }
+            for d in events.deaths
+        ],
+    }
+
+
+@app.command()
 def doctor() -> None:
     """Report versions, config hashes, and whether derived artifacts are stale."""
     import numpy

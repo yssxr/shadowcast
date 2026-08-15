@@ -4,7 +4,7 @@
 
 A belief-state engine for MOBA information asymmetry, built on packet-level decoded replays.
 
-> Status: in development, engine complete through belief inference. Numbers marked `[pending]`
+> Status: in development, engine complete through artifact export; the frontend is next. Numbers marked `[pending]`
 > are not yet measured, and this file carries no figure that was not produced by `shadowcast
 > pipeline` or `shadowcast ablate`. See [`docs/validation.md`](docs/validation.md) for the full
 > report, including the caveats that matter for reading the belief numbers.
@@ -130,6 +130,7 @@ uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
 uv run shadowcast ablate             # seven belief models, one table, the thesis
+uv run shadowcast export             # the artifact the site reads, ~1 MB per match
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
 ```
 
@@ -165,6 +166,8 @@ hand.
 | **Log-likelihood vs. the same model without negative information** | **0.418 vs 0.822 nats** |
 | Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
 | Information-barrier leak detector | **bit-identical** |
+| Artifact size per match | **1.00 MB** gzipped (budget: 2 MB) |
+| Python writer vs TypeScript reader | **identical** across all 6 sections |
 
 The fourth row is the one that matters: if the full model did not beat the same model without
 negative information, negative information would be doing nothing and the central claim would
