@@ -1,16 +1,16 @@
 // Measure the real frame rate during playback, rather than asserting it in a comment.
+// Run with the dev server up: `npm run perf`.
 import { chromium } from "playwright";
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1728, height: 1080 }, deviceScaleFactor: 2 });
-await page.goto("http://localhost:5173/#replay&t=300", { waitUntil: "networkidle" });
+await page.goto("http://localhost:5173/#replay&t=75", { waitUntil: "networkidle" });
 await page.waitForTimeout(2500);
 
-for (const mode of ["Cloud", "Contour", "Grid"]) {
-  await page.getByRole("button", { name: mode, exact: true }).click();
-  await page.keyboard.press("Space");           // play
-  await page.waitForTimeout(400);               // let it settle
-  const fps = await page.evaluate(
+async function measure(label: string) {
+  await page.keyboard.press("Space");
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(
     () =>
       new Promise<{ fps: number; worst: number }>((resolve) => {
         const frames: number[] = [];
@@ -27,9 +27,13 @@ for (const mode of ["Cloud", "Contour", "Grid"]) {
         requestAnimationFrame(tick);
       }),
   );
-  await page.keyboard.press("Space");           // pause
-  console.log(
-    `${mode.padEnd(8)} ${fps.fps.toFixed(1)} fps mean, worst frame ${fps.worst.toFixed(1)} ms`,
-  );
+  await page.keyboard.press("Space");
+  console.log(`${label.padEnd(26)} ${r.fps.toFixed(1)} fps, worst frame ${r.worst.toFixed(1)} ms`);
 }
+
+await measure("everything on");
+await page.getByRole("button", { name: "90% region outline" }).click();
+await measure("without the outline");
+await page.getByRole("button", { name: "Belief clouds" }).click();
+await measure("without belief at all");
 await browser.close();

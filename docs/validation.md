@@ -403,27 +403,53 @@ Measured with `npm run perf` — 150 frames of playback at 1728x1080, deviceScal
 both maps live. Headless Chromium is uncapped, so anything above 60 holds 60 on a real
 display.
 
-| Belief mode | Before | After |
+| Stage | fps | Worst frame |
 |---|---|---|
-| Cloud | 51.7 fps, worst frame 83 ms | **101.6 fps**, worst frame 25 ms |
-| Contour | 107.4 fps | 104.4 fps |
-| Grid | 111.8 fps | 105.0 fps |
+| Original cloud rendering | 51.7 | 83 ms |
+| Blur moved off display resolution | 68.7 | 26 ms |
+| Terrain + belief composited at 512² | 101.6 | 25 ms |
+| Credible outline added (sorted threshold) | 65.0 | 26 ms |
+| **Composite cached by tick, histogram threshold** | **96.4** | **18 ms** |
 
-Cloud mode was the only one below 60, and toggling the belief layer off took the page
-from 67 to 110 fps — so the layer was the entire cost, and trails, wards and fog were
-free. Two changes fixed it:
+Toggling the belief layer off originally took the page from 67 to 110 fps, so the layer
+was the entire cost — trails, wards and fog were free. Four changes, each measured:
 
-- **Blur at 128², not at display size.** A canvas blur is per-destination-pixel, so
-  blurring during the upscale to 800² cost 640,000 pixels per cloud. The field is 32
-  cells; there is no detail there that a blur at display resolution can preserve.
-- **Composite terrain and belief at 512², then blit once.** `screen` blending 2.56
-  million pixels per map per frame was magnifying an image with nothing to magnify.
-  Entities are still drawn at full display resolution, because a champion dot is vector
-  work that does want the pixels.
+- **Blur off display resolution.** A canvas blur is per-destination-pixel, so blurring
+  during an upscale to 800² cost 640,000 pixels per cloud to soften a field with 128 cells
+  in it.
+- **Composite terrain and belief at 512², then blit once.** `screen` blending 2.56 million
+  pixels per map per frame was magnifying an image with nothing to magnify. Entities are
+  still drawn at full display resolution, because a champion dot is vector work that does
+  want the pixels.
+- **Histogram, not sort, for the credible threshold.** Sorting 16,384 floats per enemy per
+  map per frame is six hundred sorts a second and cost 36 fps. A 256-bin histogram finds
+  the same threshold in one linear pass, to within a 256th of the peak density.
+- **Cache the composite against its ticks.** Vision is exported at 4 Hz and the belief at
+  8, while the canvas draws at 60 — so the same picture was being recomputed six to
+  fourteen times over. Champions are drawn on top every frame and *interpolated* between
+  position ticks, which is the part that actually needs 60: without it a champion advances
+  in eight visible steps a second, which reads as stutter even when every frame is on
+  time.
 
-Also folded in: all five enemies on a map are the same team and therefore the same
-colour, so their fields are merged before compositing — one blended draw per map instead
-of five.
+With everything on, the belief layer is now free: 96.4 fps with clouds and outlines
+against 95.6 fps with the belief switched off entirely.
+
+### One rendering, not three
+
+The belief had cloud / contour / grid modes, from the mockup. Putting all three on the
+same data retired two of them. *Grid* drew the raw display lattice — a debug view. *Contour*
+drew iso-lines at fixed fractions of the peak density and degenerated into two nested
+rectangles, because a belief concentrated in four cells puts every level on nearly the
+same cells. *Cloud* read well but had no boundary, so a faint edge could hold ten percent
+of the mass or one.
+
+What ships is the cloud with its **90% credible boundary** drawn on it: the field for the
+at-a-glance read, the outline for something to point at. The outline encloses exactly the
+area the search-area figure reports, and the threshold comes from walking the cumulative
+density — the definition of a highest-density region — rather than from a fraction of the
+peak. It is evaluated at 128² rather than the design's 32², which is reading the mixture
+more finely rather than interpolating a histogram: the belief ships as a continuous sum of
+Gaussians.
 
 ## Engine self-consistency
 

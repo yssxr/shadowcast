@@ -29,13 +29,12 @@ import type { Artifact } from "../artifact/load.ts";
 import type { TerrainImage } from "../canvas/terrain.ts";
 import { drawTerrain } from "../canvas/terrain.ts";
 import {
-  DISPLAY_GRID,
   createScratch,
-  drawBelief,
+  drawCloud,
+  drawCredibleBoundary,
   maskToWalkable,
   normalise,
   rasteriseMixture,
-  type BeliefMode,
 } from "../canvas/belief.ts";
 import { drawChampion, drawDeath, drawTrail, drawWard, project } from "../canvas/entities.ts";
 import type { PlaybackClock } from "../state/playback.ts";
@@ -44,8 +43,9 @@ import { color, font } from "../theme.ts";
 const TRAIL_TICKS = 14;
 
 export interface MapSettings {
-  beliefMode: BeliefMode;
   showBelief: boolean;
+  /** The 90% credible outline on top of the cloud. */
+  showBoundary: boolean;
   showVision: boolean;
   showTrails: boolean;
   showWards: boolean;
@@ -55,8 +55,8 @@ export interface MapSettings {
 }
 
 export const defaultSettings: MapSettings = {
-  beliefMode: "cloud",
   showBelief: true,
+  showBoundary: true,
   showVision: true,
   showTrails: true,
   showWards: true,
@@ -104,10 +104,8 @@ export function MapCanvas({
     ctx.scale(dpr, dpr);
 
     // Everything the draw loop needs, allocated once.
-    const field = new Float32Array(DISPLAY_GRID * DISPLAY_GRID);
-    const one = new Float32Array(DISPLAY_GRID * DISPLAY_GRID);
+    const scratch = createScratch(artifact.meta.dims.enemies);
     const components = new Float64Array(artifact.meta.dims.components * 4);
-    const scratch = createScratch();
     const trail = new Float64Array((TRAIL_TICKS + 1) * 2);
     const here = new Float64Array(2);
 
@@ -136,53 +134,85 @@ export function MapCanvas({
     compose.height = terrain.grid;
     const composeCtx = compose.getContext("2d", { alpha: false })!;
 
+    // The composite is cached against the ticks that feed it. Vision is exported at 4 Hz
+    // and the belief at 8, while the canvas draws at 60 — so rebuilding it every frame
+    // recomputed an identical picture six or fourteen times over. Champions are drawn on
+    // top every frame and interpolated between ticks, which is what actually needs 60.
+    let composeKey = "";
+
+    // Rebuilt only when the belief tick changes — see the compose cache below.
+    function rebuildBelief(s: MapSettings, belTick: number, posTick: number) {
+      if (!s.showBelief) return;
+      // The CLOUD merges the five enemies; the BOUNDARY does not.
+      //
+      // Merging is right for the fill: every enemy on this map is on the same team and
+      // therefore the same colour, so five separate `screen` composites produce a
+      // picture that one composite of the per-enemy maximum already gives — and that
+      // blend is the most expensive thing on the page.
+      //
+      // A credible region is the opposite case. It is a statement about ONE champion,
+      // and the union of five 90% regions is not the 90% region of anything, so the
+      // outlines are drawn per enemy and overlap where the beliefs do.
+      let count = 0;
+      scratch.merged.fill(0);
+      for (let e = 0; e < artifact.meta.dims.enemies; e++) {
+        if (artifact.seen(belTick, observer, e)) continue;
+        const slot = artifact.enemySlot(observer, e);
+        if (s.focusSlot >= 0 && slot !== s.focusSlot) continue;
+        if (!artifact.alive(posTick, slot)) continue;
+
+        const field = scratch.fields[count++];
+        artifact.belief(belTick, observer, e, components);
+        rasteriseMixture(components, field);
+        maskToWalkable(field, terrain.walkable, terrain.grid);
+        normalise(field);
+        for (let k = 0; k < scratch.merged.length; k++) {
+          if (field[k] > scratch.merged[k]) scratch.merged[k] = field[k];
+        }
+      }
+
+      if (count > 0) {
+        // Cloud first, outlines second. The cloud is a `screen` composite, so drawing
+        // it over the outlines would wash them out exactly where the belief is
+        // strongest — which is the one place the boundary needs to be legible.
+        drawCloud(composeCtx, scratch.merged, 1 - observer, terrain.grid, scratch);
+        if (s.showBoundary) {
+          for (let k = 0; k < count; k++) {
+            drawCredibleBoundary(
+              composeCtx,
+              scratch.fields[k],
+              1 - observer,
+              terrain.grid,
+              scratch,
+            );
+          }
+        }
+      }
+    }
+
     const draw = (t: number) => {
       const s = live.current;
       const maskTick = artifact.maskTick(t);
       const posTick = artifact.positionTick(t);
       const belTick = artifact.beliefTick(t);
 
-      if (maskTick !== fogTick || s.showVision !== fogVision) {
-        fogTick = maskTick;
-        fogVision = s.showVision;
-        drawTerrain(
-          fogCtx,
-          terrain,
-          terrain.grid,
-          s.showVision ? (i, j) => artifact.visible(maskTick, observer, i, j) : () => true,
-        );
-      }
-      composeCtx.imageSmoothingEnabled = false;
-      composeCtx.drawImage(fog, 0, 0);
+      const key = `${maskTick}|${belTick}|${posTick}|${s.showVision}|${s.showBelief}|${s.showBoundary}|${s.focusSlot}`;
+      if (key !== composeKey) {
+        composeKey = key;
 
-      if (s.showBelief) {
-        // Every enemy on this map is on the same team, so every cloud is the same
-        // colour — which means they can be merged into one field and composited once
-        // instead of five times. Taking the per-enemy maximum rather than the sum keeps
-        // each cloud's own peak normalisation, and is what a `screen` blend of five
-        // separately-drawn clouds approximates anyway.
-        let any = false;
-        for (let e = 0; e < artifact.meta.dims.enemies; e++) {
-          if (artifact.seen(belTick, observer, e)) continue;
-          const slot = artifact.enemySlot(observer, e);
-          if (s.focusSlot >= 0 && slot !== s.focusSlot) continue;
-          if (!artifact.alive(posTick, slot)) continue;
-          artifact.belief(belTick, observer, e, components);
-          rasteriseMixture(components, one);
-          normalise(one);
-          if (!any) {
-            field.set(one);
-            any = true;
-          } else {
-            for (let k = 0; k < field.length; k++) {
-              if (one[k] > field[k]) field[k] = one[k];
-            }
-          }
+        if (maskTick !== fogTick || s.showVision !== fogVision) {
+          fogTick = maskTick;
+          fogVision = s.showVision;
+          drawTerrain(
+            fogCtx,
+            terrain,
+            terrain.grid,
+            s.showVision ? (i, j) => artifact.visible(maskTick, observer, i, j) : () => true,
+          );
         }
-        if (any) {
-          maskToWalkable(field, terrain.walkable, terrain.grid);
-          drawBelief(composeCtx, field, 1 - observer, terrain.grid, s.beliefMode, scratch);
-        }
+        composeCtx.imageSmoothingEnabled = false;
+        composeCtx.drawImage(fog, 0, 0);
+        rebuildBelief(s, belTick, posTick);
       }
 
       ctx.imageSmoothingEnabled = false;
@@ -237,7 +267,8 @@ export function MapCanvas({
           drawTrail(ctx, trail, count, hero.team, size);
         }
 
-        artifact.positionInto(posTick, hero.slot, here, 0);
+        // Interpolated, so a champion glides at 60 fps from 8 Hz data.
+        artifact.positionLerpInto(t, hero.slot, here, 0);
         drawChampion(
           ctx,
           {

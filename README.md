@@ -160,10 +160,16 @@ at all.
 region and patch do not exist in the data and a plausible aggregate would cost more than
 it is worth.
 
-The maps hold **101 fps** with both boards live at 2x scale (`npm run perf`), with zero
-allocation in the draw loop; React state for the sidebar is throttled to about 9 Hz so
-text and canvas never compete for a frame, and the digits are eased back up to 60 by
-writing straight to the DOM node.
+The belief renders one way: a soft cloud with the **90% credible region** outlined on it —
+the field to read at a glance, the outline to point at, enclosing exactly the area the
+search-area figure reports.
+
+The maps hold **96 fps** with both boards live at 2x scale (`npm run perf`), and the belief
+layer is free — the same frame rate as with it switched off. Nothing allocates in the draw
+loop, the terrain-and-belief composite is cached against its 4 Hz and 8 Hz source ticks
+rather than rebuilt at 60, and champion positions are interpolated between ticks so they
+glide instead of stepping. React state for the sidebar is throttled to about 9 Hz; the
+digits are eased back up to 60 by writing straight to the DOM node.
 
 ## Development
 

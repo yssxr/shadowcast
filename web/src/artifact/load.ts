@@ -26,6 +26,9 @@ export const WORLD = {
 
 const POSITION_STEPS = 1 << 12;
 
+/** Beyond this much movement in one tick, snap rather than interpolate. */
+const SNAP_UNITS = 600;
+
 export interface Hero {
   slot: number;
   name: string;
@@ -133,6 +136,35 @@ export class Artifact {
       WORLD.minX + (p[base] / (POSITION_STEPS - 1)) * WORLD.span,
       WORLD.minZ + (p[base + 1] / (POSITION_STEPS - 1)) * WORLD.span,
     ];
+  }
+
+  /**
+   * Write a position interpolated between two ticks, so champions move smoothly.
+   *
+   * Positions are exported at 8 Hz and the canvas draws at 60, so without this a champion
+   * advances in eight visible steps a second — which reads as a stutter even though every
+   * frame is on time. Linear interpolation between the bracketing ticks is what the game
+   * client does with the same data.
+   *
+   * A jump beyond `SNAP_UNITS` is not interpolated: a Flash, a teleport or a respawn is a
+   * discontinuity, and sliding a champion across the map over an eighth of a second would
+   * invent a path they never walked.
+   */
+  positionLerpInto(t: number, slot: number, out: Float64Array, offset: number): void {
+    const exact = Math.max(0, t * this.positionHz);
+    const a = Math.min(this.meta.dims.position_ticks - 1, Math.floor(exact));
+    const b = Math.min(this.meta.dims.position_ticks - 1, a + 1);
+    const f = exact - a;
+    this.positionInto(a, slot, out, offset);
+    if (b === a || f <= 0) return;
+    const ax = out[offset];
+    const az = out[offset + 1];
+    this.positionInto(b, slot, out, offset);
+    const dx = out[offset] - ax;
+    const dz = out[offset + 1] - az;
+    if (dx * dx + dz * dz > SNAP_UNITS * SNAP_UNITS) return;
+    out[offset] = ax + dx * f;
+    out[offset + 1] = az + dz * f;
   }
 
   /**

@@ -27,7 +27,7 @@ import { formatClock } from "../state/playback.ts";
 import { useEasedText } from "../state/motion.ts";
 import { MapCanvas, type MapSettings } from "../components/MapCanvas.tsx";
 import { Timeline } from "../components/Timeline.tsx";
-import { Bar, Panel, SegmentedControl, Toggle, transition } from "../components/ui.tsx";
+import { Bar, Panel, Toggle, transition } from "../components/ui.tsx";
 import { color, font, rgba } from "../theme.ts";
 
 interface Props {
@@ -102,20 +102,26 @@ export function Replay({
         }}
       >
         <Panel title="belief" delay={40}>
+          <p
+            style={{
+              font: `300 11px/1.5 ${font.sans}`,
+              color: color.text[5],
+              margin: "0 0 8px",
+            }}
+          >
+            The cloud is where the enemy might be; the outline encloses 90% of that
+            probability — the same area reported under each map.
+          </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <SegmentedControl
-              value={settings.beliefMode}
-              onChange={(beliefMode) => onSettings({ ...settings, beliefMode })}
-              options={[
-                { value: "cloud", label: "Cloud" },
-                { value: "contour", label: "Contour" },
-                { value: "grid", label: "Grid" },
-              ]}
-            />
             <Toggle
               label="Belief clouds"
               on={settings.showBelief}
               onChange={(showBelief) => onSettings({ ...settings, showBelief })}
+            />
+            <Toggle
+              label="90% region outline"
+              on={settings.showBoundary}
+              onChange={(showBoundary) => onSettings({ ...settings, showBoundary })}
             />
             <Toggle
               label="Fog of war"
