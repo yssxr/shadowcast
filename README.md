@@ -131,11 +131,12 @@ uv sync
 uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
-uv run shadowcast ablate             # seven belief models, one table, the thesis
-uv run shadowcast diagnose           # HOW the belief is wrong: drift or collapse
+uv run shadowcast ablate --shard <shard>  # seven belief models, the thesis, on real data
+uv run shadowcast diagnose --shard <shard>  # HOW the belief is wrong: drift or collapse
 uv run shadowcast inspect <shard>    # test the fog oracle against real packets
 uv run shadowcast realfog --matches 23   # real fog agreement across a whole shard
-uv run shadowcast export --web       # the artifact the site reads, ~1 MB per match
+uv run shadowcast export --web --shard data/raw/12_22/batch_001.jsonl.gz   # a REAL match
+uv run shadowcast export --web       # or a synthetic one, ~1 MB either way
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
 
 cd web && npm install && npm run dev  # the site, at localhost:5173
@@ -145,9 +146,9 @@ cd web && npm install && npm run dev  # the site, at localhost:5173
 
 Four views, all rendered from the artifact above — no backend, no API key, no rate limit.
 
-> The published artifact is currently a **synthetic** match: `shadowcast export` reads the
-> generator, not a shard, so the site has not yet displayed a real game. The engine runs on real
-> packets end to end — see the fog-agreement figures above — but the demo does not.
+> The site loads whichever artifact `shadowcast export --web` last wrote, and `App.tsx` names it.
+> Artifacts are derived and therefore gitignored, so a fresh clone must run the export above
+> before `npm run dev` has anything to read.
 
 **Replay** puts the same instant on screen twice, once per team's knowledge. The left map
 is everything Blue could see and everything Blue believed about Red; the right is the
