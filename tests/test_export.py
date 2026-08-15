@@ -176,9 +176,12 @@ def test_warm_starting_shrinks_the_encoded_belief(artifact):
     property that matters is not centre stability on a toy input, it is the size of the
     encoded section on real belief evolution.
 
-    MEASURED over a 200-second match: 19.9 kB warm against 129.5 kB cold, a factor of
-    6.5. Cold-starting reorders the components whenever the cloud changes shape, and a
-    delta or XOR against a permuted set of centres is noise.
+    MEASURED: 172 kB warm against 421 kB cold, a factor of 2.5. (It was 6.5x when the
+    scenario had enemies visible 84% of the time and most ticks were skipped entirely;
+    with realistic visibility there are far more real mixtures to encode and the warm
+    start has more work to do rather than less.) Cold-starting reorders the components
+    whenever the cloud changes shape, and a delta against a permuted set of centres is
+    noise.
     """
     import gzip
 
@@ -201,15 +204,17 @@ def test_warm_starting_shrinks_the_encoded_belief(artifact):
     cold_size = len(
         gzip.compress(apply_codec(shuffled, section.codec, section.keyframe).tobytes(), 9)
     )
-    assert warm_size * 3 < cold_size, (warm_size, cold_size)
+    assert warm_size * 2 < cold_size, (warm_size, cold_size)
 
 
 def test_the_belief_codec_beats_the_alternatives(artifact):
     """Every codec choice in the spec was measured, not assumed.
 
-    XOR wins on the mixture for a specific reason: a component that jitters by one unit
-    encodes as `0xFF` under a modular delta — a high-entropy byte gzip cannot exploit —
-    and as `0x01` under XOR.
+    The winner changed once the data did. XOR won while most ticks were skipped — a
+    skipped tick is a row of zeros, and XOR against zeros is cheap. Delta wins now that
+    the fog-attack fix has dropped visibility from 84% to 42%, because most ticks carry a
+    real mixture and consecutive ones barely differ. The M7 note said to re-measure this
+    whenever visibility changed; this test is what forced that.
     """
     import gzip
 

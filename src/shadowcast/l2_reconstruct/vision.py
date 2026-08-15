@@ -44,7 +44,19 @@ from shadowcast.l1_events.resolve.attribute import Attribution
 from shadowcast.l1_events.schema import ANCHOR_ATTACK, UNKNOWN, MatchEvents
 from shadowcast.terrain.terrain import Terrain
 
-__all__ = ["SourceCounts", "VisionStream"]
+__all__ = ["UNKNOWN_TARGET_REVEALS", "SourceCounts", "VisionStream"]
+
+#: Whether an attack on a target we cannot resolve grants a reveal.
+#:
+#: The rule needs an ENEMY target. Champions, turrets and wards resolve; minions and
+#: neutral monsters do not, and the two fall on opposite sides of the rule — an enemy
+#: minion counts, a jungle camp does not. Since farming is most of what champions attack,
+#: this choice is not marginal.
+#:
+#: Left FALSE: claiming vision the game did not grant is the worse error, because it
+#: understates darkness and every downstream information metric is built on darkness.
+#: The measured cost is in `docs/validation.md`.
+UNKNOWN_TARGET_REVEALS = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,9 +106,43 @@ class VisionStream:
         self.team = events.heroes["team"].astype(np.int64)
 
         self._live_fallbacks = 0
+        self._enemy_targets = self._build_target_teams()
         self._static = self._build_static()
         self._ward_boundaries = self._ward_boundary_ticks()
         self._counts = {"champion": 0, "minion": 0, "reveal": 0}
+
+    def _build_target_teams(self) -> dict[int, int]:
+        """`net_id -> owning team`, for every unit an attack can name as its target.
+
+        The fog-attack reveal is conditioned on this. The rule is that a champion is
+        revealed "when attacking an ENEMY (including wards) from their team's fog of
+        war" — so the target's team decides whether a reveal happens at all, and an
+        attack that names no target reveals nobody.
+
+        Getting this wrong was not subtle. Applying the reveal to every attack anchor
+        meant every champion revealed themselves roughly once a second wherever they
+        stood, including in their own fountain at 0:00 before either team had left base —
+        so both teams lit each other's spawn from the first tick of the match.
+
+        Champions, turrets and wards are resolvable here. Minions are not: they are
+        modelled as wave clumps rather than tracked as entities, so an attack on one
+        lands in `UNKNOWN_TARGET_REVEALS` below.
+        """
+        out: dict[int, int] = {}
+        for hero in self.events.heroes:
+            out[int(hero["net_id"])] = int(hero["team"])
+        for site in self.events.turret_sites:
+            if int(site["team"]) != UNKNOWN:
+                out[int(site["net_id"])] = int(site["team"])
+        for ward in self.events.wards:
+            team = int(ward["team"])
+            if team == UNKNOWN:
+                owner = int(ward["owner_slot"])
+                if 0 <= owner < self.team.size:
+                    team = int(self.team[owner])
+            if team != UNKNOWN:
+                out[int(ward["net_id"])] = team
+        return out
 
     # -- layers -------------------------------------------------------
     def _build_static(self) -> list[np.ndarray]:
@@ -214,6 +260,12 @@ class VisionStream:
         streaming pass: whether the attacker was in fog at the moment it attacked, before
         any reveals. Attacks are always in the past by the time they matter, so the
         history needed is already available, and a reveal can never trigger another.
+
+        **And the attack has to have hit an enemy.** The wiki's wording is "when attacking
+        an enemy (including wards) from their team's fog of war", so an attack on a
+        neutral monster or on nothing at all reveals no one. Ignoring the target was worth
+        488 spurious reveals in the first four seconds of a match — enough for both teams
+        to see each other's fountain before anybody had moved.
         """
         t = tick * self.dt
         out: list[tuple[int, int, float, int]] = []
@@ -228,11 +280,26 @@ class VisionStream:
                 continue
             if self._base_visible[attack_tick, team, slot]:
                 continue  # it was not attacking from fog, so nothing was revealed
+            if not self._attacked_an_enemy(int(row["target"]), int(self.team[slot])):
+                continue  # the rule needs an enemy target; a camp or a miss reveals no one
             i, j = world_to_cell(float(row["x"]), float(row["z"]))
             if not (0 <= i < self.grid and 0 <= j < self.grid):
                 continue
             out.append((i, j, C.FOG_ATTACK_REVEAL_RADIUS, int(self.terrain.brush_id[j, i])))
         return out
+
+    def _attacked_an_enemy(self, target: int, attacker_team: int) -> bool:
+        """Whether this attack's target was an enemy of the attacker."""
+        if target == 0:
+            return False  # no target at all
+        known = self._enemy_targets.get(target)
+        if known is None:
+            # A minion, a neutral monster, or a unit we never saw created. Minions are
+            # enemies and neutrals are not, and the stream does not let us tell them
+            # apart here — see `UNKNOWN_TARGET_REVEALS` for which way that is resolved
+            # and what the choice was measured to cost.
+            return UNKNOWN_TARGET_REVEALS
+        return known != attacker_team
 
     def _record_base_visibility(self, tick: int, live: list[np.ndarray]) -> None:
         """Note which champions the base mask sees, before reveals are added.

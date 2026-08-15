@@ -73,7 +73,22 @@ ORDER_XZ = np.dtype([("x", "f8"), ("z", "f8")])
 #: A labelled position: a champion net_id paired with a coordinate. The only such
 #: packets in the corpus, and therefore the anchors that make anonymous movement
 #: orders attributable at all.
-ANCHOR = np.dtype([("t", "f8"), ("slot", "i1"), ("x", "f8"), ("z", "f8"), ("kind", "u1")])
+#: `target` is the attacked unit's net id, or 0 for a cast and for an attack that hit
+#: nothing. It is here because the fog-attack reveal rule is conditioned on it: the wiki
+#: says a champion is revealed "when attacking an ENEMY (including wards) from their
+#: team's fog of war", so an attack with no enemy target reveals nobody. Dropping the
+#: field made every attack anchor look like a reveal, and both teams lit each other's
+#: fountain from the first second of the match.
+ANCHOR = np.dtype(
+    [
+        ("t", "f8"),
+        ("slot", "i1"),
+        ("x", "f8"),
+        ("z", "f8"),
+        ("kind", "u1"),
+        ("target", "u4"),
+    ]
+)
 
 #: A visibility transition, deduped. `observer_team` is derived from the champion's
 #: own team once that is known: a team never loses sight of its own members, so an

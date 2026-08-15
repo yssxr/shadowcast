@@ -73,6 +73,12 @@ _HERO_NETID_BASE = C.HERO_NETID_HINT_LO
 _TURRET_NETID_BASE = 0x40000004
 _WARD_NETID_BASE = 0x40001000
 _NEUTRAL_NETID_BASE = 0x40002000
+
+# CHOSEN: how close an enemy champion has to be for an attack to name them as its
+# target. 700 units sits between a melee champion's ~175 and a marksman's ~600 plus
+# projectile travel; the exact figure only decides how often a synthetic fight produces
+# a fog-attack reveal, and any value in that band produces the same qualitative result.
+_ATTACK_RANGE = 700.0
 _MINION_NETID_BASE = 0x40003000
 _GHOST_NETID = 0x40009999
 
@@ -627,7 +633,32 @@ class SyntheticSource:
                     continue
                 if rng.random() < dt / 1.5:
                     x, z = pos[tick, c]
-                    rows_attack.append((t, int(net_ids[c]), 0, x, z, x + 200.0, z + 200.0))
+                    # The TARGET matters, and a first version left it at zero for every
+                    # attack. The fog-attack reveal is conditioned on it — the rule is
+                    # "attacking an enemy (including wards) from their team's fog of
+                    # war" — so an attack with no target reveals nobody, and one on an
+                    # enemy reveals the attacker.
+                    #
+                    # With every target zero, the oracle and the reconstruction agreed
+                    # (both revealed on every attack) and both were wrong: champions
+                    # revealed themselves roughly once a second wherever they stood,
+                    # including in their own fountain at 0:00. Both teams lit each
+                    # other's spawn before anyone had moved, and match-wide visibility
+                    # came out at 84% against a real 25-40%.
+                    #
+                    # So an attack names an enemy champion only when one is actually
+                    # within reach. Everything else — farming a wave, clearing a camp —
+                    # is a target this model does not track, and leaves at zero.
+                    target = 0
+                    for other in range(n_champs):
+                        if team[other] == team[c] or alive[tick, other] == 0:
+                            continue
+                        ox, oz = pos[tick, other]
+                        if (ox - x) ** 2 + (oz - z) ** 2 <= _ATTACK_RANGE**2:
+                            target = int(net_ids[other])
+                            break
+                    tx, tz = (x + 200.0, z + 200.0) if target == 0 else pos[tick, other]
+                    rows_attack.append((t, int(net_ids[c]), target, x, z, tx, tz))
                 if rng.random() < dt / 3.0:
                     x, z = pos[tick, c]
                     rows_cast.append(
@@ -803,10 +834,15 @@ class SyntheticSource:
         slot_of = {int(n): k for k, n in enumerate(net_ids)}
         reveals: list[tuple[float, float, int, float, float]] = []
         for row in rows_attack:
-            at_t, attacker = float(row[0]), int(row[1])
+            at_t, attacker, target = float(row[0]), int(row[1]), int(row[2])
             if attacker not in net_set:
                 continue  # a turret, which is never in fog
             slot = slot_of[attacker]
+            # The rule needs an ENEMY target. The oracle applies it exactly as the
+            # reconstruction does, so a disagreement between them is a reconstruction
+            # error rather than a difference of opinion about the rule.
+            if target == 0 or team[slot_of.get(target, slot)] == team[slot]:
+                continue
             obs = 1 - int(team[slot])
             tick = min(n_ticks - 1, max(0, round(at_t / dt)))
             if base[tick, obs, slot]:

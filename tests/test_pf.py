@@ -517,3 +517,26 @@ def test_filter_spec_refuses_an_entropy_lattice_it_cannot_support():
 def test_filter_spec_refuses_a_frozen_belief():
     with pytest.raises(ValueError, match="p_stay"):
         FilterSpec(p_stay=1.0)
+
+
+def test_every_resolved_role_has_its_own_prior(terrain):
+    """The vocabularies on both sides of the behavioural prior must agree.
+
+    They did not. The resolver emits `("top", "jungle", "mid", "bot", "support")` and the
+    motion model matched `"jng"` and `"sup"`, so junglers and supports fell through to the
+    catch-all target set — two of every five enemies, including the champion who spends
+    the most time in fog. Nothing raised, nothing failed a test, and the only symptom was
+    a belief that was confidently wrong more often than it should have been.
+
+    This asserts each role gets a *distinct* target set, which a silent fallthrough
+    cannot satisfy.
+    """
+    from shadowcast.l1_events.resolve.roles import ROLES
+
+    catch_all = motion.role_targets("this-is-not-a-role", terrain)
+    for role in ROLES:
+        targets = motion.role_targets(role, terrain)
+        assert targets.size > 0, role
+        assert not np.array_equal(targets, catch_all), (
+            f"role {role!r} fell through to the catch-all target set"
+        )

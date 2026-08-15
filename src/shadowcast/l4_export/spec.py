@@ -205,7 +205,7 @@ SECTIONS: tuple[Section, ...] = (
         name="belief",
         dtype="u8",
         shape=("belief_ticks", "teams", "enemies", "components", 4),
-        codec="xor",
+        codec="delta",
         keyframe=int(C.BELIEF_EXPORT_HZ * C.BELIEF_KEYFRAME_SECONDS),
         doc=(
             "The belief as a 16-component mixture: (x, z, weight, sigma) per component, "

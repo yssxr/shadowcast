@@ -435,10 +435,10 @@ def _minion_waves(bundle: PacketBundle, times: np.ndarray) -> np.ndarray:
 
 def _anchors(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
     """Labelled champion positions, from spell casts and basic attacks."""
-    rows: list[tuple[float, int, float, float, int]] = []
-    for arr, id_field, kind in (
-        (bundle.casts, "caster_net_id", ANCHOR_CAST),
-        (bundle.attacks, "source_net_id", ANCHOR_ATTACK),
+    rows: list[tuple[float, int, float, float, int, int]] = []
+    for arr, id_field, kind, target_field in (
+        (bundle.casts, "caster_net_id", ANCHOR_CAST, None),
+        (bundle.attacks, "source_net_id", ANCHOR_ATTACK, "target_net_id"),
     ):
         if arr.size == 0:
             continue
@@ -446,7 +446,10 @@ def _anchors(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
             slot = slots.get(int(row[id_field]))
             if slot is None:
                 continue  # a turret, a pet, or the ghost caster
-            rows.append((float(row["t"]), slot, float(row["src_x"]), float(row["src_z"]), kind))
+            target = int(row[target_field]) if target_field else 0
+            rows.append(
+                (float(row["t"]), slot, float(row["src_x"]), float(row["src_z"]), kind, target)
+            )
 
     out = np.empty(len(rows), dtype=ANCHOR)
     for n, r in enumerate(rows):

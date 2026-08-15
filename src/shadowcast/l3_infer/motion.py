@@ -247,6 +247,19 @@ def single_step_matrix(walkable: np.ndarray, p_stay: float) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # The behavioural prior
 # ---------------------------------------------------------------------------
+#: Where each resolved role tends to go.
+#:
+#: **Keyed on `roles.ROLES` verbatim**, and that is the point rather than a style note.
+#: An earlier version matched `"jng"` and `"sup"` while the resolver emits `"jungle"` and
+#: `"support"`, so two of every five enemies fell silently through to the catch-all — and
+#: one of them was the jungler, the champion who spends the most time in fog and the one
+#: this whole tool exists to locate. Nothing failed; the prior was simply absent for 40%
+#: of the targets, and the only symptom was a belief that was confident in the wrong
+#: places. The mapping is now asserted against `ROLES` at import.
+_ROLE_LANES: dict[str, str] = {"top": "top", "mid": "mid", "bot": "bot", "support": "bot"}
+_JUNGLE_ROLE = "jungle"
+
+
 def role_targets(role: str, terrain) -> np.ndarray:
     """Cells a champion of this role plausibly walks toward.
 
@@ -255,21 +268,18 @@ def role_targets(role: str, terrain) -> np.ndarray:
 
     This is a *random-waypoint* mobility model, which is the standard treatment of
     purposeful movement and, more to the point, is how champions actually move: pick a
-    destination, walk there, pick another. It is also how the synthetic generator moves
-    its champions, so on synthetic data the prior is well specified and the honest thing
-    to say about the real corpus is that this must be refit there.
+    destination, walk there, pick another.
     """
     from shadowcast import sr
     from shadowcast.geom.grid import world_to_cell
 
-    lane_of = {"top": "top", "mid": "mid", "bot": "bot", "sup": "bot"}
-    if role in lane_of:
-        pts = [np.asarray(sr.LANES[lane_of[role]], dtype=np.float64)]
-    elif role == "jng":
+    if role in _ROLE_LANES:
+        pts = [np.asarray(sr.LANES[_ROLE_LANES[role]], dtype=np.float64)]
+    elif role == _JUNGLE_ROLE:
         pts = [np.asarray(r, dtype=np.float64) for r in sr.JUNGLE_ROUTES.values()]
     else:
-        # Unresolved role: everywhere anyone goes, which is a weaker prior rather than a
-        # wrong one.
+        # Genuinely unresolved: everywhere anyone goes, which is a weaker prior rather
+        # than a wrong one.
         pts = [np.asarray(v, dtype=np.float64) for v in sr.LANES.values()]
         pts += [np.asarray(r, dtype=np.float64) for r in sr.JUNGLE_ROUTES.values()]
     pts = np.concatenate(pts)

@@ -26,9 +26,9 @@ from a bug.
 
 | | Agreement | False positive | False negative |
 |---|---|---|---|
-| Reconstructed positions (what ships) | **96.90%** | 1.99% | 1.11% |
-| True positions substituted (the floor) | **98.53%** | 0.62% | 0.85% |
-| Reconstruction cost | 1.63% | | |
+| Reconstructed positions (what ships) | **98.32%** | 1.04% | 0.64% |
+| True positions substituted (the floor) | **99.09%** | 0.70% | 0.21% |
+| Reconstruction cost | 0.77% | | |
 
 A **false positive** claims vision the game did not grant, which understates darkness and
 entropy and overstates what a team knew. A **false negative** does the reverse. Different
@@ -38,11 +38,11 @@ By region, reconstructed positions:
 
 | Region | Agreement |
 |---|---|
-| Lane | 97.68% |
-| Base | 96.23% |
-| River | 95.58% |
-| Jungle | 94.73% |
-| Brush-adjacent | 93.98% |
+| Jungle | 99.86% |
+| Base | 99.42% |
+| River | 99.14% |
+| Lane | 98.74% |
+| Brush-adjacent | 94.36% |
 
 Brush-adjacent is the worst category, as predicted: brush is a conditional occluder and the grid
 quantises its boundary, so a champion a few units either side of an entrance is genuinely
@@ -73,6 +73,7 @@ downstream metric.
 
 | Bug | Symptom |
 |---|---|
+| Reveal-on-attack fired on attacks with **no target**, ignoring the rule's requirement of an enemy | Both teams lit each other's fountain at 0:00 — 488 spurious reveals in four seconds. Fixing it took agreement 96.90% → **98.32%** and match-wide visibility 84.5% → **41.7%**, against a real-game 25–40%. |
 | Reveal-on-attack applied unconditionally instead of gated on the attacker having been in fog | Agreement 98.8% → 43.4%, false-positive rate 56.6% |
 | Reveal modelled as revealing the *champion* for 4.5 s rather than a static *area* | 11 points of false negatives |
 | Ward boundary ticks rounded to nearest, so a ward whose placement time rounded down was excluded and never re-added | No vision at all for that ward's whole lifetime, roughly half of all wards |
@@ -168,16 +169,24 @@ with `shadowcast ablate`. Lower NLL is better; area is the 90% credible region.
 
 | Model | NLL | Entropy (bits) | Area (ku²) | % of map | ECE |
 |---|---|---|---|---|---|
-| B0 uniform over walkable | 5.249 | 9.80 | 117.08 | 61.8% | 0.144 |
-| B1 last known + growing Euclidean disc | 0.583 | 3.27 | 2.72 | 1.44% | 0.059 |
-| B1′ last known + **geodesic** disc | 0.536 | 3.13 | 2.35 | 1.24% | 0.072 |
-| B2 constant velocity | 1.188 | 1.99 | 1.30 | 0.69% | 0.253 |
-| B3 navmesh diffusion | 0.863 | 2.24 | 1.34 | 0.71% | 0.212 |
-| B3′ navmesh + behavioural prior | 0.822 | 2.35 | 1.42 | 0.75% | 0.208 |
-| **Full (with negative information)** | **0.418** | 2.20 | 1.35 | 0.71% | 0.181 |
+| B0 uniform over walkable | 5.230 | 9.80 | 117.09 | 61.8% | 0.135 |
+| B1 last known + growing Euclidean disc | 3.980 | 6.50 | 35.07 | 18.5% | 0.218 |
+| B1′ last known + **geodesic** disc | **3.572** | 7.54 | 59.28 | 31.3% | 0.058 |
+| B2 constant velocity | 4.227 | 5.49 | 27.91 | 14.7% | 0.357 |
+| B3 navmesh diffusion | 4.110 | 3.70 | 3.01 | 1.6% | 0.404 |
+| B3′ navmesh + behavioural prior | 3.949 | 4.50 | 8.01 | 4.2% | 0.383 |
+| **Full (with negative information)** | 3.669 | 3.91 | 4.75 | 2.5% | 0.376 |
 
-**The thesis holds: +0.404 nats.** Negative information nearly halves the negative
-log-likelihood of the truth.
+**The thesis holds: +0.280 nats** from negative information alone, on a comparison that changes
+one field of one spec.
+
+**But `geodisc` now beats the full model on likelihood (3.572 against 3.669), and that is an
+open defect rather than a nuance.** See the calibration section below. These figures replace an
+earlier set — 0.418 for the full model against 0.822 — measured when the scenario had enemies
+visible 84.5% of the time. Nothing about the filter changed; fixing the fog-attack reveal made
+darkness episodes realistic, and the models that looked strong over short episodes do not hold
+up over long ones. Every number in the table moved by an order of magnitude, which is what it
+looks like when a validation was measuring an easier problem than the one it claimed.
 
 The comparison that matters is **B3′ → Full**, not B3 → Full, and the difference is not
 pedantry. B3′ and Full are the same `FilterSpec` with one field changed (`obs`), so the gap
@@ -200,16 +209,36 @@ Two other rows are worth reading:
 Coverage of the full model's credible regions, over the same match. A perfectly calibrated
 filter's truth falls inside its `q` region exactly `q` of the time.
 
-| Region | Contains the truth | Target |
-|---|---|---|
-| 50% | 10.0% | 50% |
-| 75% | 53.9% | 75% |
-| 90% | 84.0% | 90% |
-| 95% | 88.3% | 95% |
+| Region | Contains the truth | Target | Previously |
+|---|---|---|---|
+| 50% | 8.3% | 50% | 10.0% |
+| 75% | 22.3% | 75% | 53.9% |
+| 90% | **39.1%** | 90% | 84.0% |
+| 95% | 47.1% | 95% | 88.3% |
 
-Good at the levels a credible region is actually read at, and increasingly overconfident
-downward. That shape is honest rather than mysterious: at the 10% level the region is one or
-two 461-unit bins, and the model's single most probable bin is usually not the right one.
+**This is an open defect and it is the project's most important outstanding problem.** The
+"previously" column was measured when enemies were visible 84.5% of the time. Fixing the
+fog-attack reveal dropped that to a realistic 41.7%, darkness episodes got long, and the
+propagated models turned out to concentrate far faster than the truth actually disperses.
+
+What has been ruled out so far:
+
+- **Not the motion model's spread.** Measured against ground truth, the walk's median
+  displacement is 0.95x at 2 s and 1.16–1.38x at 40–80 s — it over-disperses at exactly the
+  horizons that matter, not under.
+- **Not the detection probability.** Softening p_d from 0.98/0.75 to 0.85/0.50 moved NLL by
+  0.015 and coverage by 0.6 points.
+- **Not the stay probability.** Raising it from 0.10 to 0.30 moved NLL by 0.012.
+- **Not the negative update alone.** `behavioural`, which has no negative update at all, is
+  just as badly calibrated (ECE 0.383 against 0.376).
+- **Partly a role-vocabulary bug, now fixed.** The resolver emits `"jungle"` and `"support"`
+  while the motion model matched `"jng"` and `"sup"`, so two of every five enemies — including
+  the jungler, who spends the most time in fog — silently fell through to a catch-all prior.
+  Nothing raised; the only symptom was a belief confident in the wrong places. Worth 0.037
+  nats. `tests/test_pf.py` now asserts every resolved role gets a distinct target set.
+
+The remaining gap is unexplained and the filter should not be described as calibrated until it
+is closed.
 
 **Calibration is reported next to NLL and never instead of it**, because the two disagree here
 in an instructive way: `geodisc` has a *better* calibration error (0.072 against 0.181) with a
@@ -259,24 +288,16 @@ ends up slightly too spread rather than too confident.
 
 ## Read the belief numbers against this caveat
 
-**The synthetic scenario is easier than League, and in a way that flatters the belief layer.**
-Measured: enemies are visible **84.5%** of the time, against a real-game figure nearer 25–40%.
+Enemies are visible **41.7%** of the time, against a real-game figure nearer 25–40%. That is
+close enough to be representative, and it was not always: the figure was **84.5%** until the
+fog-attack reveal was found to be firing on attacks with no target, so every champion revealed
+itself roughly once a second wherever it stood.
 
-The vision masks themselves cover only 37.9% of walkable ground, so this is not a vision bug —
-it is that the generator sends champions to uniformly random destinations, so they walk into
-enemy turret coverage constantly, while real champions spend most of the game in their own
-half. Two consequences, both stated rather than corrected:
-
-- Only 15% of ticks are scored at all, and they are disproportionately *short* darkness
-  episodes, which are the easy ones.
-- The behavioural prior aims at lanes and jungle camps while the generator aims at random
-  points, so the prior is actively misspecified here — which makes B3 → B3′ (+0.041) a weak
-  result on synthetic data, and makes the full model's win *despite* the handicap a stronger
-  one.
-
-Fixing the generator would perturb the fog-agreement numbers above and would also let the model
-and the generator share an assumption, which is the wrong way to make a validation look good.
-The real answer is the real corpus, at M9.
+An earlier version of this section blamed the generator, claiming it "sends champions to
+uniformly random destinations". That was written without checking and is **false** — the
+generator walks champions along their lanes, cycles junglers through camps, roams supports and
+recalls everyone periodically. The visibility figure was a bug in the vision model, not
+unrealism in the scenario.
 
 ## The two tests that carry the milestone
 

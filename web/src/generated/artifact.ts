@@ -60,7 +60,7 @@ export interface Sections {
   masks: Uint8Array;
   /** belief_ticks x teams x enemies — raw */
   belief_seen: Uint8Array;
-  /** belief_ticks x teams x enemies x components x 4 — xor */
+  /** belief_ticks x teams x enemies x components x 4 — delta */
   belief: Uint8Array;
   /** belief_ticks x scalars — raw */
   scalars: Float32Array;
