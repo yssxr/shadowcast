@@ -130,9 +130,38 @@ uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
 uv run shadowcast ablate             # seven belief models, one table, the thesis
-uv run shadowcast export             # the artifact the site reads, ~1 MB per match
+uv run shadowcast export --web       # the artifact the site reads, ~1 MB per match
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
+
+cd web && npm install && npm run dev  # the site, at localhost:5173
 ```
+
+## The site
+
+Four views, all rendered from the artifact above — no backend, no API key, no rate limit.
+
+**Replay** puts the same instant on screen twice, once per team's knowledge. The left map
+is everything Blue could see and everything Blue believed about Red; the right is the
+mirror. Belief clouds are drawn in the **enemy's** colour, so a cloud and the dot it
+collapses into share one, and the moment of discovery reads as a single event.
+
+**Gank autopsy** takes the twenty seconds before a death and asks whether the victim's
+team could have known. *Predictable* means the killer was visible for most of the
+approach. *Invisible* means they were in fog while the belief sat somewhere else —
+confident and wrong. *Sudden* means the belief was too diffuse to be a warning.
+
+**Ward yield** credits a ward with a sighting only when no allied champion or turret also
+covered the enemy. That exclusivity clause is the metric: without it the wards that score
+best are the most redundant ones. On the sample match, six of ten wards revealed nothing
+at all.
+
+**Method** is every measured number with its provenance, and an explicit list of what has
+*not* been measured. The corpus view from the original design is not there, because rank,
+region and patch do not exist in the data and a plausible aggregate would cost more than
+it is worth.
+
+The maps run at 60 fps with zero allocation in the draw loop; React state for the sidebar
+is throttled to about 9 Hz so text and canvas are never competing for the same frame.
 
 ## Development
 

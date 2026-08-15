@@ -498,6 +498,9 @@ def export(
         Path | None, typer.Option(help="Artifact directory. Defaults to data/artifacts/<id>.")
     ] = None,
     codegen: Annotated[bool, typer.Option(help="Also regenerate the TypeScript reader.")] = True,
+    web: Annotated[
+        bool, typer.Option("--web", help="Write into web/public/ for the dev server.")
+    ] = False,
 ) -> None:
     """Export one match as the artifact the static site reads.
 
@@ -515,6 +518,7 @@ def export(
     from shadowcast.l3_infer.policy import observe
     from shadowcast.l4_export.artifact import write_artifact
     from shadowcast.l4_export.build import build_arrays
+    from shadowcast.l4_export.terrain_png import TERRAIN_PNG_NAME, write_terrain_png
     from shadowcast.l4_export.ts_codegen import write_typescript
     from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
 
@@ -541,7 +545,8 @@ def export(
         lambda: VisionStream(events, att, terrain, table).masks(),
         terrain,
     )
-    dest = Path(out) if out else data_dir() / "artifacts" / match_id
+    root = Path("web/public") if web else data_dir()
+    dest = Path(out) if out else root / "artifacts" / match_id
     path, report = write_artifact(
         dest,
         match_id=match_id,
@@ -586,6 +591,12 @@ def export(
     typer.secho(f"\n  {total_mb:.2f} MB against a {budget:.0f} MB budget", fg=colour, bold=True)
     typer.secho(f"  wrote {path}", fg=typer.colors.GREEN)
 
+    terrain_path, terrain_report = write_terrain_png(terrain, root / TERRAIN_PNG_NAME)
+    typer.secho(
+        f"  wrote {terrain_path} ({terrain_report['bytes'] / 1e3:.0f} kB, shipped once)",
+        fg=typer.colors.GREEN,
+    )
+
     if codegen:
         ts, changed = write_typescript(Path("web/src/generated/artifact.ts"))
         typer.secho(
@@ -596,6 +607,8 @@ def export(
 
 def _export_events(events) -> dict[str, object]:
     """The event streams the site draws as ticks on a timeline."""
+    import numpy as np
+
     return {
         "wards": [
             {
@@ -608,6 +621,18 @@ def _export_events(events) -> dict[str, object]:
                 "sight": float(w["sight"]),
             }
             for w in events.wards
+        ],
+        # Turret sites, so the frontend can decide whether a sighting is attributable to
+        # a ward or was covered by structure vision anyway. 24 rows, and without them the
+        # ward-yield metric would credit wards for vision the turrets already had.
+        "turrets": [
+            {
+                "x": round(float(s["x"]), 1),
+                "z": round(float(s["z"]), 1),
+                "team": int(s["team"]),
+            }
+            for s in events.turret_sites
+            if np.isfinite(s["x"]) and np.isfinite(s["z"])
         ],
         "deaths": [
             {

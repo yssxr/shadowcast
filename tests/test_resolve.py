@@ -299,3 +299,23 @@ def test_resolve_all_is_deterministic(synth_clean, terrain):
     b, _ = resolve_all(events, at.pos, at.valid)
     np.testing.assert_array_equal(a.heroes, b.heroes)
     np.testing.assert_array_equal(a.deaths, b.deaths)
+
+
+def test_ward_teams_are_resolved_not_left_for_consumers(resolved):
+    """Every ward must carry a real team once resolution has run.
+
+    This was `UNKNOWN` for every ward, and it went unnoticed because the one consumer
+    that needed it — the vision layer — derived it locally from the owner. The moment a
+    second consumer appeared, the exported artifact shipped ten wards labelled team -1
+    and the frontend indexed off the end of an array with it.
+
+    Deriving in the resolution layer makes it a fact about the events rather than a
+    convention every reader has to know to re-apply.
+    """
+    events = resolved[0]
+    if not events.wards.size:
+        pytest.skip("no wards in this scenario")
+    assert (events.wards["team"] != UNKNOWN).all()
+    for ward in events.wards:
+        owner = int(ward["owner_slot"])
+        assert int(ward["team"]) == int(events.heroes["team"][owner])

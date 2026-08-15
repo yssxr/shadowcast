@@ -1,0 +1,87 @@
+/* Global reset and the two things that decide whether a dark dense UI feels right:
+   colour-scheme (so form controls and scrollbars stop being light) and font smoothing. */
+:root {
+  color-scheme: dark;
+  --page: #0a0a0c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--page);
+  color: #eeebe6;
+  font-family: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* The maps are the interaction; the page itself should never rubber-band under them. */
+  overscroll-behavior: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* A range input is the scrubber, and the default one is 20 px tall with a chrome thumb.
+   This is the smallest styling that makes it read as part of the design. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 2px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #faf8f5;
+  cursor: pointer;
+  border: none;
+  transition: transform 120ms cubic-bezier(0.2, 0.6, 0.3, 1);
+}
+
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.25);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #faf8f5;
+  cursor: pointer;
+  border: none;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Respect the OS setting. Everything here is a 120 ms micro-transition, so removing them
+   costs nothing and leaving them in for someone who asked not to have them is rude. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

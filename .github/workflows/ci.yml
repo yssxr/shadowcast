@@ -79,3 +79,49 @@ jobs:
       # ones nothing else can substitute for.
       - name: Tests
         run: uv run pytest -q --durations=10
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Cache navgrid
+        id: navgrid
+        uses: actions/cache@v4
+        with:
+          path: data/terrain/AIPath_SRX.aimesh_ngrid
+          key: navgrid-AIPath_SRX-v7.1
+
+      - name: Fetch navgrid
+        if: steps.navgrid.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p data/terrain
+          curl -fsSL -o data/terrain/AIPath_SRX.aimesh_ngrid \
+            "https://raw.githubusercontent.com/FrankTheBoxMonster/LoL-NGRID-converter/master/test%20files/SummonersRiftSeason10/AIPath_SRX.aimesh_ngrid"
+
+      - run: uv sync --all-extras
+
+      # The site is checked against a REAL artifact, not a fixture. A frontend that
+      # typechecks against hand-written sample data proves only that the sample matches
+      # the types — the failures worth catching are an index convention that disagrees
+      # with the exporter, and those need the exporter's own output to surface.
+      - name: Export an artifact
+        run: uv run shadowcast export --web --duration 200
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Typecheck, build, and check against the artifact
+        working-directory: web
+        run: |
+          npm run build
+          node scripts/check.ts public/artifacts/synth-0007-000

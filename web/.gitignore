@@ -1,2 +1,6 @@
 node_modules/
 dist/
+
+# Regenerate with: uv run shadowcast export --web
+public/artifacts/
+public/terrain.png

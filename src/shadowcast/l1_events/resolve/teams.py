@@ -140,18 +140,26 @@ def resolve_teams(events: MatchEvents) -> TeamResolution:
 
 
 def with_teams(events: MatchEvents, resolution: TeamResolution) -> MatchEvents:
-    """Write teams into the hero table, and derive each fog event's observer team.
+    """Write teams into the hero table, and derive every team field that follows from it.
 
-    The derivation is the point: a team never loses sight of its own members, so a fog
-    event naming champion C can only be from C's opponents. That is what recovers a
+    The fog derivation is the point: a team never loses sight of its own members, so a
+    fog event naming champion C can only be from C's opponents. That is what recovers a
     per-team visibility oracle from packets that carry no observer field at all.
+
+    Ward teams are derived here too, from the owner recorded in `targetable_on_client`.
+    They were previously left as `UNKNOWN` and patched locally wherever they were needed,
+    which worked for exactly as long as there was one consumer: the vision layer filled
+    them in and nothing else looked. The artifact then shipped ten wards all labelled
+    team -1, and the frontend's ward-yield metric indexed off the end of an array with
+    it. Deriving once, here, is the difference between a fact and a convention every
+    consumer has to know about.
     """
     heroes = events.heroes.copy()
     heroes["team"] = resolution.team
+    team_by_slot = resolution.team
 
     fog = events.fog.copy()
     if fog.size:
-        team_by_slot = resolution.team
         slots = fog["slot"]
         valid = (slots >= 0) & (slots < team_by_slot.size)
         observer = np.full(fog.size, UNKNOWN, dtype=np.int8)
@@ -160,4 +168,11 @@ def with_teams(events: MatchEvents, resolution: TeamResolution) -> MatchEvents:
         observer[known] = 1 - subject_team[known]
         fog["observer_team"] = observer
 
-    return dataclasses.replace(events, heroes=heroes, fog=fog)
+    wards = events.wards.copy()
+    if wards.size:
+        owners = wards["owner_slot"]
+        valid = (owners >= 0) & (owners < team_by_slot.size)
+        owner_team = team_by_slot[np.clip(owners, 0, team_by_slot.size - 1)]
+        wards["team"] = np.where(valid & (owner_team != UNKNOWN), owner_team, UNKNOWN)
+
+    return dataclasses.replace(events, heroes=heroes, fog=fog, wards=wards)
