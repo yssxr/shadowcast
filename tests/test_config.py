@@ -56,21 +56,45 @@ def test_filter_spec_rejects_a_lattice_that_outruns_the_particle_budget():
     with pytest.raises(ValueError, match="measure the particle count"):
         cfg.FilterSpec(entropy_lattice=128, particles=400)
 
-    # The shipped configuration is inside the ceiling.
+    # The shipped configuration is inside the ceiling, with NO slack. An earlier
+    # version of this assertion allowed two bits of headroom, which let a broken
+    # configuration through: 32^2 has 890 walkable bins and so 9.80 bits, while
+    # 400 particles cap the plug-in estimator at 8.64. Measured entropy of a
+    # uniform belief came out at 8.74 bits — pinned, and reporting the particle
+    # budget rather than the game.
     default = cfg.FilterSpec()
-    assert 2 * math.log2(default.entropy_lattice) <= math.log2(default.particles) + 2.0
+    assert 2 * math.log2(default.entropy_lattice) <= math.log2(default.particles)
 
 
 def test_baselines_cover_the_ablation():
-    assert set(cfg.BASELINES) == {"uniform", "disc", "geodisc", "cv", "diffusion", "full"}
-    # B3 vs Full must differ ONLY in the observation model, or the ablation does
-    # not isolate negative information.
-    b3 = dataclasses.asdict(cfg.BASELINES["diffusion"])
-    full = dataclasses.asdict(cfg.BASELINES["full"])
-    differing = {k for k in b3 if b3[k] != full[k]}
-    assert differing == {"motion", "obs"}
-    assert not cfg.BASELINES["diffusion"].uses_negative_information
+    assert set(cfg.BASELINES) == {
+        "uniform",
+        "disc",
+        "geodisc",
+        "cv",
+        "diffusion",
+        "behavioural",
+        "full",
+    }
+    assert not cfg.BASELINES["behavioural"].uses_negative_information
     assert cfg.BASELINES["full"].uses_negative_information
+
+
+def test_each_ablation_pair_isolates_exactly_one_change():
+    """The property the whole table depends on, and which it used to violate.
+
+    This test previously asserted `differing == {"motion", "obs"}` for the headline
+    comparison — that is, it asserted the ablation did *not* isolate negative
+    information, since a win could have come from the motion model instead. The fix was
+    a seventh baseline, `behavioural`, which is `full` with the observation model turned
+    down and nothing else changed.
+    """
+    for a, b in (("diffusion", "behavioural"), cfg.THESIS_PAIR):
+        left = dataclasses.asdict(cfg.BASELINES[a])
+        right = dataclasses.asdict(cfg.BASELINES[b])
+        differing = {k for k in left if left[k] != right[k]}
+        assert len(differing) == 1, f"{a} vs {b} differ in {sorted(differing)}"
+    assert cfg.THESIS_PAIR == ("behavioural", "full")
 
 
 def test_stage_header_round_trip():

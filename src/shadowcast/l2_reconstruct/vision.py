@@ -19,13 +19,12 @@ tick would be wasteful in a way that compounds over 14,400 team-ticks:
 A team mask is then a 32 KB copy of its semi-static layer plus a union of about eighteen
 dynamic sources — six to twelve microseconds of work.
 
-**Reveal-on-attack is applied unconditionally, and that is exact rather than sloppy.** The
-game rule is that attacking from your team's fog reveals a 400-unit disc around you for
-4.5 seconds (at patch 12.22 — it became 300 units and 2 seconds in V13.22). Determining
-whether the attacker *was* in fog would need the mask we are in the middle of computing,
-but it turns out not to matter: if the attacker was in fog the reveal is required, and if
-it was not then the disc lies inside vision the observer already had, so the union is
-unchanged either way.
+**Reveal-on-attack is gated, and the gate was measured rather than reasoned about.** The
+game rule is that attacking from your team's fog reveals a 400-unit disc around the
+attacker for 4.5 seconds (at patch 12.22 — it became 300 units and 2 seconds in V13.22).
+Applying it unconditionally looks safe, on the argument that a reveal centred on an
+already-visible champion lies inside vision the observer had anyway. It is not: see
+`_reveal_sources`, where the number that killed that argument is recorded.
 """
 
 from __future__ import annotations

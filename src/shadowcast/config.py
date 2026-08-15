@@ -218,8 +218,16 @@ class FilterSpec(_Spec):
     entropy_lattice: int = C.ENTROPY_LATTICE
     entropy_lattice_version: str = C.ENTROPY_LATTICE_VERSION
     credible_mass: float = C.CREDIBLE_MASS
-    kde_bandwidth: float = C.KDE_BANDWIDTH_UNITS
+    smoothing: float = C.SCORING_SMOOTHING
     seed: int = 0
+    p_stay: float = C.PARTICLE_STAY_PROB
+    persistence: float = C.HEADING_PERSISTENCE
+    goal_beta: float = C.GOAL_BETA
+    goal_arrive_cells: float = C.GOAL_ARRIVE_CELLS
+    sub_steps: int = C.MOTION_SUB_STEPS
+    v_max: float = C.V_MAX_UNITS_PER_SECOND
+    ess_resample: float = C.ESS_RESAMPLE_FRACTION
+    ess_depletion: float = C.ESS_DEPLETION_FRACTION
 
     def __post_init__(self) -> None:
         # Entropy in bits is only defined relative to a lattice, so a filter whose
@@ -227,9 +235,18 @@ class FilterSpec(_Spec):
         # particle budget. Refuse the configuration rather than emit the number.
         import math
 
+        if not 0.0 <= self.p_stay < 1.0:
+            # The walk normalises the stay weight against the move weights, so
+            # p_stay == 1 divides by zero. A belief that never moves is not a
+            # model of anything either.
+            raise ValueError(f"p_stay must be in [0, 1), got {self.p_stay}")
+
+        # No slack. An earlier version allowed two bits of headroom, which let the
+        # shipped configuration through while the estimator was in fact pinned --
+        # measured entropy 8.74 bits against a log2(400) = 8.64 ceiling.
         max_bits = 2 * math.log2(self.entropy_lattice)
         ceiling = math.log2(self.particles)
-        if max_bits > ceiling + 2.0:
+        if max_bits > ceiling:
             raise ValueError(
                 f"entropy lattice {self.entropy_lattice}^2 admits up to {max_bits:.2f} bits "
                 f"but {self.particles} particles cap the plug-in estimator at "
@@ -241,17 +258,43 @@ class FilterSpec(_Spec):
     def uses_negative_information(self) -> bool:
         return self.obs == "positive_and_negative"
 
+    @property
+    def effective_goal_beta(self) -> float:
+        """Zero unless the model is the behavioural one.
 
-#: The six models the ablation sweep runs. B3 vs FULL is the thesis: if the full
-#: model does not beat navmesh diffusion, negative information is doing nothing.
+        Goal-seeking is what makes `navmesh_behavioural` more than
+        `navmesh_diffusion`, so letting a diffusion spec carry a non-zero beta
+        would silently collapse the two into one model while the ablation table
+        still printed two rows.
+        """
+        return self.goal_beta if self.motion == "navmesh_behavioural" else 0.0
+
+
+#: The models the ablation sweep runs.
+#:
+#: Two adjacent pairs carry the argument, and they are adjacent on purpose --
+#: each isolates exactly one thing:
+#:
+#:   diffusion -> behavioural   what the role-conditioned prior is worth
+#:   behavioural -> full        what NEGATIVE INFORMATION is worth
+#:
+#: The second is the thesis. An earlier version of this table compared
+#: `navmesh_diffusion + positive_only` directly against
+#: `navmesh_behavioural + positive_and_negative`, which differ in two ways at
+#: once -- so a win could have come entirely from the prior and the headline
+#: claim would have been unsupported by its own ablation.
 BASELINES: dict[str, FilterSpec] = {
     "uniform": FilterSpec(motion="uniform", obs="none"),
     "disc": FilterSpec(motion="disc", obs="positive_only"),
     "geodisc": FilterSpec(motion="geodisc", obs="positive_only"),
     "cv": FilterSpec(motion="constant_velocity", obs="positive_only"),
     "diffusion": FilterSpec(motion="navmesh_diffusion", obs="positive_only"),
+    "behavioural": FilterSpec(motion="navmesh_behavioural", obs="positive_only"),
     "full": FilterSpec(motion="navmesh_behavioural", obs="positive_and_negative"),
 }
+
+#: The ablation pair the write-up stands on, named so no one has to infer it.
+THESIS_PAIR = ("behavioural", "full")
 
 
 # ---------------------------------------------------------------------------

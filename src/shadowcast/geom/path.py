@@ -30,6 +30,7 @@ __all__ = [
     "UNREACHABLE",
     "astar",
     "chord_walkable",
+    "diagonal_ok",
     "field_to_units",
     "geodesic_field",
     "nearest_walkable",
@@ -59,7 +60,7 @@ _NEIGHBOURS = np.array(
 
 
 @njit(cache=True, inline="always")
-def _diagonal_ok(walkable: np.ndarray, j: int, i: int, dj: int, di: int) -> bool:
+def diagonal_ok(walkable: np.ndarray, j: int, i: int, dj: int, di: int) -> bool:
     """A diagonal move requires BOTH of its orthogonal neighbours to be open.
 
     This is the strict rule, and the permissive variant (either neighbour suffices) was
@@ -163,7 +164,7 @@ def geodesic_field(walkable: np.ndarray, seeds: np.ndarray) -> np.ndarray:
                 continue
             if not walkable[nj, ni]:
                 continue
-            if not _diagonal_ok(walkable, j, i, dj, di):
+            if not diagonal_ok(walkable, j, i, dj, di):
                 continue
             nk = nj * w + ni
             if done[nk]:
@@ -221,7 +222,7 @@ def _astar(walkable: np.ndarray, start: int, goal: int) -> np.ndarray:
                 continue
             if not walkable[nj, ni]:
                 continue
-            if not _diagonal_ok(walkable, j, i, dj, di):
+            if not diagonal_ok(walkable, j, i, dj, di):
                 continue
             nk = nj * w + ni
             if closed[nk]:

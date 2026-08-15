@@ -4,9 +4,10 @@
 
 A belief-state engine for MOBA information asymmetry, built on packet-level decoded replays.
 
-> Status: in development, engine complete through per-team visibility. Numbers marked
-> `[pending]` are not yet measured, and this file carries no figure that was not produced by
-> `shadowcast pipeline`. See [`docs/validation.md`](docs/validation.md) for the full report.
+> Status: in development, engine complete through belief inference. Numbers marked `[pending]`
+> are not yet measured, and this file carries no figure that was not produced by `shadowcast
+> pipeline` or `shadowcast ablate`. See [`docs/validation.md`](docs/validation.md) for the full
+> report, including the caveats that matter for reading the belief numbers.
 
 ---
 
@@ -128,6 +129,7 @@ uv sync
 uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
+uv run shadowcast ablate             # seven belief models, one table, the thesis
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
 ```
 
@@ -135,7 +137,7 @@ uv run shadowcast doctor             # versions, config hashes, stale artifacts
 
 ```bash
 uv sync                      # includes dev tools
-uv run pytest                # full suite, ~65s warm (synthetic matches + fog validation)
+uv run pytest                # full suite, ~115s warm (fog validation + belief ablation)
 uv run ruff check --fix .     # lint
 uv run ruff format .          # format
 uv run pre-commit install    # optional: lint + format on commit
@@ -159,11 +161,15 @@ hand.
 | — brush-adjacent cells specifically | 93.98% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
 | Team / role recovery | **100% / 100%** (synthetic) |
-| Belief calibration (does the 90% region contain the truth 90% of the time?) | `[pending]` |
-| Log-likelihood vs. navmesh diffusion without negative information | `[pending]` |
+| Belief calibration — does the 90% region contain the truth 90% of the time? | **84.0%** |
+| **Log-likelihood vs. the same model without negative information** | **0.418 vs 0.822 nats** |
+| Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
+| Information-barrier leak detector | **bit-identical** |
 
-The last row is the one that matters: if the full model does not beat navmesh-constrained
-diffusion, negative information is not doing anything and the central claim is empty.
+The fourth row is the one that matters: if the full model did not beat the same model without
+negative information, negative information would be doing nothing and the central claim would
+be empty. It nearly halves the negative log-likelihood of the truth — and the comparison is
+between two `FilterSpec`s that differ in exactly one field, so nothing else can explain it.
 
 Every figure above is measured on **synthetic** matches, where ground truth is known.
 Real-corpus numbers are still pending and will be worse. The fog agreement is deliberately
@@ -171,6 +177,14 @@ reported as a pair — substituting true positions separates the irreducible flo
 snapping, shadowcasting's permissiveness, ward and minion models) from what the
 reconstruction itself costs, and a single percentage cannot tell a modelling limit from a
 bug.
+
+One caveat belongs next to the belief numbers rather than buried: in the synthetic scenario
+enemies are visible **84.5%** of the time, against 25–40% in a real game. The vision masks
+cover only 37.9% of the map, so this is not a vision bug — the generator sends champions to
+uniformly random destinations, so they walk into enemy turret coverage constantly, while real
+champions spend most of the game in their own half. The belief layer is therefore being asked
+an easier question than it will face, and the honest fix is real data rather than a friendlier
+generator.
 
 ## Limitations, stated plainly
 

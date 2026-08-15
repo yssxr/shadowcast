@@ -161,33 +161,150 @@ team signal is unusually clean — a test deliberately destroys one champion's e
 the 5/5 constraint carries it. Ward-share separation of support from carry is a clean split here;
 real supports and carries will overlap more.
 
+## Baseline ablation — the thesis
+
+Every model over one 900-second adversarial synthetic match, scored every 4th tick. Regenerate
+with `shadowcast ablate`. Lower NLL is better; area is the 90% credible region.
+
+| Model | NLL | Entropy (bits) | Area (ku²) | % of map | ECE |
+|---|---|---|---|---|---|
+| B0 uniform over walkable | 5.249 | 9.80 | 117.08 | 61.8% | 0.144 |
+| B1 last known + growing Euclidean disc | 0.583 | 3.27 | 2.72 | 1.44% | 0.059 |
+| B1′ last known + **geodesic** disc | 0.536 | 3.13 | 2.35 | 1.24% | 0.072 |
+| B2 constant velocity | 1.188 | 1.99 | 1.30 | 0.69% | 0.253 |
+| B3 navmesh diffusion | 0.863 | 2.24 | 1.34 | 0.71% | 0.212 |
+| B3′ navmesh + behavioural prior | 0.822 | 2.35 | 1.42 | 0.75% | 0.208 |
+| **Full (with negative information)** | **0.418** | 2.20 | 1.35 | 0.71% | 0.181 |
+
+**The thesis holds: +0.404 nats.** Negative information nearly halves the negative
+log-likelihood of the truth.
+
+The comparison that matters is **B3′ → Full**, not B3 → Full, and the difference is not
+pedantry. B3′ and Full are the same `FilterSpec` with one field changed (`obs`), so the gap
+between them cannot come from anything but the observation model. An earlier version of this
+table compared navmesh diffusion directly against the full model — two changes at once — which
+would have let a win from the behavioural prior be reported as a win for negative information.
+`test_belief.py` asserts the pair still differs in exactly one field.
+
+Two other rows are worth reading:
+
+- **B1 → B1′** is what the navmesh is worth on its own: 0.583 → 0.536 for nothing but
+  replacing a Euclidean ball with a geodesic one. Small, but it is the entire justification
+  for parsing a navgrid instead of drawing circles, and it is free.
+- **B2 constant velocity is worse than doing almost nothing.** Extrapolating a champion's
+  velocity without a terrain constraint drives particles into walls and off the map, and its
+  ECE of 0.253 is the worst in the table. Sharpness without constraint is not information.
+
 ## Belief calibration
 
-| | Value |
-|---|---|
-| 50% credible region contains the truth | — (target: 50%) |
-| 90% credible region contains the truth | — (target: 90%) |
-| Brier score, "is enemy X in region R" | — |
+Coverage of the full model's credible regions, over the same match. A perfectly calibrated
+filter's truth falls inside its `q` region exactly `q` of the time.
 
-Calibration matters more than sharpness here. A filter with lower entropy and broken calibration
-is overconfident garbage, and entropy alone cannot detect that.
-
-## Baseline ablation
-
-Negative log-likelihood of the true position under each model. Lower is better.
-
-| Model | NLL | 90% region area (km²) |
+| Region | Contains the truth | Target |
 |---|---|---|
-| B0 uniform over walkable | — | — |
-| B1 last known + growing Euclidean disc | — | — |
-| B1′ last known + geodesic disc | — | — |
-| B2 constant velocity | — | — |
-| B3 navmesh diffusion, no negative information | — | — |
-| **Full (with negative information)** | — | — |
+| 50% | 10.0% | 50% |
+| 75% | 53.9% | 75% |
+| 90% | 84.0% | 90% |
+| 95% | 88.3% | 95% |
 
-**B3 versus Full is the whole thesis.** If the full model does not beat navmesh-constrained
-diffusion, then negative information is contributing nothing and the central claim is empty.
-That result would be worth publishing too.
+Good at the levels a credible region is actually read at, and increasingly overconfident
+downward. That shape is honest rather than mysterious: at the 10% level the region is one or
+two 461-unit bins, and the model's single most probable bin is usually not the right one.
+
+**Calibration is reported next to NLL and never instead of it**, because the two disagree here
+in an instructive way: `geodisc` has a *better* calibration error (0.072 against 0.181) with a
+materially worse likelihood over a region nearly twice the area. Vagueness calibrates easily.
+A model ranked on calibration alone would pick the least informative one in the table.
+
+### The scoring histogram is smoothed, and the ranking does not depend on it
+
+A particle set cannot resolve a distribution below about one particle per bin, so a truth
+landing in an empty bin gets probability exactly zero and is excluded from *every* credible
+region at every level. Unsmoothed, coverage at the 25% level came out at 0.0% for all four
+propagated models — a statement about the sample, not the belief. One bin of smoothing fixes
+it, and `test_belief.py` re-runs the ranking with smoothing off and asserts the models finish
+in the same order, because a result that only appears under smoothing is an artefact of it.
+
+### Two constants that were wrong
+
+| Was | Is | Why it mattered |
+|---|---|---|
+| `PARTICLES = 400`, on an estimate of "~358 walkable bins, max 8.49 bits" | **1024**, against a measured **890 bins and 9.80 bits** | Plug-in entropy saturates at log2(P) = 8.64 at P=400. Measured entropy of a uniform belief was **8.74 bits** — the estimator was pinned, and H was reporting the particle budget rather than the game. That is exactly the failure the 32² lattice choice was written to prevent. |
+| Miller–Madow applied unconditionally | Capped at log2(bins) | The correction is asymptotic in particles per bin, and near a uniform belief there is barely one. It added 0.63 bits to a 9.35-bit estimate on a lattice whose maximum is 9.80. |
+
+`FilterSpec` now refuses a lattice/particle combination that violates the ceiling, with no
+slack — the previous two-bit allowance is what let the broken configuration through.
+
+## Motion model — fitted, not chosen
+
+The belief's walk is a **random-waypoint** model. An unbiased diffusion was tried first and
+rejected on measurement.
+
+| Horizon | 2 s | 5 s | 10 s | 20 s |
+|---|---|---|---|---|
+| Truth (median champion displacement) | 268.1 u | 565.2 u | 976.5 u | 1394.9 u |
+| Fitted model | 257.8 u | 531.5 u | 979.7 u | 1782.9 u |
+| Best diffusive walk, any parameters | 265.8 u | 407.7 u | 550.7 u | **895.5 u** |
+
+A random walk is recurrent — it wanders back over its own path — while a champion crossing the
+map does not, so no combination of sub-steps, stay probability and heading persistence got a
+diffusion past 900 units at twenty seconds against a truth of 1,395. Raising persistence far
+enough to fix the long horizon broke the short one: a straight-line walk at champion speed
+covers 1,600 units in the two seconds where the truth is 268.
+
+Mean absolute log error of the fit is 0.087, reproducible across seeds. **Known bias:** it
+overshoots at twenty seconds by 28%, because real champions reverse course — recall, then walk
+back — and a random-waypoint model does not. That direction is the safe one, since the belief
+ends up slightly too spread rather than too confident.
+
+## Read the belief numbers against this caveat
+
+**The synthetic scenario is easier than League, and in a way that flatters the belief layer.**
+Measured: enemies are visible **84.5%** of the time, against a real-game figure nearer 25–40%.
+
+The vision masks themselves cover only 37.9% of walkable ground, so this is not a vision bug —
+it is that the generator sends champions to uniformly random destinations, so they walk into
+enemy turret coverage constantly, while real champions spend most of the game in their own
+half. Two consequences, both stated rather than corrected:
+
+- Only 15% of ticks are scored at all, and they are disproportionately *short* darkness
+  episodes, which are the easy ones.
+- The behavioural prior aims at lanes and jungle camps while the generator aims at random
+  points, so the prior is actively misspecified here — which makes B3 → B3′ (+0.041) a weak
+  result on synthetic data, and makes the full model's win *despite* the handicap a stronger
+  one.
+
+Fixing the generator would perturb the fog-agreement numbers above and would also let the model
+and the generator share an assumption, which is the wrong way to make a validation look good.
+The real answer is the real corpus, at M9.
+
+## The two tests that carry the milestone
+
+Neither is available on real data, which is why the synthetic-first build order was correct
+rather than merely convenient.
+
+**Exact Bayes.** On a 16×16 world with a wall and a one-cell door there are 256 states, so the
+posterior can be computed by matrix multiplication and compared against the particle cloud
+directly. Total variation is 0.030 at P = 20,000. More importantly it *falls at the Monte
+Carlo rate* — 0.115 → 0.030 → 0.012 for P = 2k → 20k → 100k, against the √10 and √5 that pure
+sampling error predicts. A filter targeting a subtly wrong posterior would plateau at a
+non-zero value while still passing a fixed threshold at any one particle count.
+
+The comparison is only meaningful because `motion.single_step_matrix` is the *specification* of
+the shipped kernel rather than a model written for the test, and a separate test checks the
+kernel's empirical transition frequencies against it over 200,000 samples. Otherwise the test
+would prove only that the analytic matrix agrees with itself.
+
+**Information barrier.** Every champion in fog is moved 2,000 units and the filter's entire
+output stream must be bit-identical. The perturbation is rejected wherever it would pull
+someone into view, and the vision masks are held fixed — a mask is the observer's own
+information, and regenerating it from perturbed positions would change what the observer
+legitimately knows, so the test would be measuring the game rather than the barrier. Over
+2,000+ perturbed positions, output is identical to the bit.
+
+Both halves matter: that `observe` yields an identical `Observation` is a claim about the
+gating; that the filter's output is identical is a claim about the filter, and it is the half
+that would catch someone reaching for a `TruthTable` later.
 
 ## Sanity checks
 
@@ -195,6 +312,12 @@ Things that should hold if the model is right. A failure is either a bug or a fi
 
 | Check | Result |
 |---|---|
+| Every model beats a uniform prior | **passing**, all 6 |
+| Geodesic disc beats Euclidean disc | **passing** (0.536 vs 0.583) |
+| Negative information shrinks the credible region | **passing** (1.35 vs 1.42 ku²) |
+| Negative information improves calibration | **passing** (ECE 0.181 vs 0.208) |
+| Darkness excludes dead time | **passing** |
+| Depletion is rare | **passing** — 36 events over 24,300 filter-ticks (0.15%) |
 | Entropy spikes when a ward expires | — |
 | Entropy collapses during teamfights | — |
 | Junglers have the highest mean darkness time | — |
@@ -221,8 +344,12 @@ Tests with analytically known answers, not comparisons against the data.
 | Exhaustive adversarial-map oracle vs ray marching | **passing** — 99.860% over 3,064,927 cells |
 | Disagreements confined to shadow boundaries | **passing** — max distance 2 cells |
 | Scan-stack headroom | **passing** — high-water 52 of 8,192 frames over 2,000 sources |
-| Particle filter vs exact 256-state Bayes forward pass | — |
-| Information-barrier leak detector | — |
+| **Particle filter vs exact 256-state Bayes forward pass** | **passing** — total variation 0.030 at P=20,000 |
+| — and the error falls at the Monte Carlo rate | **passing** — 0.115 / 0.030 / 0.012 at P = 2k / 20k / 100k |
+| Motion kernel frequencies vs its analytic transition matrix | **passing** — max deviation < 0.005 over 200,000 samples |
+| **Information-barrier leak detector** | **passing** — bit-identical over 2,000+ perturbed positions |
+| Belief never leaves the navmesh | **passing** |
+| Credible regions are nested (coverage rises with level) | **passing**, all 7 models |
 | Artifact round trip, Python writer vs TypeScript reader | — |
 
 ### FOV table, via `shadowcast fov verify`

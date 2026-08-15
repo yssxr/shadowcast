@@ -200,16 +200,39 @@ PACKET_TIME_GRANULARITY: Final = 1.0 / 30.0
 # ---------------------------------------------------------------------------
 # Belief and entropy
 # ---------------------------------------------------------------------------
-# CHOSEN: 400 particles per filter, 10 filters (2 observing teams x 5 enemies).
-PARTICLES: Final = 400
+# CHOSEN: 1024 particles per filter, 10 filters (2 observing teams x 5 enemies).
+#
+# The number is tied to the entropy lattice and must not drift from it. A
+# 32^2 lattice restricted to walkable bins has 890 of them, so its maximum
+# entropy is log2(890) = 9.80 bits, while the plug-in estimator over P
+# particles saturates at log2(P). At 1024 that ceiling is exactly 10.0 bits and
+# the lattice fits underneath it.
+#
+# CORRECTED: this was 400, on an estimate of "~358 walkable bins, max 8.49
+# bits". MEASURED, the bin count is 890 -- the estimate assumed roughly a third
+# of bins would be unwalkable, but a 32^2 bin is 461 units on a side and almost
+# every 461-unit square of Summoner's Rift contains some walkable ground. At 400
+# particles the measured entropy of a uniform belief was 8.74 bits against a
+# log2(400) = 8.64 ceiling, i.e. the estimator was pinned and H was reporting
+# the particle budget rather than the game. That is precisely the failure the
+# lattice choice was written to prevent, and the arithmetic was simply wrong.
+PARTICLES: Final = 1024
 N_TEAMS: Final = 2
 N_ENEMIES: Final = 5
 
 # CHOSEN, and this is the subtle one. Plug-in Shannon entropy of a P-particle
-# cloud saturates at log2(P) = 8.64 bits at P=400. A lattice whose maximum
-# entropy exceeds that ceiling makes H a measurement of the particle budget
-# rather than of the game. 32^2 over the map gives ~358 walkable bins and a
-# maximum of ~8.49 bits, which sits just under the ceiling.
+# cloud saturates at log2(P). A lattice whose maximum entropy exceeds that
+# ceiling makes H a measurement of the particle budget rather than of the game.
+#
+# MEASURED: 32^2 gives 890 walkable bins (461 u per side), so max 9.80 bits,
+# which is why PARTICLES is 1024 and not 400. The two constants are one
+# decision: 2*log2(32) = 10.0 = log2(1024), so the lattice ceiling and the
+# estimator ceiling coincide exactly and neither is the binding constraint.
+#
+# Why not coarser: at 16^2 a bin is 922 units and the full model's 90% credible
+# region is 0.53 ku^2, which would be two and a half bins -- too coarse to
+# measure the quantity being reported. Why not finer: 64^2 needs 3,180 bins and
+# 11.63 bits, so P would have to exceed 3,200.
 #
 # The lattice is frozen and hashed into every artifact header. Entropy in bits is
 # only defined relative to a choice of reference measure, so a number computed
@@ -224,7 +247,23 @@ ENTROPY_LATTICE_VERSION: Final = "ENTROPY_LATTICE_V1"
 # "6.2 bits" is not. Bits stay as the on-screen number because the design uses
 # them; area is the primary number in the validation report.
 CREDIBLE_MASS: Final = 0.90
-KDE_BANDWIDTH_UNITS: Final = 300.0
+
+# CHOSEN: one-bin smoothing applied to the scoring histogram, and part of the
+# metric's definition rather than a tweak.
+#
+# A particle set cannot resolve a distribution below about one particle per bin,
+# so a truth landing in a bin that happens to hold no particles gets probability
+# exactly zero -- and every credible region, at every level, excludes it. That
+# is a statement about the sample, not the belief, and it made calibration
+# unreadable: coverage at the 25% level came out at 0.0% for every propagated
+# model. Spreading a fraction of each bin's mass to its eight neighbours is the
+# lattice form of a kernel density estimate, with the bandwidth pinned to one
+# bin so there is no knob to tune.
+#
+# The ranking must not depend on it. `test_belief.py` re-runs the comparison
+# unsmoothed and asserts the models finish in the same order, because a result
+# that only appears under smoothing is an artefact of the smoothing.
+SCORING_SMOOTHING: Final = 0.25
 
 # CHOSEN: detection probability for the negative update. A particle sitting in
 # the observer's visible region without a corresponding observation is falsified,
@@ -236,6 +275,93 @@ KDE_BANDWIDTH_UNITS: Final = 300.0
 PD_INTERIOR: Final = 0.98
 PD_EDGE: Final = 0.75
 PD_EDGE_RING_CELLS: Final = 2
+
+# CHOSEN: fallback respawn time, used only when a death has no observable
+# respawn. `resolve/deaths.py` recovers respawn from the victim's next anchor,
+# so this applies to the tail of a match where no anchor follows. MEASURED
+# (patch 12.22 base respawn table): 16 s at level 6 rising to 40 s at level 13,
+# which is the level range reached inside a fifteen-minute window; 25 s sits mid
+# range. The time-increase factor starts at 15:00 and so never applies here.
+# Only affects how long a dead enemy's position counts as known.
+RESPAWN_FALLBACK_SECONDS: Final = 25.0
+
+# CHOSEN: coarse lattice for geodesic reachability. A reachability set answers
+# "which cells could he have walked to by now", and at 115 u resolution that
+# answer is already finer than the question -- while Dijkstra over 16k cells is
+# ~60x cheaper than over 262k, which matters because the geodesic baseline wants
+# a fresh field at every sighting.
+REACH_LATTICE: Final = 128
+
+# CHOSEN: effective travel speed for reachability and the disc baselines. Base
+# movement speed is ~335 u/s and boots put a laner near 400; junglers with a
+# trail buff exceed it. MEASURED across synthetic matches, the 99th percentile
+# of reconstructed speed is 415 u/s. Using a value slightly above the plausible
+# maximum is the conservative direction for a reachability set: too small
+# excludes the truth and breaks calibration outright, too large only costs
+# sharpness.
+V_MAX_UNITS_PER_SECOND: Final = 450.0
+
+# ---------------------------------------------------------------------------
+# Motion model
+# ---------------------------------------------------------------------------
+# The belief's random walk is a RANDOM-WAYPOINT model, not a diffusion, and the
+# four constants below were FITTED rather than chosen -- an unbiased walk cannot
+# reproduce how far champions travel at any setting of its parameters.
+#
+# MEASURED, median champion displacement against synthetic ground truth:
+#
+#     horizon      2 s      5 s     10 s     20 s
+#     truth      268.1u   565.2u   976.5u  1394.9u
+#     fitted     257.8u   531.5u   979.7u  1782.9u
+#
+# Mean absolute log error 0.087 over a grid search on real Summoner's Rift
+# terrain, reproducible across seeds (a second seed gives 248/539/979/1786).
+# The best diffusive walk reached only 900 u at twenty seconds against a truth
+# of 1,395 -- a random walk is recurrent and wanders back over itself, while a
+# champion crossing the map does not -- and raising heading persistence far
+# enough to fix that broke the short horizon, since a straight-line walk at
+# champion speed covers 1,600 u in the two seconds where the truth is 268.
+#
+# KNOWN BIAS: the fit overshoots at twenty seconds by 28%, because real
+# champions reverse course (recall, then walk back) and the model does not.
+# That direction is the safe one -- the belief is slightly too spread rather
+# than too confident -- but it is a real limit and is stated in the validation
+# report rather than smoothed over.
+#
+# These are fitted against SYNTHETIC truth, whose champions move by A* between
+# waypoints. That is the same family as the model, so the fit is well specified
+# and correspondingly unimpressive as evidence. Refitting on the real corpus is
+# an explicit item for M9.
+MOTION_SUB_STEPS: Final = 2
+PARTICLE_STAY_PROB: Final = 0.10
+HEADING_PERSISTENCE: Final = 1.0
+
+# CHOSEN/FITTED: strength of the pull toward a particle's current destination.
+# exp(beta * cos t) at 0.45 makes a step toward the goal about 2.5x as likely as
+# one directly away -- directed enough to travel, weak enough that walls and
+# accumulated negative information still dominate. Zero reduces the walk to pure
+# diffusion, which is exactly the `navmesh_diffusion` baseline.
+GOAL_BETA: Final = 0.45
+
+# FITTED: how close counts as arrived, in cells (461 units). Larger than it
+# sounds because a goal is a landmark, not a coordinate -- "go mid" is satisfied
+# by arriving anywhere in mid.
+GOAL_ARRIVE_CELLS: Final = 16.0
+
+# ---------------------------------------------------------------------------
+# Resampling
+# ---------------------------------------------------------------------------
+# CHOSEN: resample when the effective sample size falls below half. The standard
+# rule of thumb, and the cost of being wrong is small in both directions --
+# resampling too eagerly loses diversity, too rarely wastes particles.
+ESS_RESAMPLE_FRACTION: Final = 0.5
+
+# CHOSEN: below this, the cloud is no longer a sample of anything and is rebuilt
+# from the geodesic reachability set. Deliberately low: reinitialisation throws
+# away accumulated negative information, so it should be a last resort rather
+# than a routine step. `depletion_events` is a QA signal, not just a counter --
+# frequent depletion means the vision masks, the trajectories or p_d are wrong.
+ESS_DEPLETION_FRACTION: Final = 0.05
 
 # ---------------------------------------------------------------------------
 # Export

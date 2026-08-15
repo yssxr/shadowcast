@@ -389,6 +389,107 @@ def pipeline(
 
 
 @app.command()
+def ablate(
+    seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
+    duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,
+    clean: Annotated[bool, typer.Option("--clean", help="Disable every stream pathology.")] = False,
+    stride: Annotated[int, typer.Option(help="Score every Nth tick.")] = 4,
+    models: Annotated[str, typer.Option(help="Comma-separated model names.")] = "",
+) -> None:
+    """Run every belief model over one match and print the ablation table.
+
+    Two adjacent rows carry the argument, and each differs from its neighbour in exactly
+    one field of one frozen spec:
+
+        diffusion -> behavioural    what the behavioural prior is worth
+        behavioural -> full         what NEGATIVE INFORMATION is worth
+
+    The second is the thesis. If `full` does not beat `behavioural`, negative information
+    is contributing nothing and the central claim is empty — which this prints plainly
+    rather than burying.
+    """
+    import time
+
+    from shadowcast.config import BASELINES, THESIS_PAIR
+    from shadowcast.fov.table import load_table
+    from shadowcast.l1_events import normalise
+    from shadowcast.l1_events.resolve import attribute, resolve_all
+    from shadowcast.l2_reconstruct.vision import VisionStream
+    from shadowcast.l3_infer.baselines import ablate as run_ablation
+    from shadowcast.l3_infer.metrics import LatticeIndex
+    from shadowcast.l3_infer.policy import observe
+    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+
+    terrain = _load_terrain()
+    table = load_table(terrain)
+    pathologies = Pathologies.none() if clean else Pathologies.all()
+    source = SyntheticSource(
+        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=pathologies)
+    )
+    bundle, _ = source.generate(source.match_ids()[0])
+    events = normalise(bundle, terrain)
+    att = attribute(events)
+    events, _ = resolve_all(events, att.pos, att.valid)
+
+    start = time.perf_counter()
+    obs, public, truth = observe(events, att, VisionStream(events, att, terrain, table))
+    lattice = LatticeIndex(terrain)
+    chosen = (
+        {k: BASELINES[k] for k in models.split(",") if k.strip()} if models.strip() else BASELINES
+    )
+    result = run_ablation(
+        terrain,
+        obs,
+        public,
+        truth,
+        lambda: VisionStream(events, att, terrain, table).masks(),
+        models=chosen,
+        lattice=lattice,
+        stride=stride,
+    )
+    elapsed = time.perf_counter() - start
+
+    _echo_table(
+        "setup",
+        {
+            "lattice bins": f"{lattice.n_bins} ({lattice.lattice}^2, {lattice.cell_size:.0f}u)",
+            "max entropy": f"{lattice.max_bits:.2f} bits",
+            "particles": C.PARTICLES,
+            "enemy visible": f"{obs.visible_fraction():.1%}",
+            "scored ticks": f"{next(iter(result.scores.values())).scored_ticks:,}",
+        },
+    )
+    typer.echo("")
+    header = (
+        f"{'model':<13}{'NLL':>8}{'H bits':>8}{'area ku2':>10}{'% map':>8}{'ECE':>7}{'depl':>6}"
+    )
+    typer.echo(typer.style(header, bold=True))
+    for name, score in result.scores.items():
+        typer.echo(
+            f"{name:<13}{score.nll:>8.3f}{score.entropy_bits:>8.2f}"
+            f"{score.credible_area_ku2:>10.2f}{score.credible_area_map_fraction:>8.2%}"
+            f"{score.calibration_error:>7.3f}{score.depletion_events:>6}"
+        )
+    typer.echo("")
+    _echo_table(
+        "coverage (full)",
+        {f"{q:.0%} region": f"{v:.1%}" for q, v in result.scores["full"].coverage.items()},
+    )
+    typer.echo("")
+    a, b = THESIS_PAIR
+    verdict = "HOLDS" if result.thesis_holds else "DOES NOT HOLD"
+    _echo_table(
+        "thesis",
+        {
+            "comparison": f"{a} -> {b} (negative information)",
+            "NLL improvement": f"{result.thesis_delta:+.4f}",
+            "verdict": verdict,
+            "elapsed": f"{elapsed:.1f}s",
+        },
+    )
+
+
+@app.command()
 def doctor() -> None:
     """Report versions, config hashes, and whether derived artifacts are stale."""
     import numpy
