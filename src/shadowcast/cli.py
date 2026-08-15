@@ -490,6 +490,79 @@ def ablate(
 
 
 @app.command()
+def diagnose(
+    seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
+    duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,
+    model: Annotated[str, typer.Option(help="Which baseline to diagnose.")] = "full",
+) -> None:
+    """Ask HOW the belief is wrong, not just how much.
+
+    A calibration number says the 90% region contains the truth 43% of the time; it does
+    not say why, and the two possibilities need opposite fixes. If the truth is outside
+    the cloud entirely, the filter is killing the correct hypothesis — a defect in the
+    weights, the resampling or the negative update. If the truth is near the cloud but
+    the cloud's mass has moved elsewhere, the machinery is fine and the motion model
+    believes champions go somewhere they do not.
+    """
+    from shadowcast.config import BASELINES
+    from shadowcast.fov.table import load_table
+    from shadowcast.l1_events import normalise
+    from shadowcast.l1_events.resolve import attribute, resolve_all
+    from shadowcast.l2_reconstruct.vision import VisionStream
+    from shadowcast.l3_infer.policy import observe
+    from shadowcast.packets.synth import Pathologies, ScenarioSpec, SyntheticSource
+    from shadowcast.validate.belief_diagnostic import diagnose_belief
+
+    terrain = _load_terrain()
+    table = load_table(terrain)
+    source = SyntheticSource(
+        terrain, ScenarioSpec(seed=seed, duration=duration, pathologies=Pathologies.all())
+    )
+    bundle, _ = source.generate(source.match_ids()[0])
+    events = normalise(bundle, terrain)
+    att = attribute(events)
+    events, _ = resolve_all(events, att.pos, att.valid)
+    obs, public, truth = observe(events, att, VisionStream(events, att, terrain, table))
+
+    result = diagnose_belief(
+        BASELINES[model],
+        terrain,
+        obs,
+        public,
+        truth,
+        VisionStream(events, att, terrain, table).masks(),
+    )
+
+    _echo_table(
+        f"belief diagnostic — {model}",
+        {
+            "scored moments": f"{result.scored:,}",
+            "truth inside the cloud": f"{result.in_support:.1%}",
+            "its density rank when inside": f"{result.median_rank:.2f} (0 = the peak)",
+        },
+    )
+    typer.echo("")
+    _echo_table(
+        "distance from the truth",
+        {
+            f"nearest particle p{q}": f"{v:,.0f} u"
+            for q, v in sorted(result.nearest_percentiles.items())
+        }
+        | {
+            f"centre of mass p{q}": f"{v:,.0f} u"
+            for q, v in sorted(result.centroid_percentiles.items())
+        },
+    )
+    typer.echo("")
+    typer.secho("by how long the enemy has been hidden", bold=True)
+    typer.echo(f"  {'band':>8}  {'n':>6}  {'nearest':>9}  {'centroid':>9}")
+    for label, n, near, cent in result.by_darkness:
+        typer.echo(f"  {label:>8}  {n:>6,}  {near:>7,.0f} u  {cent:>7,.0f} u")
+    typer.echo("")
+    typer.secho(f"  {result.verdict}", fg=typer.colors.YELLOW, bold=True)
+
+
+@app.command()
 def export(
     seed: Annotated[int, typer.Option(help="Synthetic scenario seed.")] = 7,
     duration: Annotated[float, typer.Option(help="Match window, seconds.")] = 900.0,

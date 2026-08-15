@@ -130,6 +130,7 @@ uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
 uv run shadowcast ablate             # seven belief models, one table, the thesis
+uv run shadowcast diagnose           # HOW the belief is wrong: drift or collapse
 uv run shadowcast export --web       # the artifact the site reads, ~1 MB per match
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
 
@@ -199,8 +200,8 @@ hand.
 | — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
 | Team / role recovery | **100% / 100%** (synthetic) |
-| Belief calibration — does the 90% region contain the truth 90% of the time? | **40.2%** — open defect |
-| **Log-likelihood vs. the same model without negative information** | **3.961 vs 4.204 nats** |
+| Belief calibration — does the 90% region contain the truth 90% of the time? | **43.4%** — open defect |
+| **Log-likelihood vs. the same model without negative information** | **3.887 vs 4.132 nats** |
 | Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
 | Information-barrier leak detector | **bit-identical** |
 | Artifact size per match | **1.24 MB** gzipped (budget: 2 MB) |
@@ -215,7 +216,10 @@ so nothing else can explain it.
 overconfident: its 90% region contains the truth 39% of the time, and a plain geodesic disc —
 enormously vague, and better calibrated — now beats the full model on likelihood over a whole
 match. This surfaced when two vision bugs were fixed: enemies had been visible 84.5% of the time
-instead of a realistic 45.9%, darkness episodes were short, and short episodes hid it. [`docs/validation.md`](docs/validation.md) records what has been ruled out.
+instead of a realistic 45.9%, darkness episodes were short, and short episodes hid it. `shadowcast diagnose` classifies it: the truth sits a median of 182 units from the nearest
+particle but 1,862 from the cloud's centre of mass, so the cloud covers the right ground and
+puts its mass elsewhere. That is **drift**, a motion-model error, not a filter defect — which
+also means it cannot honestly be tuned away against a synthetic generator.
 
 Every figure above is measured on **synthetic** matches, where ground truth is known.
 Real-corpus numbers are still pending and will be worse. The fog agreement is deliberately

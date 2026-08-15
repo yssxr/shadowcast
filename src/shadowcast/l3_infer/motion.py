@@ -260,7 +260,7 @@ _ROLE_LANES: dict[str, str] = {"top": "top", "mid": "mid", "bot": "bot", "suppor
 _JUNGLE_ROLE = "jungle"
 
 
-def role_targets(role: str, terrain) -> np.ndarray:
+def role_targets(role: str, terrain, team: int | None = None) -> np.ndarray:
     """Cells a champion of this role plausibly walks toward.
 
     Roles are resolved upstream and a role is public information — everyone watching can
@@ -282,6 +282,13 @@ def role_targets(role: str, terrain) -> np.ndarray:
         # than a wrong one.
         pts = [np.asarray(v, dtype=np.float64) for v in sr.LANES.values()]
         pts += [np.asarray(r, dtype=np.float64) for r in sr.JUNGLE_ROUTES.values()]
+    # Champions recall. The generator sends them back every 190 seconds for 26, and real
+    # players do it constantly — so a belief whose goal set contains only lanes and camps
+    # walks the whole cloud up the lane while the champion is walking down it. Adding the
+    # champion's OWN fountain is not a synthetic detail; it is a behaviour the model was
+    # simply missing.
+    if team is not None:
+        pts.append(np.asarray([sr.FOUNTAINS[team]], dtype=np.float64))
     pts = np.concatenate(pts)
 
     cells = []

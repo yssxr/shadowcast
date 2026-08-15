@@ -252,8 +252,57 @@ What has been ruled out so far:
   Nothing raised; the only symptom was a belief confident in the wrong places. Worth 0.037
   nats. `tests/test_pf.py` now asserts every resolved role gets a distinct target set.
 
-The remaining gap is unexplained and the filter should not be described as calibrated until it
-is closed.
+### What the gap actually is: drift, not collapse
+
+`shadowcast diagnose` answers *how* the belief is wrong rather than how much, because the two
+possibilities need opposite fixes. **The filter is not the problem.**
+
+| | Value |
+|---|---|
+| Truth inside the cloud's own lattice bin | **54.7%** |
+| Its density rank when inside (0 = the peak) | **0.27** |
+| Distance to the nearest particle, median | 182 u |
+| Distance to the cloud's centre of mass, median | **1,862 u** |
+
+A cloud that has *lost* the truth would show a large nearest-particle distance. This shows a
+small one and a centroid error ten times larger: the cloud covers the right ground and puts its
+mass somewhere else. That is drift, and it is a motion-model error — no amount of work on
+weights, resampling or the negative update touches it.
+
+The breakdown by darkness is the part that identifies the mechanism:
+
+| Hidden for | n | Nearest particle | Centroid error |
+|---|---|---|---|
+| 0–5 s | 746 | 0 u | 176 u |
+| 5–15 s | 807 | 838 u | 1,788 u |
+| **15–30 s** | 877 | **1,712 u** | **3,854 u** |
+| 30–60 s | 1,357 | 144 u | 2,304 u |
+| 60 s+ | 955 | 119 u | 2,098 u |
+
+**Non-monotonic.** Uncertainty cannot shrink with time under diffusion, so the recovery after
+30 s is not the motion model getting better — it is the effective sample size collapsing and
+the filter reinitialising from the geodesic reachability set, which covers the truth by
+construction. At long darkness the full model is quietly falling back to being a geodesic disc.
+
+The failure is therefore concentrated in a 15–30 second window where the cloud moves
+*coherently* to the wrong place. One cause found and fixed: the motion model had no notion of
+**recall**. Champions go back to base — the generator sends them every 190 seconds for 26, and
+real players do it constantly — while the goal set contained only lanes and camps, so the whole
+cloud walked up the lane as the champion walked down it. Adding the champion's own fountain to
+its goal set was worth:
+
+| | Before | After |
+|---|---|---|
+| Full model NLL | 3.961 | **3.887** |
+| Calibration error | 0.370 | **0.351** |
+| 90% region contains the truth | 40.2% | **43.4%** |
+
+Real but partial, and **this is where the work stops on synthetic data**. Drift can always be
+reduced by teaching the motion model more about the scenario it is scored against, and on a
+generator I wrote that is fitting to my own assumptions rather than to League. The next
+behaviours to add — grouping for objectives, backing off when outnumbered, warding routes — are
+things I would be inventing. The same diagnostic run against the real corpus measures something,
+and that is where it should be run.
 
 **Calibration is reported next to NLL and never instead of it**, because the two disagree here
 in an instructive way: `geodisc` has a *better* calibration error (0.072 against 0.181) with a

@@ -100,11 +100,12 @@ class BeliefFilter:
         self._targets: dict[str, np.ndarray] = {}
 
     # -- the behavioural prior ------------------------------------------
-    def _targets_for(self, role: str) -> np.ndarray:
-        """Cached per role, because five roles serve ten filters across a whole corpus."""
-        if role not in self._targets:
-            self._targets[role] = motion.role_targets(role, self.terrain)
-        return self._targets[role]
+    def _targets_for(self, role: str, team: int) -> np.ndarray:
+        """Cached per (role, team) — the team decides which fountain they recall to."""
+        key = f"{role}/{team}"
+        if key not in self._targets:
+            self._targets[key] = motion.role_targets(role, self.terrain, team)
+        return self._targets[key]
 
     # -- setup ---------------------------------------------------------
     def initial_state(self) -> BeliefState:
@@ -141,6 +142,7 @@ class BeliefFilter:
         e: int,
         tick: int,
         role: str,
+        enemy_team: int,
         rng: np.random.Generator,
     ) -> None:
         spec = self.spec
@@ -205,7 +207,7 @@ class BeliefFilter:
             motion.refresh_goals(
                 cell,
                 state.goal[o, e],
-                self._targets_for(role),
+                self._targets_for(role, enemy_team),
                 self.grid,
                 spec.goal_arrive_cells,
                 rng,
@@ -273,7 +275,7 @@ class BeliefFilter:
                     state.was_alive[o, e] = True
 
                     role = str(public.enemy_role[o, e]) or "unknown"
-                    self._move(state, o, e, tick, role, rng)
+                    self._move(state, o, e, tick, role, 1 - o, rng)
 
                     if obs.seen[tick, o, e] and spec.obs != "none":
                         cur = int(obs.cell[tick, o, e])
