@@ -191,12 +191,12 @@ passing while never exercising the radius-monotonicity check the whole table des
 ## Validation
 
 The point of having a ground-truth oracle is to be held to it. Every number below is produced by
-`shadowcast validate` and written to [`docs/validation.md`](docs/validation.md), not typed in by
-hand.
+a command — `shadowcast pipeline`, `realfog`, `ablate`, `diagnose`, `inspect` — and written to
+[`docs/validation.md`](docs/validation.md), not typed in by hand.
 
 | | |
 |---|---|
-| **Fog agreement, real packets** | **65.83%** — 25.9% false negative |
+| **Fog agreement, real packets** | **68.37%** — 23.0% false negative |
 | Fog agreement, reconstructed positions | 98.17% (synthetic) |
 | Fog agreement, true positions substituted — the floor | **98.84%** (synthetic) |
 | — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |

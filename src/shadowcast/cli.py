@@ -801,6 +801,116 @@ def _export_events(events) -> dict[str, object]:
 
 
 @app.command()
+def realfog(
+    shard: Annotated[
+        Path, typer.Argument(help="A .jsonl.gz shard from the decoded replay corpus.")
+    ] = Path("data/raw/12_22/batch_001.jsonl.gz"),
+    line: Annotated[int, typer.Option(help="Which match in the shard.")] = 0,
+    stride: Annotated[int, typer.Option(help="Sample every Nth tick.")] = 4,
+    synthetic: Annotated[
+        bool, typer.Option("--synthetic/--no-synthetic", help="Also run the same code on synth.")
+    ] = True,
+) -> None:
+    """Measure fog agreement on REAL packets, and decompose the disagreement.
+
+    The headline number is the project's central claim submitting to the only ground truth
+    that exists for it. The decomposition is what makes it actionable: agreement is split
+    by how stale the positions involved are, separately for the champion being looked at
+    and for the nearest champion doing the looking. Those two point at different repairs —
+    a missing vision source versus a misplaced one — and a single percentage hides both.
+    """
+    from shadowcast.fov.table import load_table
+    from shadowcast.l1_events import normalise
+    from shadowcast.l1_events.resolve import attribute, resolve_all
+    from shadowcast.packets.replay import ReplaySource
+    from shadowcast.validate.fog_oracle import validate_fog
+    from shadowcast.validate.real_fog import decompose_fog
+
+    if not shard.exists():
+        typer.secho(f"no shard at {shard}", fg=typer.colors.RED)
+        typer.echo("  see the README for the download command")
+        raise typer.Exit(1)
+
+    terrain = _load_terrain()
+    table = load_table(terrain)
+
+    def run(source, match_id: str):
+        events = normalise(source.read(match_id), terrain)
+        att = attribute(events)
+        events, _ = resolve_all(events, att)
+        return events, att, validate_fog(events, att, terrain, table, stride=stride)
+
+    source = ReplaySource(shard, limit=line + 1)
+    match_id = source.match_ids()[line]
+    events, att, real = run(source, match_id)
+
+    _echo_table(
+        f"fog agreement — {match_id}",
+        {
+            "agreement": f"{real.rate:.2%}",
+            "false positive": f"{real.false_positive_rate:.2%}",
+            "false negative": f"{real.false_negative_rate:.2%}",
+            "compared": f"{real.compared:,}",
+        },
+    )
+    typer.echo("")
+    _echo_table("by region", {k: f"{v:.1%}" for k, v in real.region_rates().items()})
+
+    if synthetic:
+        from shadowcast.packets.synth import SyntheticSource
+
+        synth = SyntheticSource(terrain)
+        _, _, ref = run(synth, synth.match_ids()[0])
+        typer.echo("")
+        _echo_table(
+            "the same code on synthetic packets",
+            {
+                "agreement": f"{ref.rate:.2%}",
+                "false positive": f"{ref.false_positive_rate:.2%}",
+                "false negative": f"{ref.false_negative_rate:.2%}",
+            },
+        )
+
+    report = decompose_fog(events, att, terrain, table, stride=stride)
+    for title, bands, note in (
+        (
+            "by the TARGET's position staleness — is a source missing?",
+            report.by_target_age,
+            "the last column is a floor: better trajectories cannot close it",
+        ),
+        (
+            "by the nearest OBSERVER's staleness — is a source misplaced?",
+            report.by_observer_age,
+            "vision comes from someone else, so their position is the one that moves it",
+        ),
+    ):
+        typer.echo("")
+        typer.secho(title, bold=True)
+        typer.echo(
+            f"  {'since an anchor':>16}{'n':>8}{'agree':>9}{'visible→src':>13}"
+            f"{'hidden→src':>12}{'no src in range':>17}"
+        )
+        for b in bands:
+            flag = "" if b.informative else "   <- not informative"
+            typer.echo(
+                f"  {b.label:>16}{b.n:>8,}{b.rate:>8.1%}"
+                f"{b.visible_source_distance:>12,.0f} u{b.hidden_source_distance:>10,.0f} u"
+                f"{b.visible_without_source:>16.1%}{flag}"
+            )
+        typer.secho(f"  {note}", dim=True)
+
+    typer.echo("")
+    _echo_table(
+        "model coverage",
+        {
+            "lane minions": f"{events.minion_waves.size:,}",
+            "front-line contacts": f"{events.minion_contacts.size:,}",
+            "orders attributed": f"{events.order_attribution_rate:.2%}",
+        },
+    )
+
+
+@app.command()
 def doctor() -> None:
     """Report versions, config hashes, and whether derived artifacts are stale."""
     import numpy
