@@ -228,3 +228,46 @@ def test_the_real_reader_passes_the_same_conformance_suite():
         assert not report.errors, (report.match_id, report.errors)
         assert report.stats["distinct_turrets"] == 24
         assert report.stats["labelled_anchors"] > 1000
+
+
+def test_read_all_matches_read_one_by_one():
+    """The single-pass reader must produce exactly what seeking produces.
+
+    `read` seeks by decompressing from the start of the shard, so reading N matches costs
+    O(N²) work over an 83 MB gzip that expands to 2 GB — which is why anything measuring a
+    whole shard goes through `read_all` instead. That is only a safe substitution if the
+    two agree bundle for bundle, including the constructed match id.
+    """
+    from shadowcast.packets.replay import ReplaySource
+    from shadowcast.packets.source import PACKET_KINDS
+
+    _shard_or_skip()
+    source = ReplaySource(SHARD, limit=3)
+    streamed = list(source.read_all())
+    assert len(streamed) == 3
+
+    for index, bundle in enumerate(streamed):
+        seeked = source.read(source.match_ids()[index])
+        assert bundle.meta.match_id == seeked.meta.match_id
+        assert bundle.meta.duration == seeked.meta.duration
+        assert bundle.meta.n_packets == seeked.meta.n_packets
+        for name in PACKET_KINDS:
+            mine, theirs = getattr(bundle, name), getattr(seeked, name)
+            assert mine.shape == theirs.shape, name
+            # Field by field, not whole-array: `assert_array_equal` treats NaN as equal
+            # for float arrays but compares structured rows elementwise on void, where
+            # NaN != NaN. `replication` carries real NaNs — a null `Float` in the stream
+            # is NaN and deliberately not zero — so a whole-array compare reports every
+            # such row as a difference while printing two identical lines.
+            for field in mine.dtype.names or ():
+                np.testing.assert_array_equal(mine[field], theirs[field], err_msg=f"{name}.{field}")
+
+
+def test_read_all_respects_the_source_limit():
+    from shadowcast.packets.replay import ReplaySource
+
+    _shard_or_skip()
+    assert len(list(ReplaySource(SHARD, limit=2).read_all())) == 2
+    assert len(list(ReplaySource(SHARD).read_all(limit=2))) == 2
+    # The tighter of the two wins, so a caller cannot widen a constrained source.
+    assert len(list(ReplaySource(SHARD, limit=2).read_all(limit=9))) == 2

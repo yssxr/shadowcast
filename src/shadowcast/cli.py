@@ -800,16 +800,116 @@ def _export_events(events) -> dict[str, object]:
     }
 
 
+def _realfog_corpus(shard: Path, matches: int, stride: int, run_bundle, out: Path | None) -> None:
+    """Fog agreement across a whole shard, reported as a spread rather than a number.
+
+    A single match's agreement cannot say whether it is typical, and the project's central
+    claim was quoted from exactly one for as long as it had a real figure at all. Matches
+    that fail outright are reported, not skipped silently: a resolver that gives up on some
+    matches and scores well on the rest is a selection effect, not a result.
+    """
+    import json
+    import statistics
+    import time
+
+    from shadowcast.packets.replay import ReplaySource
+
+    rows: list[dict[str, object]] = []
+    failures: list[tuple[str, str]] = []
+    start = time.perf_counter()
+
+    typer.secho(f"reading {shard.name} in one pass, up to {matches} matches", bold=True)
+    for bundle in ReplaySource(shard).read_all(limit=matches):
+        label = bundle.meta.match_id.rsplit("/", 1)[-1]
+        try:
+            events, _, fog = run_bundle(bundle)
+        except Exception as exc:
+            failures.append((label, f"{type(exc).__name__}: {exc}"))
+            typer.secho(f"  {label:<16} FAILED  {type(exc).__name__}", fg=typer.colors.RED)
+            continue
+        timing = fog.timing()
+        row = {
+            "match": label,
+            "duration_min": round(bundle.meta.duration / 60, 1),
+            "agreement": fog.rate,
+            "false_positive": fog.false_positive_rate,
+            "false_negative": fog.false_negative_rate,
+            "compared": fog.compared,
+            "lane_minions": int(events.minion_waves.size),
+            "order_attribution": events.order_attribution_rate,
+            "within_150ms": timing.get("within_150ms", float("nan")),
+            **{f"region_{k}": v for k, v in fog.region_rates().items()},
+        }
+        rows.append(row)
+        typer.echo(
+            f"  {label:<16}{fog.rate:>8.2%}  FP {fog.false_positive_rate:>6.2%}  "
+            f"FN {fog.false_negative_rate:>6.2%}  {bundle.meta.duration / 60:>5.1f} min"
+        )
+
+    if not rows:
+        typer.secho("no match completed", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    def spread(key: str) -> str:
+        values = sorted(float(r[key]) for r in rows)  # type: ignore[arg-type]
+        lo, hi = values[0], values[-1]
+        med = statistics.median(values)
+        sd = statistics.pstdev(values) if len(values) > 1 else 0.0
+        return f"{med:.2%}   [{lo:.2%}, {hi:.2%}]   sd {sd:.2%}"
+
+    typer.echo("")
+    _echo_table(
+        f"across {len(rows)} matches — median, range, standard deviation",
+        {
+            "agreement": spread("agreement"),
+            "false positive": spread("false_positive"),
+            "false negative": spread("false_negative"),
+            "order attribution": spread("order_attribution"),
+        },
+    )
+    typer.echo("")
+    _echo_table(
+        "by region — median across matches",
+        {
+            k.removeprefix("region_"): f"{statistics.median(float(r[k]) for r in rows):.1%}"
+            for k in rows[0]
+            if k.startswith("region_")
+        },
+    )
+
+    if failures:
+        typer.echo("")
+        typer.secho(f"{len(failures)} match(es) failed:", fg=typer.colors.RED, bold=True)
+        for label, why in failures:
+            typer.echo(f"  {label:<16}{why}")
+
+    typer.echo("")
+    typer.echo(f"  {len(rows)} matches in {time.perf_counter() - start:.0f}s, stride {stride}")
+
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({"rows": rows, "failures": failures}, indent=2))
+        typer.secho(f"wrote {out}", fg=typer.colors.GREEN)
+
+
 @app.command()
 def realfog(
     shard: Annotated[
         Path, typer.Argument(help="A .jsonl.gz shard from the decoded replay corpus.")
     ] = Path("data/raw/12_22/batch_001.jsonl.gz"),
     line: Annotated[int, typer.Option(help="Which match in the shard.")] = 0,
+    matches: Annotated[
+        int,
+        typer.Option(
+            help="Run this many matches from the shard and report the DISTRIBUTION. "
+            "One match is a point estimate and cannot say whether it is typical."
+        ),
+    ] = 1,
     stride: Annotated[int, typer.Option(help="Sample every Nth tick.")] = 4,
     synthetic: Annotated[
         bool, typer.Option("--synthetic/--no-synthetic", help="Also run the same code on synth.")
     ] = True,
+    out: Annotated[Path | None, typer.Option(help="Write the per-match rows here as JSON.")] = None,
 ) -> None:
     """Measure fog agreement on REAL packets, and decompose the disagreement.
 
@@ -818,7 +918,12 @@ def realfog(
     by how stale the positions involved are, separately for the champion being looked at
     and for the nearest champion doing the looking. Those two point at different repairs —
     a missing vision source versus a misplaced one — and a single percentage hides both.
+
+    With `--matches N` the whole shard is read in one pass and the spread is reported
+    instead of a single number, which is the only way to know whether one match's figure
+    was typical.
     """
+
     from shadowcast.fov.table import load_table
     from shadowcast.l1_events import normalise
     from shadowcast.l1_events.resolve import attribute, resolve_all
@@ -834,11 +939,18 @@ def realfog(
     terrain = _load_terrain()
     table = load_table(terrain)
 
-    def run(source, match_id: str):
-        events = normalise(source.read(match_id), terrain)
+    def run_bundle(bundle):
+        events = normalise(bundle, terrain)
         att = attribute(events)
         events, _ = resolve_all(events, att)
         return events, att, validate_fog(events, att, terrain, table, stride=stride)
+
+    def run(source, match_id: str):
+        return run_bundle(source.read(match_id))
+
+    if matches > 1:
+        _realfog_corpus(shard, matches, stride, run_bundle, out)
+        return
 
     source = ReplaySource(shard, limit=line + 1)
     match_id = source.match_ids()[line]

@@ -44,6 +44,7 @@ from __future__ import annotations
 import gzip
 import json
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -320,30 +321,48 @@ class ReplaySource:
             self._ids = [f"{self.shard.stem.replace('.jsonl', '')}:{i}" for i in range(n)]
         return list(self._ids)
 
+    def _bundle(self, index: int, line: str) -> PacketBundle:
+        events = json.loads(line)["events"]
+        duration = max(
+            (
+                float(e[next(iter(e))].get("time", 0.0))
+                for e in events
+                if float(e[next(iter(e))].get("time", 0.0)) > MIN_VALID_TIME
+            ),
+            default=0.0,
+        )
+        stem = self.shard.stem.replace(".jsonl", "")
+        meta = MatchMeta(
+            match_id=f"{self.patch}/{stem}:{index}",
+            source=str(self.shard),
+            duration=duration,
+            n_packets=len(events),
+            patch=self.patch,
+            # Stated rather than implied: the corpus carries no match id, region,
+            # rank, win/loss or duration, so the identifier above is constructed.
+            extra={"identifier": "constructed from shard and line", "line": index},
+        )
+        return read_shard_line(events, meta)
+
     def read(self, match_id: str) -> PacketBundle:
         index = int(match_id.rsplit(":", 1)[1])
         with gzip.open(self.shard, "rt") as fh:
             for n, line in enumerate(fh):
-                if n != index:
-                    continue
-                events = json.loads(line)["events"]
-                duration = max(
-                    (
-                        float(e[next(iter(e))].get("time", 0.0))
-                        for e in events
-                        if float(e[next(iter(e))].get("time", 0.0)) > MIN_VALID_TIME
-                    ),
-                    default=0.0,
-                )
-                meta = MatchMeta(
-                    match_id=f"{self.patch}/{match_id}",
-                    source=str(self.shard),
-                    duration=duration,
-                    n_packets=len(events),
-                    patch=self.patch,
-                    # Stated rather than implied: the corpus carries no match id, region,
-                    # rank, win/loss or duration, so the identifier above is constructed.
-                    extra={"identifier": "constructed from shard and line", "line": index},
-                )
-                return read_shard_line(events, meta)
+                if n == index:
+                    return self._bundle(index, line)
         raise KeyError(f"{match_id} is not in {self.shard}")
+
+    def read_all(self, limit: int | None = None) -> Iterator[PacketBundle]:
+        """Every match in the shard, in one pass over the file.
+
+        `read` seeks by decompressing from the start, so reading N matches one at a time
+        is quadratic in the shard — and a shard is 83 MB gzipped against 2 GB expanded, so
+        that is not a small constant. Measuring anything across a whole shard goes through
+        here instead.
+        """
+        stop = self.limit if limit is None else min(limit, self.limit or limit)
+        with gzip.open(self.shard, "rt") as fh:
+            for n, line in enumerate(fh):
+                if stop is not None and n >= stop:
+                    return
+                yield self._bundle(n, line)
