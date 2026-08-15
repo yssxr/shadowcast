@@ -258,7 +258,12 @@ def minion_spawn_point(lane: str, team: int) -> np.ndarray:
 
 
 def minion_clump_position(
-    lane: str, team: int, spawn_t: float, t: float, death_t: float | None = None
+    lane: str,
+    team: int,
+    spawn_t: float,
+    t: float,
+    death_t: float | None = None,
+    front_s: float = MEETING_S,
 ) -> np.ndarray | None:
     """Where a wave's clump is at time `t`, or None if it has not spawned or has died.
 
@@ -285,12 +290,14 @@ def minion_clump_position(
     # permanent floodlights per team inside the other team's spawn, which showed up as
     # unexplained circles on the map.
     #
-    # Both teams spawn together and move at the same speed, so they meet at the lane
-    # midpoint. That equilibrium shifts as turrets fall, which this does not model —
-    # turret destruction is absent from the corpus — so 0.5 is the early-game answer and
-    # is stated as such.
+    # Both teams spawn together and move at the same speed, so the midpoint is where they
+    # meet *on average* — and only on average. `front_s` carries the measured meeting
+    # point when there is evidence for one (see `l2_reconstruct.front`), because the real
+    # front sits a median 1,442 units from the midpoint on top and 1,640 on bot, which is
+    # further than a minion can see. It defaults to the midpoint so a caller with no
+    # evidence, including the synthetic oracle, gets the early-game answer unchanged.
     spawn_s = MINION_SPAWN_S[team]
-    lo, hi = (spawn_s, MEETING_S) if spawn_s < MEETING_S else (MEETING_S, spawn_s)
+    lo, hi = (spawn_s, front_s) if spawn_s < front_s else (front_s, spawn_s)
     return lerp_polyline(LANES[lane], float(np.clip(s, lo, hi)))
 
 

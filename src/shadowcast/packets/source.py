@@ -39,6 +39,7 @@ from typing import Any, Protocol, runtime_checkable
 import numpy as np
 
 __all__ = [
+    "BARRACK_SPAWN",
     "BASIC_ATTACK",
     "CAST_SPELL",
     "CREATE_HERO",
@@ -195,6 +196,27 @@ NPC_DIE = np.dtype(
 #: own `SpawnMinion` row does that.
 USE_ITEM = np.dtype([("t", "f8"), ("net_id", "u4"), ("slot", "i2"), ("seq", "i8")])
 
+#: `BarrackSpawnUnit`. **The only record of lane minions in the corpus.** They do not
+#: appear in `SpawnMinion` at all — that packet carries wards, plants, camps and
+#: ability summons — so without this the largest vision source in the game is simply
+#: absent, which is what a 23.9% missing-source floor in the fog agreement turned out
+#: to be.
+#:
+#: No position and no team. `barrack_net_id` takes six values, one per lane per side,
+#: and is not among the `CreateTurret` net_ids, so the barrack is labelled indirectly:
+#: its minions fight exactly one turret, and that turret's name carries both the lane
+#: and the side. `minion_type` and `minion_level` are garbage in the real stream
+#: (`minion_type` arrives as 2^64-1) and are therefore not carried.
+BARRACK_SPAWN = np.dtype(
+    [
+        ("t", "f8"),
+        ("minion_net_id", "u4"),
+        ("barrack_net_id", "u4"),
+        ("wave", "i4"),
+        ("seq", "i8"),
+    ]
+)
+
 
 #: Field name on `PacketBundle` -> dtype. Iterated by the conformance suite and by
 #: anything that wants to treat the bundle generically.
@@ -212,6 +234,7 @@ PACKET_KINDS: dict[str, np.dtype] = {
     "damage": DAMAGE,
     "deaths": NPC_DIE,
     "items": USE_ITEM,
+    "barracks": BARRACK_SPAWN,
 }
 
 #: Kinds whose `t` column must be non-decreasing. `minions` is excluded because real
@@ -228,6 +251,7 @@ TIME_ORDERED_KINDS: tuple[str, ...] = (
     "damage",
     "deaths",
     "items",
+    "barracks",
 )
 
 
@@ -270,6 +294,7 @@ class PacketBundle:
     damage: np.ndarray
     deaths: np.ndarray
     items: np.ndarray
+    barracks: np.ndarray
 
     def arrays(self) -> dict[str, np.ndarray]:
         return {name: getattr(self, name) for name in PACKET_KINDS}

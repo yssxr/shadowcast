@@ -8,17 +8,23 @@ losing a single real transition).
 
 from __future__ import annotations
 
+import dataclasses
+from collections import Counter
+
 import numpy as np
 import pytest
 
 from shadowcast import constants as C
+from shadowcast import sr
 from shadowcast.l1_events.normalise import calibrate_waypoint_frame, normalise
+from shadowcast.l1_events.resolve import attribute
 from shadowcast.l1_events.schema import (
     ANCHOR_ATTACK,
     ANCHOR_CAST,
     UNKNOWN,
     MatchEvents,
 )
+from shadowcast.l2_reconstruct.front import estimate_front
 from shadowcast.packets.synth import ScenarioSpec, SyntheticSource
 
 
@@ -410,3 +416,75 @@ def test_describe_reports_the_shape_of_the_match(events_clean):
     assert d["orders"] > 1000
     assert d["turret_sites"] == 24
     assert d["wards"] == 10
+
+
+# ---------------------------------------------------------------------------
+# Lane minions
+# ---------------------------------------------------------------------------
+def test_lane_minions_come_from_barracks_not_spawn_minion(events_clean, synth_clean):
+    """`SpawnMinion` holds wards, plants and camps — never a lane minion.
+
+    Verified on a real match, where the two net_id sets do not intersect at all. The
+    generator matches that shape, so a reader that looked for minions in `SpawnMinion`
+    finds none here either, rather than finding them and passing until real data.
+    """
+    events, _ = events_clean
+    bundle, _ = synth_clean
+    minion_ids = set(events.minion_waves["net_id"].tolist())
+    assert minion_ids
+    assert minion_ids.isdisjoint(set(bundle.minions["net_id"].tolist()))
+    assert minion_ids == set(bundle.barracks["minion_net_id"].tolist())
+
+
+def test_barracks_are_labelled_by_the_turrets_their_minions_fight(events_clean):
+    """The barrack carries no lane and no team, so both are recovered or lost.
+
+    Every wave the generator scheduled must come back with the right lane and side. The
+    schedule is symmetric — one wave per lane per team per interval — so any labelling
+    error shows up immediately as an imbalance.
+    """
+    events, _ = events_clean
+    counts = Counter((str(r["lane"]), int(r["team"])) for r in events.minion_waves)
+    assert set(counts) == {
+        (lane, team) for lane in sr.LANES for team in (C.TEAM_ORDER, C.TEAM_CHAOS)
+    }
+    assert len(set(counts.values())) == 1, f"lanes are not balanced: {counts}"
+
+
+def test_minion_spawn_times_match_the_wave_schedule(events_clean):
+    events, _ = events_clean
+    scheduled = sorted(
+        (lane, team, round(t, 3)) for t, lane, team in sr.minion_wave_schedule(events.duration)
+    )
+    recovered = sorted(
+        (str(r["lane"]), int(r["team"]), round(float(r["t0"]), 3)) for r in events.minion_waves
+    )
+    assert recovered == scheduled
+
+
+def test_front_line_recovers_the_midpoint_the_generator_used(events_clean):
+    """The generator's waves really do meet at `MEETING_S`, so the estimator must say so.
+
+    This is the guard against a front estimator that merely *moves* — one that tracks
+    noise would still improve nothing and would quietly corrupt minion vision. Real
+    matches have no ground-truth front, so this is the only place the estimator can be
+    checked against a known answer.
+    """
+    events, _ = events_clean
+    at = attribute(events)
+    front = estimate_front(events, at.pos, at.valid)
+    assert set(front) == set(sr.LANES)
+    for lane, track in front.items():
+        deviation = float(np.abs(track - sr.MEETING_S).max())
+        assert deviation < 0.02, f"{lane} front wandered {deviation:.3f} from a true 0.5"
+
+
+def test_front_line_falls_back_to_the_midpoint_without_evidence(events_clean):
+    events, _ = events_clean
+    stripped = dataclasses.replace(
+        events, minion_contacts=np.empty(0, dtype=events.minion_contacts.dtype)
+    )
+    at = attribute(events)
+    front = estimate_front(stripped, at.pos, at.valid)
+    for track in front.values():
+        assert np.all(track == sr.MEETING_S)

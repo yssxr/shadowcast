@@ -27,6 +27,8 @@ stay at `UNKNOWN` so no consumer can mistake one for the other.
 
 from __future__ import annotations
 
+from collections import Counter, defaultdict
+
 import numpy as np
 
 from shadowcast import constants as C
@@ -41,6 +43,7 @@ from shadowcast.l1_events.schema import (
     DEATH,
     FOG_EVENT,
     HERO,
+    MINION_CONTACT,
     MINION_WAVE,
     ORDER,
     ORDER_XZ,
@@ -414,42 +417,109 @@ def _damage(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
     return out
 
 
-def _minion_waves(bundle: PacketBundle, times: np.ndarray) -> np.ndarray:
-    """Lane minion waves, reduced to one clump each.
+#: How close to a lane centre line a turret must sit for its lane to name a barrack's.
+#: Outer and inner lane turrets are on the line; inhibitor and nexus turrets are not, and
+#: excluding them is what keeps a base skirmish from relabelling a barrack.
+_BARRACK_TURRET_LANE_RADIUS = 1500.0
+#: Damage exchanges needed before a barrack is labelled. The real margin is not close —
+#: the modal turret wins by an order of magnitude — so this only rejects noise.
+_BARRACK_MIN_VOTES = 5
 
-    Everything needed is observable: `SpawnMinion` gives the spawn position (hence the
-    lane, and hence the side from which end it entered) and the stream clock gives the
-    time, while the NPC death packets give the end. No minion tracking is required, which
-    matters because none is possible — minions have no labelled position packets.
 
-    Names are matched on a substring, not an exact table, because the real internal minion
-    names are unconfirmed: the dataset research enumerated the ward and plant units but
-    not the regular ones.
+def _barrack_labels(bundle: PacketBundle) -> dict[int, tuple[str, int]]:
+    """Which lane and side each barrack spawns for, from the damage graph.
+
+    `BarrackSpawnUnit` names a barrack but the corpus never creates one: the six
+    `barrack_net_id` values appear in no `CreateTurret` row, so there is no name to read
+    a lane or a team out of. Nothing else in the packet identifies them either — the
+    minions all spawn at the same instants, so timing cannot separate the lanes.
+
+    What does separate them is who shoots at them. **A barrack's minions exchange damage
+    with exactly one turret**, and that turret has a name, which carries the side, and a
+    known position, which carries the lane. MEASURED on a real match, the modal turret
+    accounted for every barrack with no ties and no ambiguity: each of the six mapped to
+    a distinct outer turret. The turret belongs to the *other* team, so the barrack's team
+    is its opposite.
+
+    Lane comes from the turret's position rather than the letter in its name, because the
+    L/R convention is mirrored between the two sides and a projection onto the lane
+    polylines cannot be got backwards.
+
+    A barrack with no damage evidence is left unlabelled and its minions are dropped
+    rather than guessed — an invented lane would put a 1,200-unit light in the wrong half
+    of the map, which is worse than modelling no minions there at all.
     """
-    minions = bundle.minions
-    if minions.size == 0:
+    if bundle.barracks.size == 0 or bundle.damage.size == 0:
+        return {}
+
+    barrack_of = {int(r["minion_net_id"]): int(r["barrack_net_id"]) for r in bundle.barracks}
+    known = {name: (team, xz) for name, team, xz in sr.TURRETS}
+    turret_meta: dict[int, tuple[int, str]] = {}
+    for row in bundle.turrets:
+        entry = known.get(str(row["name"]))
+        if entry is None:
+            continue
+        team, xz = entry
+        if team == UNKNOWN:
+            continue
+        lane, dist = sr.nearest_lane(np.asarray(xz, dtype=float))
+        if dist > _BARRACK_TURRET_LANE_RADIUS:
+            continue  # an inhibitor or nexus turret, too far from a lane to name one
+        turret_meta[int(row["net_id"])] = (int(team), lane)
+
+    votes: dict[int, Counter] = defaultdict(Counter)
+    for row in bundle.damage:
+        src, tgt = int(row["source_net_id"]), int(row["target_net_id"])
+        for unit, other in ((src, tgt), (tgt, src)):
+            if unit in barrack_of and other in turret_meta:
+                votes[barrack_of[unit]][turret_meta[other]] += 1
+
+    labels: dict[int, tuple[str, int]] = {}
+    for barrack, counter in votes.items():
+        (turret_team, lane), top = counter.most_common(1)[0]
+        if top < _BARRACK_MIN_VOTES:
+            continue
+        labels[barrack] = (lane, 1 - turret_team)
+    return labels
+
+
+def _lane_minions(bundle: PacketBundle) -> np.ndarray:
+    """Lane minions, one row each, from `BarrackSpawnUnit`.
+
+    This is the only place they exist. `SpawnMinion` carries wards, plants, camps and
+    ability summons and **not one lane minion** — verified on a real match, where the
+    intersection of the two net_id sets is empty. Building minion vision from
+    `SpawnMinion` therefore produced no lane minions at all on real data, which is what a
+    23.9% missing-source floor in the fog agreement turned out to be: the largest vision
+    source in the game was simply not modelled.
+
+    Spawn time and death time are both observed — 94.5% of minions have an
+    `NPCDieMapView` row, median lifetime 29 s — so neither has to be assumed. The
+    previous model assumed a flat 55 s.
+    """
+    if bundle.barracks.size == 0:
         return np.empty(0, dtype=MINION_WAVE)
 
-    deaths = {}
-    if bundle.deaths.size:
-        for row in bundle.deaths:
-            deaths.setdefault(int(row["killed_net_id"]), float(row["t"]))
+    labels = _barrack_labels(bundle)
+    if not labels:
+        return np.empty(0, dtype=MINION_WAVE)
 
+    deaths: dict[int, float] = {}
+    for row in bundle.deaths:
+        deaths.setdefault(int(row["killed_net_id"]), float(row["t"]))
+
+    seen: set[int] = set()
     rows: list[tuple] = []
-    for k in np.argsort(times, kind="stable"):
-        row = minions[k]
-        name = str(row["name"])
-        if (str(name), str(row["skin_name"])) in C.WARD_UNITS:
+    for row in bundle.barracks[np.argsort(bundle.barracks["t"], kind="stable")]:
+        net_id = int(row["minion_net_id"])
+        if net_id in seen:
+            continue  # the packet repeats; the first sighting is the spawn
+        label = labels.get(int(row["barrack_net_id"]))
+        if label is None:
             continue
-        if not any(token in name for token in C.MINION_NAME_TOKENS):
-            continue
-        point = np.array([float(row["x"]), float(row["z"])])
-        lane, dist = sr.nearest_lane(point)
-        if dist > 2000.0:
-            continue  # not on a lane, so not a lane minion
-        team = C.TEAM_ORDER if sr.arclength_fraction(lane, point) < 0.5 else C.TEAM_CHAOS
-        t0 = float(times[k])
-        net_id = int(row["net_id"])
+        seen.add(net_id)
+        lane, team = label
+        t0 = float(row["t"])
         observed = net_id in deaths
         t1 = deaths[net_id] if observed else t0 + sr.MINION_CLUMP_LIFETIME
         rows.append((net_id, lane, team, t0, t1, 1 if observed else 0))
@@ -457,6 +527,41 @@ def _minion_waves(bundle: PacketBundle, times: np.ndarray) -> np.ndarray:
     out = np.empty(len(rows), dtype=MINION_WAVE)
     for n, r in enumerate(rows):
         out[n] = r
+    return out
+
+
+def _minion_contacts(
+    bundle: PacketBundle, slots: dict[int, int], minion_waves: np.ndarray
+) -> np.ndarray:
+    """Every champion-versus-lane-minion damage exchange, as front-line evidence.
+
+    Kept because minion positions are modelled, not observed, and the model's one free
+    parameter is where the two waves meet. Assuming the lane midpoint is right on average
+    and wrong at every individual moment: MEASURED on a real match, the front sits a
+    median 1,442 units from the midpoint on top and 1,640 on bot, which is further than a
+    minion can see. A champion hitting a minion is standing at the front, and champion
+    positions are recovered, so this turns an assumption into a reading.
+
+    Direction is not distinguished — a champion damaging a minion and a minion damaging a
+    champion place the two units equally close, and the front wants both.
+    """
+    if bundle.damage.size == 0 or minion_waves.size == 0:
+        return np.empty(0, dtype=MINION_CONTACT)
+
+    lane_of = {int(r["net_id"]): str(r["lane"]) for r in minion_waves}
+    rows: list[tuple] = []
+    for row in bundle.damage:
+        src, tgt = int(row["source_net_id"]), int(row["target_net_id"])
+        for champ, minion in ((src, tgt), (tgt, src)):
+            slot = slots.get(champ)
+            lane = lane_of.get(minion)
+            if slot is not None and lane is not None:
+                rows.append((float(row["t"]), slot, lane))
+
+    out = np.empty(len(rows), dtype=MINION_CONTACT)
+    for n, r in enumerate(rows):
+        out[n] = r
+    out.sort(order="t", kind="stable")
     return out
 
 
@@ -552,6 +657,7 @@ def normalise(
     orders.sort(order=["t", "seq"], kind="stable")
 
     times = _minion_times(bundle)
+    minion_waves = _lane_minions(bundle)
     events = MatchEvents(
         match_id=bundle.meta.match_id,
         duration=float(bundle.meta.duration),
@@ -577,7 +683,8 @@ def normalise(
         speed=_replication(bundle, slots, C.ATTR_MOVE_SPEED),
         hp=_replication(bundle, slots, C.ATTR_HP),
         damage=_damage(bundle, slots),
-        minion_waves=_minion_waves(bundle, times),
+        minion_waves=minion_waves,
+        minion_contacts=_minion_contacts(bundle, slots, minion_waves),
         deaths=np.empty(0, dtype=DEATH),
         stats={
             "fog_rows_in": int(bundle.fog.size),

@@ -87,6 +87,7 @@ class _Rows:
     damage: list = None  # type: ignore[assignment]
     deaths: list = None  # type: ignore[assignment]
     items: list = None  # type: ignore[assignment]
+    barracks: list = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         for name in PACKET_KINDS:
@@ -258,6 +259,20 @@ def read_shard_line(events: list[dict[str, Any]], meta: MatchMeta) -> PacketBund
 
         elif kind == "UseItem":
             rows.items.append((raw_time, payload["net_id"], payload.get("slot", -1), seq))
+
+        elif kind == "BarrackSpawnUnit":
+            # `minion_type` and `minion_level` are dropped: the former arrives as
+            # 2^64-1, which does not survive the cast, and neither is needed once the
+            # barrack itself identifies the lane and the side.
+            rows.barracks.append(
+                (
+                    raw_time,
+                    payload["minion_net_id"],
+                    payload["barrack_net_id"],
+                    payload.get("wave_count", -1),
+                    seq,
+                )
+            )
 
     arrays: dict[str, np.ndarray] = {}
     for name, dtype in PACKET_KINDS.items():

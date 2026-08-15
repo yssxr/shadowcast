@@ -42,6 +42,7 @@ from shadowcast.fov.union import assemble, mask_bit, new_mask, union_sources
 from shadowcast.geom.grid import world_to_cell
 from shadowcast.l1_events.resolve.attribute import Attribution
 from shadowcast.l1_events.schema import ANCHOR_ATTACK, UNKNOWN, MatchEvents
+from shadowcast.l2_reconstruct.front import estimate_front
 from shadowcast.terrain.terrain import Terrain
 
 __all__ = ["UNKNOWN_TARGET_REVEALS", "SourceCounts", "VisionStream"]
@@ -106,6 +107,7 @@ class VisionStream:
         self.team = events.heroes["team"].astype(np.int64)
 
         self._live_fallbacks = 0
+        self._front = estimate_front(events, attribution.pos, attribution.valid)
         self._enemy_targets = self._build_target_teams()
         self._static = self._build_static()
         self._ward_boundaries = self._ward_boundary_ticks()
@@ -234,8 +236,14 @@ class VisionStream:
         for wave in self.events.minion_waves:
             if int(wave["team"]) != team:
                 continue
+            lane = str(wave["lane"])
             p = sr.minion_clump_position(
-                str(wave["lane"]), int(wave["team"]), float(wave["t0"]), t, float(wave["t1"])
+                lane,
+                int(wave["team"]),
+                float(wave["t0"]),
+                t,
+                float(wave["t1"]),
+                front_s=float(self._front[lane][tick]),
             )
             if p is None:
                 continue

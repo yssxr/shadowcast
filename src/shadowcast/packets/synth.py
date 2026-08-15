@@ -49,6 +49,7 @@ from shadowcast import sr
 from shadowcast.geom.grid import cell_to_world, world_to_cell
 from shadowcast.geom.path import astar, nearest_walkable, simplify_path
 from shadowcast.packets.source import (
+    BARRACK_SPAWN,
     BASIC_ATTACK,
     CAST_SPELL,
     CREATE_HERO,
@@ -80,6 +81,16 @@ _NEUTRAL_NETID_BASE = 0x40002000
 # a fog-attack reveal, and any value in that band produces the same qualitative result.
 _ATTACK_RANGE = 700.0
 _MINION_NETID_BASE = 0x40003000
+#: Barracks, one per lane per side. Not turrets and not in `CreateTurret` — matching the
+#: real stream, where the six barrack net_ids appear in no create packet at all.
+_BARRACK_NETID_BASE = 0x40004000
+#: Damage exchanges emitted per wave. The labelling needs only a handful; this is enough
+#: to clear `_BARRACK_MIN_VOTES` several times over without inflating the damage table.
+_BARRACK_DAMAGE_EXCHANGES = 4
+#: How close a champion must stand to a wave to be counted as farming it. Wider than
+#: `_ATTACK_RANGE` because the evidence is "was in the fight", not "landed an auto", and
+#: the front estimator wants the laner rather than only the last-hitter.
+_FARM_RANGE = 900.0
 _GHOST_NETID = 0x40009999
 
 ROLES = ("top", "jungle", "mid", "bot", "support")
@@ -725,6 +736,7 @@ class SyntheticSource:
         # --- wards ---
         ward_rows: list[tuple] = []
         rows_minion: list[tuple] = []
+        rows_barrack: list[tuple] = []
         rows_item: list[tuple] = []
         for n, (place_t, owner_team, spot_idx, kind, life) in enumerate(ward_script):
             if place_t >= spec.duration:
@@ -794,20 +806,65 @@ class SyntheticSource:
                 )
             )
 
-        # Lane minion waves. Emitted as observable packets — a SpawnMinion at the lane
-        # entrance and an NPC death when the wave is cleared — so the reconstruction can
-        # derive their positions from the same shared wave model in `sr` without needing
-        # to track individual minions, which is impossible: movement orders carry no
-        # entity id and minions have no labelled position packets.
+        # Lane minion waves. Emitted through `BarrackSpawnUnit`, which is where the real
+        # stream puts them and — verified on a real match — the ONLY place it puts them:
+        # not one lane minion appears in `SpawnMinion`, whose contents are wards, plants,
+        # camps and ability summons. A generator that spawned them with a position and a
+        # readable name would be handing downstream code two facts the corpus withholds,
+        # and the missing-minion hole would only surface on real data.
+        #
+        # So the barrack carries no lane, no team and no coordinates, and the only route
+        # to any of them is the damage it exchanges with the enemy turret defending that
+        # lane. Those exchanges are emitted here for the same reason: without them the
+        # labelling has nothing to read, on real data or synthetic.
+        barracks: dict[tuple[str, int], int] = {}
+        barrack_turret: dict[tuple[str, int], int] = {}
+        for n, lane in enumerate(sr.LANES):
+            for wave_team in (C.TEAM_ORDER, C.TEAM_CHAOS):
+                key = (lane, wave_team)
+                barracks[key] = _BARRACK_NETID_BASE + 2 * n + wave_team
+                front = sr.lerp_polyline(sr.LANES[lane], sr.MEETING_S)
+                best, best_d = 0, float("inf")
+                for k, (_, tteam, tpos) in enumerate(sr.TURRETS):
+                    if tteam != 1 - wave_team:
+                        continue
+                    d = float(np.hypot(tpos[0] - front[0], tpos[1] - front[1]))
+                    if d < best_d:
+                        best, best_d = _TURRET_NETID_BASE + k, d
+                barrack_turret[key] = best
+
         wave_specs: list[tuple[float, str, int, int]] = []
         for n, (wave_t, lane, wave_team) in enumerate(sr.minion_wave_schedule(spec.duration)):
             net_id = _MINION_NETID_BASE + n
-            point = sr.minion_spawn_point(lane, wave_team)
-            name = "Blue_Minion_Basic" if wave_team == C.TEAM_ORDER else "Red_Minion_Basic"
-            rows_minion.append((wave_t, net_id, float(point[0]), float(point[1]), name, name, 0, 1))
+            key = (lane, wave_team)
+            rows_barrack.append((wave_t, net_id, barracks[key], n, 0))
             death_t = wave_t + sr.MINION_CLUMP_LIFETIME
             if death_t < spec.duration:
                 rows_death.append((death_t, 0, net_id, 0))
+                # The wave trades with the turret it is walking into. Both directions,
+                # because the labelling reads either.
+                turret = barrack_turret[key]
+                for k in range(_BARRACK_DAMAGE_EXCHANGES):
+                    when = wave_t + (death_t - wave_t) * (k + 1) / (_BARRACK_DAMAGE_EXCHANGES + 1)
+                    rows_damage.append((when, net_id, turret, 20.0))
+                    rows_damage.append((when, turret, net_id, 60.0))
+
+                    # Champions farming the wave. This is the *only* evidence for where a
+                    # lane's front line actually sits — the reconstruction has no minion
+                    # positions, so it infers the front from where champions stand when
+                    # they hit minions. Emitting it means the front estimator is exercised
+                    # against a generator whose waves really do meet at `MEETING_S`, so a
+                    # broken estimator shows up as a fog disagreement rather than passing
+                    # unnoticed until real data.
+                    clump = sr.minion_clump_position(lane, wave_team, wave_t, when)
+                    if clump is None:
+                        continue
+                    tick_at = min(n_ticks - 1, round(when / dt))
+                    for c in range(n_champs):
+                        if alive[tick_at, c] == 0 or team[c] == wave_team:
+                            continue
+                        if float(np.hypot(*(pos[tick_at, c] - clump))) <= _FARM_RANGE:
+                            rows_damage.append((when, int(net_ids[c]), net_id, 40.0))
             wave_specs.append((wave_t, lane, wave_team, net_id))
 
         # Camp clears. Death packets exist in the real stream but NEVER name a
@@ -922,6 +979,7 @@ class SyntheticSource:
             "damage": mk(rows_damage, DAMAGE),
             "deaths": mk(rows_death, NPC_DIE),
             "items": mk(rows_item, USE_ITEM),
+            "barracks": mk(rows_barrack, BARRACK_SPAWN),
         }
 
         order_owner_arr = np.array(order_owner, dtype=np.int16)

@@ -34,6 +34,7 @@ __all__ = [
     "DEATH",
     "FOG_EVENT",
     "HERO",
+    "MINION_CONTACT",
     "MINION_WAVE",
     "ORDER",
     "ORDER_XZ",
@@ -122,11 +123,13 @@ WARD_EVENT = np.dtype(
 #: A replicated scalar for a champion — movement speed, health.
 REPL_VALUE = np.dtype([("t", "f8"), ("slot", "i1"), ("value", "f8")])
 
-#: A minion wave, reduced to one clump. Lane and side come from the spawn position,
-#: spawn time from the stream clock, and death from the NPC death packets — so no minion
-#: tracking is needed, which is fortunate because none is possible: movement orders carry
-#: no entity id and minions have none of the labelled position packets that make champion
-#: attribution work.
+#: One lane minion. Spawn time and death time are both observed — `BarrackSpawnUnit`
+#: gives the first, `NPCDieMapView` the second for 94.5% of them — while lane and side
+#: come from the barrack, labelled through the turret its minions fight.
+#:
+#: Position is not here and cannot be: minions have no labelled position packets and
+#: movement orders carry no entity id, so where a minion *is* is modelled from its lane
+#: and the front line rather than read. See `MINION_CONTACT` for the front-line evidence.
 MINION_WAVE = np.dtype(
     [
         ("net_id", "u4"),
@@ -137,6 +140,17 @@ MINION_WAVE = np.dtype(
         ("t1_known", "u1"),
     ]
 )
+
+#: A champion trading damage with a lane minion, which is the only observable evidence
+#: for where a lane's front line is. Minions have no position packets at all, so their
+#: location is modelled rather than read — and the model needs to know where the two
+#: waves are meeting, which moves by ±1,400 units on the side lanes over a match.
+#: A champion's position IS known, so "champion X hit a minion of lane L at time t"
+#: places the front at X.
+#:
+#: The champion's position is not stored here because it is not known yet: positions come
+#: from order attribution, which runs after normalisation. Only the reference is kept.
+MINION_CONTACT = np.dtype([("t", "f8"), ("slot", "i1"), ("lane", "U4")])
 
 #: Champion-on-champion damage. The corpus has no killing-blow flag and no death
 #: packet, so a kill is a health value reaching zero and its killer is whoever dealt
@@ -210,6 +224,7 @@ class MatchEvents:
     damage: np.ndarray
     deaths: np.ndarray
     minion_waves: np.ndarray
+    minion_contacts: np.ndarray
     stats: dict[str, Any] = field(default_factory=dict)
 
     # ---- lookups ------------------------------------------------------
@@ -264,6 +279,7 @@ class MatchEvents:
             "wards_with_observed_end": int(self.wards["t1_known"].sum()) if self.wards.size else 0,
             "turret_sites": int(self.turret_sites.size),
             "minion_waves": int(self.minion_waves.size),
+            "minion_contacts": int(self.minion_contacts.size),
             "speed_samples": int(self.speed.size),
             "frame_offset": (round(self.frame.offset_x, 2), round(self.frame.offset_z, 2)),
             "frame_walkable_fraction": round(self.frame.walkable_fraction, 4),
@@ -287,6 +303,7 @@ class MatchEvents:
         "damage",
         "deaths",
         "minion_waves",
+        "minion_contacts",
     )
 
     def save(self, path: str | Path) -> Path:

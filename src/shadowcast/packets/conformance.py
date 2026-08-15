@@ -180,6 +180,11 @@ def _known_net_ids(bundle) -> set[int]:
         (bundle.turrets, ("net_id", "owner_net_id")),
         (bundle.minions, ("net_id",)),
         (bundle.neutrals, ("net_id",)),
+        # Lane minions are created here and nowhere else — they never appear in
+        # `SpawnMinion`. The barrack itself is deliberately NOT counted: the real stream
+        # emits no create packet for one, so treating it as known would hide exactly the
+        # kind of dangling reference this check exists to surface.
+        (bundle.barracks, ("minion_net_id",)),
     ):
         for f in fields:
             if arr.size:

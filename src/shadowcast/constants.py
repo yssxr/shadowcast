@@ -473,6 +473,13 @@ WARD_CORPSE_UNIT: Final = ("WardCorpse", "S5Test_WardCorpse")
 # exact table because the real internal names are not confirmed — the dataset research
 # enumerated ward and plant units but not the regular minion ones. A substring match is
 # robust to whatever they turn out to be, and confirming them is a recon item.
+#: Bounds the estimated lane front line can take. A wave never meets the enemy inside
+#: either fountain, and a contact recorded there is a champion doing something other than
+#: farming. MEASURED: real fronts span 0.37-0.58 of a lane, so these bounds only clip
+#: outliers rather than shaping the estimate.
+FRONT_MIN_S: Final = 0.15
+FRONT_MAX_S: Final = 0.85
+
 MINION_NAME_TOKENS: Final = ("Minion", "Melee", "Ranged", "Siege", "Super")
 MINION_SIGHT: Final = SIGHT_MINION
 
