@@ -196,7 +196,8 @@ hand.
 
 | | |
 |---|---|
-| Fog agreement, reconstructed positions | **98.17%** (synthetic) |
+| **Fog agreement, real packets** | **65.83%** — 25.9% false negative |
+| Fog agreement, reconstructed positions | 98.17% (synthetic) |
 | Fog agreement, true positions substituted — the floor | **98.84%** (synthetic) |
 | — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
 | Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |

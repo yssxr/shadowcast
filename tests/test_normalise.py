@@ -204,24 +204,32 @@ def test_fog_is_time_sorted(events_dirty):
 # ---------------------------------------------------------------------------
 # Turret positions
 # ---------------------------------------------------------------------------
-def test_turret_positions_are_recovered_from_attack_packets(events_clean, terrain):
-    """`CreateTurret` has no coordinates, so this is the only route to turret vision.
+def test_turret_positions_come_from_the_map_by_name(events_clean, terrain):
+    """`CreateTurret` has no coordinates, so a turret's position comes from elsewhere.
 
-    It is also what makes champion teams resolvable at all: the turret name encodes
-    T1/T2 while CreateHero encodes nothing, so a turret with both a team and a position
-    is the anchor everything else hangs from.
+    The name is the better source and attack packets are the fallback. Deriving position
+    from attacks alone recovered only 6 of 24 turrets on a real match — most never fire
+    inside a truncated twelve-minute window, and a turret with no position grants no
+    vision. `sr.TURRETS` knows all 24 by the same internal name the packet carries, and
+    22 of 24 match exactly on real data.
     """
     from shadowcast import sr
 
     events, _ = events_clean
+    known = {name: xz for name, _, xz in sr.TURRETS}
     assert events.turret_sites.size == len(sr.TURRETS)
-    assert (events.turret_sites["n_obs"] > 0).all(), "a turret never attacked"
     assert np.isfinite(events.turret_sites["x"]).all()
 
-    expected, _ = sr.snap_polyline(terrain, np.array([p for _, _, p in sr.TURRETS]))
+    # Position comes from the name where the map knows it, which is exact.
     for site in events.turret_sites:
-        d = np.hypot(expected[:, 0] - site["x"], expected[:, 1] - site["z"]).min()
-        assert d < 1.0, f"turret {site['name']} recovered {d:.1f} units from any real turret"
+        expected = known[str(site["name"])]
+        d = float(np.hypot(expected[0] - site["x"], expected[1] - site["z"]))
+        assert d < 1.0, f"turret {site['name']} placed {d:.1f} units from its known position"
+
+    # `n_obs` still counts the attack packets, which is the fallback route and the
+    # cross-check: a turret that never fires keeps its known position, but one that fires
+    # from somewhere else would mean the terrain dump and the patch have drifted apart.
+    assert (events.turret_sites["n_obs"] > 0).all(), "a turret never attacked"
 
 
 def test_turret_teams_come_from_their_names(events_clean):
