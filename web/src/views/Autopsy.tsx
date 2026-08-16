@@ -1,8 +1,8 @@
 /**
  * Gank autopsy: the twenty seconds before a death, from the victim's side.
  *
- * The question this view answers is the one every player asks after dying — *should I
- * have known?* — and it is answerable here in a way it is not from a replay, because the
+ * The question this view answers is the one every player asks after dying, *should I
+ * have known?*, and it is answerable here in a way it is not from a replay, because the
  * belief state says what the victim's team could have concluded from what they could see.
  *
  * Three readings, and they are genuinely different:
@@ -11,7 +11,7 @@
  *                 approach: the information was there and was not acted on
  *   invisible     the killer was in fog and the belief had them elsewhere: nothing the
  *                 victim could have known
- *   sudden        the belief was diffuse — high entropy — so no specific warning
+ *   sudden        the belief was diffuse, high entropy: so no specific warning
  *                 existed even though the danger was not ruled out
  *
  * The classification is stated as a rule below rather than hidden in a heuristic,
@@ -151,7 +151,7 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
             <Stat label="entropy at death" value={verdict.entropyAtDeath.toFixed(1)} unit="bits" />
             <Stat
               label="belief error"
-              value={verdict.beliefError >= 0 ? `${Math.round(verdict.beliefError)}` : "—"}
+              value={verdict.beliefError >= 0 ? `${Math.round(verdict.beliefError)}` : ": "}
               unit="units"
             />
           </div>

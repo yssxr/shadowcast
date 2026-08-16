@@ -4,12 +4,12 @@
  * This is the argument the whole project makes, rendered. On the left is everything Blue
  * could see and everything Blue believed about Red; on the right the mirror. The clouds
  * sit where the enemy might be, and the dots on the *other* map show where they actually
- * were — so the gap between belief and truth is a thing you look at rather than a number.
+ * were, so the gap between belief and truth is a thing you look at rather than a number.
  *
  * **One scrubber, and it is the timeline.** An earlier version also had a range slider in
  * the transport bar, which meant two controls for one piece of state sitting eight pixels
  * apart. The timeline already carries the advantage series, the ward ticks and the kill
- * ticks, so dragging on it is dragging on the thing you are reading — a separate slider
+ * ticks, so dragging on it is dragging on the thing you are reading. A separate slider
  * is a second answer to a question that already had one.
  *
  * The sidebar updates at about nine hertz while the maps run at sixty. That split is
@@ -175,9 +175,9 @@ export function Replay({
               margin: "0 0 8px",
             }}
           >
-            Each champion as their <em>opponents</em> see them: “seen” means the enemy team
-            has them on screen right now, and the number is how uncertain that team is
-            about their position.
+            Each champion as their <em>opponents</em> see them. "Seen" means the enemy team
+            has them on screen right now; the number is how uncertain that team is about
+            where they are.
           </p>
           <ChampionList
             artifact={artifact}
@@ -199,7 +199,7 @@ export function Replay({
  *
  * The header is real markup rather than text drawn into the canvas. Canvas text does not
  * scale with the browser's font settings, cannot be selected, and is invisible to a
- * screen reader — and this particular label is the one thing a first-time reader needs in
+ * screen reader, and this particular label is the one thing a first-time reader needs in
  * order to understand what they are looking at.
  */
 function TeamBoard({
@@ -367,7 +367,7 @@ function ChampionList({
   onFocus: (slot: number) => void;
 }) {
   // The scale is fixed across the match rather than per-tick, so a short bar means "this
-  // enemy is well located" instead of "best located right now" — a relative scale would
+  // enemy is well located" instead of "best located right now". A relative scale would
   // make every row look the same at every moment.
   const maxEntropy = 10;
   return (
@@ -452,7 +452,7 @@ function ChampionList({
 }
 
 /**
- * Play, clock, speed. **No slider** — the timeline above is the scrubber.
+ * Play, clock, speed. **No slider**: the timeline above is the scrubber.
  */
 function Transport({
   t,

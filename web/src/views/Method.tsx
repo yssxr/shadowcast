@@ -18,44 +18,44 @@ import { Heading, Note, Panel, Stat } from "../components/ui.tsx";
 import { color, font } from "../theme.ts";
 
 /**
- * Measured figures, from `docs/validation.md` — each produced by a command, none typed in
+ * Measured figures, from `docs/validation.md`. Each produced by a command, none typed in
  * from memory. `pending` entries are ones that genuinely have not been measured.
  */
 const MEASURED = [
   {
-    group: "On real packets — all 23 matches in one shard",
+    group: "On real packets: all 23 matches in one shard",
     rows: [
-      ["Fog agreement", "68.26%", "median; 61.4–73.3%, sd 2.8"],
+      ["Fog agreement", "68.26%", "median; 61.4-73.3%, sd 2.8"],
       ["False negative / false positive", "20.2% / 12.2%", "darkness we invent / vision we invent"],
       ["Worst region, best region", "river 51.5% / lane 73.4%", "jungle 53.0%"],
       ["Movement orders attributed", "91.9%", "median across matches"],
       ["Teams recovered", "8 / 8", "100.0% of hero damage across the split"],
       ["Negative information is worth", "+0.148 nats", "vs. the same model without it"],
       ["Full model vs. a plain geodesic disc", "loses, 4.372 / 4.168", "NLL, lower is better"],
-      ["90% credible region contains the truth", "30.2%", "target 90% — open defect"],
+      ["90% credible region contains the truth", "30.2%", "target 90%, open defect"],
     ],
   },
   {
     group: "On synthetic matches, where truth is known",
     rows: [
       ["Fog agreement, reconstructed positions", "98.17%", "vs. the stream's own fog events"],
-      ["Fog agreement, true positions — the floor", "98.84%", "cell snapping and model limits"],
+      ["Fog agreement, true positions. The floor", "98.84%", "cell snapping and model limits"],
       ["Brush-adjacent cells", "90.81%", "the worst region, as predicted"],
       ["Field-of-view vs. ray-march reference", "0 disagreements", "947,984 cells"],
       ["Negative information is worth", "+0.243 nats", "one field of one spec apart"],
       ["Particle filter vs. exact 256-state Bayes", "TV 0.030", "falling as 1/√P"],
-      ["90% credible region contains the truth", "43.4%", "target 90% — open defect"],
+      ["90% credible region contains the truth", "43.4%", "target 90%, open defect"],
       ["Information-barrier leak detector", "bit-identical", "2,000+ perturbed positions"],
-      ["Harmful movement-order misattribution", "0.00–0.15%", "owners ≥300u apart"],
+      ["Harmful movement-order misattribution", "0.00-0.15%", "owners ≥300u apart"],
     ],
   },
 ] as const;
 
 const PENDING = [
   "Ward yield benchmarked against Riot's own mVisionScore",
-  "Anything beyond one shard — 23 matches of roughly 32,000, sorted by duration",
+  "Anything beyond one shard, 23 matches of roughly 32,000, sorted by duration",
   "Corpus aggregates: rank, region and patch are absent from the data",
-  "The flicker: we emit 2–3× more visibility transitions than the game does",
+  "The flicker: we emit 2-3× more visibility transitions than the game does",
 ];
 
 export function Method({ artifact }: { artifact: Artifact }) {
@@ -68,31 +68,31 @@ export function Method({ artifact }: { artifact: Artifact }) {
       <Panel title="what you are looking at">
         <Heading level={1}>Every number here came out of a command.</Heading>
         <Note>
-          Nothing on this site is a placeholder or a plausible figure typed in from memory.
-          The values below are written by <code style={mono}>shadowcast realfog</code>,{" "}
+          No placeholders, and nothing typed in from memory because it sounded about right.
+          The values below get written by <code style={mono}>shadowcast realfog</code>,{" "}
           <code style={mono}>pipeline</code> and <code style={mono}>ablate</code> into a
-          committed report. Anything not yet measured is listed as pending rather than
+          committed report. What hasn't been measured is listed as pending instead of
           estimated.
         </Note>
         {real ? (
           <Note>
-            This match is <strong>real</strong>: decoded replay packets, with positions,
-            vision and belief all reconstructed. There is no ground truth in the corpus, so
-            nothing here can be checked against what actually happened — only against the
-            fog transitions the stream itself publishes, which the reconstruction agrees
-            with 68% of the time.
+            This match is <strong>real</strong>. Decoded replay packets, with positions,
+            vision and belief all reconstructed. The corpus carries no ground truth, so
+            nothing here is checked against what actually happened. It's checked against the
+            fog transitions the stream publishes about itself, which the reconstruction
+            agrees with 68% of the time.
           </Note>
         ) : (
           <Note>
             This match is <strong>synthetic</strong>, generated with known ground truth so
-            the engine can be checked against an oracle that real replays cannot provide.
-            Real matches score far worse, and those numbers are published too.
+            the engine can be held to an oracle real replays can't provide. Real matches
+            score far worse. Those numbers are published too.
           </Note>
         )}
         <Note>
-          The two tables below are kept apart on purpose. Synthetic figures answer "is the
-          engine correct", real ones answer "does it work", and averaging them would hide
-          the thirty-point gap between those two questions.
+          The two tables below stay apart on purpose. Synthetic figures answer whether the
+          engine is correct; real ones answer whether it works. Averaging them would bury a
+          thirty-point gap between two different questions.
         </Note>
       </Panel>
 
@@ -140,8 +140,8 @@ export function Method({ artifact }: { artifact: Artifact }) {
             unit="nats KL"
           />
           <Stat label="depletion events" value={`${stats.depletion_events ?? 0}`} />
-          <Stat label="particles" value={`${stats.particles ?? "—"}`} unit="per filter" />
-          <Stat label="motion model" value={String(stats.motion ?? "—")} />
+          <Stat label="particles" value={`${stats.particles ?? ": "}`} unit="per filter" />
+          <Stat label="motion model" value={String(stats.motion ?? ": ")} />
         </div>
         <div style={{ marginTop: 14 }}>
           <Note>
@@ -171,10 +171,10 @@ export function Method({ artifact }: { artifact: Artifact }) {
       <Panel title="the data" delay={300}>
         <Note>
           Built on Henry Zhu's decoded replay corpus, released under Apache 2.0. The
-          published dataset is rougher than its documentation. Movement orders carry no
-          entity id. There is no death packet. There is no team, role, rank, region or match
-          id anywhere in the stream. Trajectories are recovered by data association, and
-          teams, roles and kills are inferred, then measured against what can be checked.
+          published dataset is rougher than its documentation. Movement orders carry no entity
+          id. There's no death packet. No team, no role, no rank, region or match id anywhere
+          in the stream. Trajectories get recovered by data association; teams, roles and kills
+          are inferred, then measured against whatever can be checked.
         </Note>
         <Note>
           Shadowcast is not endorsed by Riot Games and does not reflect the views of Riot

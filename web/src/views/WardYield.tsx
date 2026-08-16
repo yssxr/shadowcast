@@ -2,7 +2,7 @@
  * Ward information yield: which wards actually told their team something.
  *
  * Every League analytics tool counts wards. Counting is a proxy for a thing nobody
- * measures — whether the ward *revealed* anything — and this view measures that thing
+ * measures, whether the ward *revealed* anything, and this view measures that thing
  * directly, because the engine knows where every enemy was and what every ward could see.
  *
  * ## What is being counted, precisely
@@ -16,7 +16,7 @@
  * ## What this is not
  *
  * It is not causal. It says "this ward was the only plausible source of vision for these
- * sightings", not "without this ward those sightings would not have happened" — a team
+ * sightings", not "without this ward those sightings would not have happened". A team
  * without the ward would have played differently. A counterfactual would need re-running
  * the game, which no replay corpus can offer.
  *

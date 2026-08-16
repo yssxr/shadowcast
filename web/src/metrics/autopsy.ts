@@ -9,7 +9,7 @@
  * makes post-game analysis useless:
  *
  *   predictable   the killer was inside the victim team's vision for most of the
- *                 approach. The information existed and was not acted on — a decision
+ *                 approach. The information existed and was not acted on. A decision
  *                 problem, not an information one.
  *   invisible     the killer was in fog and the belief was concentrated somewhere else.
  *                 Confident and wrong is the worst case, because there was no uncertainty
@@ -27,7 +27,7 @@ export const APPROACH_WINDOW = 20;
 const PREDICTABLE_VISIBLE = 0.5;
 /** Below this, the killer was effectively never seen. */
 const INVISIBLE_VISIBLE = 0.2;
-/** Below this entropy the belief is a claim rather than a shrug — in bits. */
+/** Below this entropy the belief is a claim rather than a shrug, in bits. */
 const CONFIDENT_BITS = 4;
 
 export interface Verdict {
@@ -65,8 +65,8 @@ export function analyseDeath(artifact: Artifact, death: DeathEvent): Verdict {
       label: "predictable",
       explanation:
         `The killer was inside ${side}'s vision for ${Math.round(visibleFraction * 100)}% ` +
-        `of the approach. The information was available and the death happened anyway — ` +
-        `that is a decision problem, not an information one.`,
+        `of the approach. They had the information and died anyway, which makes this a ` +
+        `decision problem rather than an information one.`,
       visibleFraction,
       entropyAtDeath,
       beliefError,
@@ -78,7 +78,7 @@ export function analyseDeath(artifact: Artifact, death: DeathEvent): Verdict {
       label: "invisible",
       explanation:
         `The killer was in fog for almost the whole approach and the belief was ` +
-        `concentrated — ${entropyAtDeath.toFixed(1)} bits` +
+        `concentrated, ${entropyAtDeath.toFixed(1)} bits` +
         (beliefError > 0 ? `, about ${Math.round(beliefError)} units from where they ` +
           `actually were` : "") +
         `. Confident and wrong is the worst case: there was no uncertainty to act on.`,
@@ -92,9 +92,8 @@ export function analyseDeath(artifact: Artifact, death: DeathEvent): Verdict {
     label: "sudden",
     explanation:
       `The killer was mostly unseen and the belief was diffuse at ` +
-      `${entropyAtDeath.toFixed(1)} bits, so the danger was never ruled out but no ` +
-      `specific warning existed either. This is what a map with no vision looks like ` +
-      `from the inside.`,
+      `${entropyAtDeath.toFixed(1)} bits. The danger was never ruled out, but no specific ` +
+      `warning existed either. This is what a map with no vision feels like from inside it.`,
     visibleFraction,
     entropyAtDeath,
     beliefError,
@@ -105,7 +104,7 @@ export function analyseDeath(artifact: Artifact, death: DeathEvent): Verdict {
  * Distance between where the killer was and where the belief's mass sat.
  *
  * Only meaningful when the killer was unseen at that moment, which is checked here
- * rather than by the caller — a "belief error" measured while the enemy was on screen
+ * rather than by the caller. A "belief error" measured while the enemy was on screen
  * would be zero by construction and would drag the average toward flattering nonsense.
  */
 function errorAt(

@@ -1,6 +1,6 @@
 // GENERATED from src/shadowcast/l4_export/spec.py by `shadowcast export`.
 // Do not edit. CI regenerates this file and fails on a diff, which is what stops a
-// format change reaching Python without reaching TypeScript — a mismatch here does not
+// format change reaching Python without reaching TypeScript. A mismatch here does not
 // throw, it returns numbers from the wrong offsets and renders a plausible wrong map.
 
 export const SCHEMA_VERSION = 1;
@@ -54,17 +54,17 @@ export interface Meta {
 
 /** Decoded sections. Shapes are in the comments; the arrays are flat. */
 export interface Sections {
-  /** position_ticks x champions x 2 — delta */
+  /** position_ticks x champions x 2: delta */
   positions: Uint16Array;
-  /** position_ticks x champions — raw */
+  /** position_ticks x champions: raw */
   alive: Uint8Array;
-  /** mask_ticks x teams x mask_bytes — xor */
+  /** mask_ticks x teams x mask_bytes: xor */
   masks: Uint8Array;
-  /** belief_ticks x teams x enemies — raw */
+  /** belief_ticks x teams x enemies: raw */
   belief_seen: Uint8Array;
-  /** belief_ticks x teams x enemies x components x 4 — delta */
+  /** belief_ticks x teams x enemies x components x 4: delta */
   belief: Uint8Array;
-  /** belief_ticks x scalars — raw */
+  /** belief_ticks x scalars: raw */
   scalars: Float32Array;
 }
 
