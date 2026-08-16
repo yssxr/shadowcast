@@ -54,10 +54,10 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
     return (
       <Panel title="gank autopsy">
         <Note>
-          No deaths were recovered in this match. Deaths are inferred from health
-          replication joined to the last damage event — the packet stream contains no death
-          packet at all — so a match with no inferred deaths means the health series never
-          reached zero within the window, not that nobody died.
+          No deaths were recovered in this match. The packet stream contains no death
+          packet at all, so deaths are inferred from health replication joined to the last
+          damage event. No inferred deaths means the health series never reached zero inside
+          the window. It does not mean nobody died.
         </Note>
       </Panel>
     );
@@ -161,15 +161,15 @@ export function Autopsy({ artifact, terrain, clock, settings, mapSize }: Props) 
           <Note>
             Over the {WINDOW} seconds before the death, the killer is either inside the
             victim team's vision or not. <strong>Predictable</strong> means visible for more
-            than half of it. <strong>Invisible</strong> means visible for under a fifth
-            while the team's belief was concentrated somewhere else — they were confident
-            and wrong. <strong>Sudden</strong> is the remainder: the belief was too diffuse
-            to constitute a warning.
+            than half of it. <strong>Invisible</strong> means visible for under a fifth,
+            while the team's belief sat somewhere else entirely: confident and wrong.
+            <strong>Sudden</strong> is everything left over, where the belief was too vague
+            to count as a warning.
           </Note>
           <Note>
-            Killer attribution is inferred, not recorded — the last unit to damage the
-            victim before their health reached zero. This one is credited at{" "}
-            {Math.round((death.confidence ?? 0) * 100)}% confidence, which is the share of
+            The killer is inferred rather than recorded: the last unit to damage the victim
+            before their health reached zero. This one is credited at{" "}
+            {Math.round((death.confidence ?? 0) * 100)}% confidence, meaning the share of
             damage in the final window it accounts for.
           </Note>
         </Panel>

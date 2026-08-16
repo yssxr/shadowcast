@@ -109,8 +109,8 @@ export function Replay({
               margin: "0 0 8px",
             }}
           >
-            The cloud is where the enemy might be; the outline encloses 90% of that
-            probability — the same area reported under each map.
+            The cloud is where the enemy might be. The outline encloses 90% of that
+            probability, and is exactly the area reported under each map.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <Toggle

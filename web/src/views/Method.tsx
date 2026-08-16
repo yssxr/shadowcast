@@ -1,16 +1,16 @@
 /**
- * Method: how this was built and how far it can be trusted.
+ * Method: how this was built, and how far it can be trusted.
  *
- * The mockup had a corpus view here, showing aggregates over thousands of ranked games.
- * That view cannot be built yet and will not be faked. The decoded corpus is about
- * 32,000 matches — not the 1.4 million its documentation claims — and carries no rank,
- * region, patch or match id at all, so "Diamond+" and a match code like `EUW1_6412887731`
- * are strings with nothing behind them. Every figure on this page comes from the artifact
- * being displayed or from a committed measurement, and anything not yet measured says so.
+ * The mockup had a corpus view here, aggregates over thousands of ranked games. It cannot
+ * be built and will not be faked. The decoded corpus holds about 32,000 matches, not the
+ * 1.4 million its documentation claims, and carries no rank, region, patch or match id
+ * anywhere, so "Diamond+" and a match code like `EUW1_6412887731` are strings with nothing
+ * behind them. Every figure here comes from the artifact on screen or from a committed
+ * measurement, and whatever has not been measured says so.
  *
- * That is not modesty for its own sake. The project's entire claim to being more than a
- * visualisation is that it has a ground-truth oracle and submits to it, and a view full
- * of plausible aggregates would spend that claim for nothing.
+ * Not modesty for its own sake. This project's only claim to being more than a
+ * visualisation is that it has a ground-truth oracle and submits to it, and a page of
+ * plausible aggregates would spend that claim for nothing.
  */
 
 import type { Artifact } from "../artifact/load.ts";
@@ -23,58 +23,76 @@ import { color, font } from "../theme.ts";
  */
 const MEASURED = [
   {
-    group: "Vision reconstruction",
+    group: "On real packets — all 23 matches in one shard",
     rows: [
-      ["Fog agreement, reconstructed positions", "96.90%", "vs. the stream's own fog events"],
-      ["Fog agreement, true positions — the floor", "98.53%", "cell snapping and model limits"],
-      ["Brush-adjacent cells", "93.98%", "the worst region, as predicted"],
+      ["Fog agreement", "68.26%", "median; 61.4–73.3%, sd 2.8"],
+      ["False negative / false positive", "20.2% / 12.2%", "darkness we invent / vision we invent"],
+      ["Worst region, best region", "river 51.5% / lane 73.4%", "jungle 53.0%"],
+      ["Movement orders attributed", "91.9%", "median across matches"],
+      ["Teams recovered", "8 / 8", "100.0% of hero damage across the split"],
+      ["Negative information is worth", "+0.148 nats", "vs. the same model without it"],
+      ["Full model vs. a plain geodesic disc", "loses, 4.372 / 4.168", "NLL, lower is better"],
+      ["90% credible region contains the truth", "30.2%", "target 90% — open defect"],
+    ],
+  },
+  {
+    group: "On synthetic matches, where truth is known",
+    rows: [
+      ["Fog agreement, reconstructed positions", "98.17%", "vs. the stream's own fog events"],
+      ["Fog agreement, true positions — the floor", "98.84%", "cell snapping and model limits"],
+      ["Brush-adjacent cells", "90.81%", "the worst region, as predicted"],
       ["Field-of-view vs. ray-march reference", "0 disagreements", "947,984 cells"],
-    ],
-  },
-  {
-    group: "Belief",
-    rows: [
-      ["Negative information vs. the same model without it", "0.418 vs 0.822", "NLL, lower is better"],
-      ["Particle filter vs exact 256-state Bayes", "TV 0.030", "falling as 1/√P"],
-      ["90% credible region contains the truth", "84.0%", "target 90%"],
+      ["Negative information is worth", "+0.243 nats", "one field of one spec apart"],
+      ["Particle filter vs. exact 256-state Bayes", "TV 0.030", "falling as 1/√P"],
+      ["90% credible region contains the truth", "43.4%", "target 90% — open defect"],
       ["Information-barrier leak detector", "bit-identical", "2,000+ perturbed positions"],
-    ],
-  },
-  {
-    group: "Entity resolution",
-    rows: [
-      ["Teams recovered", "100%", "turret names + a 5/5 constraint"],
-      ["Roles recovered", "100%", "lane occupancy + ward share"],
       ["Harmful movement-order misattribution", "0.00–0.15%", "owners ≥300u apart"],
     ],
   },
 ] as const;
 
 const PENDING = [
-  "Fog agreement on the real corpus, by region",
   "Ward yield benchmarked against Riot's own mVisionScore",
-  "Corpus aggregates — rank, region and patch are absent from the data",
+  "Anything beyond one shard — 23 matches of roughly 32,000, sorted by duration",
+  "Corpus aggregates: rank, region and patch are absent from the data",
+  "The flicker: we emit 2–3× more visibility transitions than the game does",
 ];
 
 export function Method({ artifact }: { artifact: Artifact }) {
   const stats = artifact.meta.stats as Record<string, unknown>;
   const config = artifact.meta.config as Record<string, string>;
+  const real = artifact.meta.provenance === "real";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 1080, margin: "0 auto" }}>
       <Panel title="what you are looking at">
-        <Heading level={1}>Every number here was produced by a command.</Heading>
+        <Heading level={1}>Every number here came out of a command.</Heading>
         <Note>
-          Nothing on this site is a placeholder, and nothing is a plausible figure typed in
-          by hand. The measured values below are written by <code style={mono}>shadowcast
-          pipeline</code> and <code style={mono}>shadowcast ablate</code> into a committed
-          report; anything not yet measured is listed as pending rather than estimated.
+          Nothing on this site is a placeholder or a plausible figure typed in from memory.
+          The values below are written by <code style={mono}>shadowcast realfog</code>,{" "}
+          <code style={mono}>pipeline</code> and <code style={mono}>ablate</code> into a
+          committed report. Anything not yet measured is listed as pending rather than
+          estimated.
         </Note>
+        {real ? (
+          <Note>
+            This match is <strong>real</strong>: decoded replay packets, with positions,
+            vision and belief all reconstructed. There is no ground truth in the corpus, so
+            nothing here can be checked against what actually happened — only against the
+            fog transitions the stream itself publishes, which the reconstruction agrees
+            with 68% of the time.
+          </Note>
+        ) : (
+          <Note>
+            This match is <strong>synthetic</strong>, generated with known ground truth so
+            the engine can be checked against an oracle that real replays cannot provide.
+            Real matches score far worse, and those numbers are published too.
+          </Note>
+        )}
         <Note>
-          The match being displayed is <strong>synthetic</strong> — generated with known
-          ground truth so the engine can be validated against an oracle that real replays
-          cannot provide. Real-corpus figures will be worse, and they will be published
-          whatever they are.
+          The two tables below are kept apart on purpose. Synthetic figures answer "is the
+          engine correct", real ones answer "does it work", and averaging them would hide
+          the thirty-point gap between those two questions.
         </Note>
       </Panel>
 
@@ -127,11 +145,11 @@ export function Method({ artifact }: { artifact: Artifact }) {
         </div>
         <div style={{ marginTop: 14 }}>
           <Note>
-            The belief is shipped as a 16-component mixture rather than a grid — a 64²
-            grid at 8 Hz would be 295 MB a match — and the number above bounds what that
-            costs: the KL divergence between the particle cloud and its mixture, both
-            rasterised onto the grid you are looking at. A lossy encoding whose loss has
-            never been measured is a claim, not a format.
+            The belief ships as a 16-component mixture rather than a grid, because a 64²
+            grid at 8 Hz would be 295 MB a match. The number above bounds what that costs:
+            the KL divergence between the particle cloud and its mixture, both rasterised
+            onto the grid you are looking at. A lossy encoding whose loss has never been
+            measured is a claim, not a format.
           </Note>
           <span style={{ font: `400 10px ${font.mono}`, color: color.text[6] }}>
             config {Object.entries(config).map(([k, v]) => `${k}=${v}`).join("  ")}
@@ -153,10 +171,10 @@ export function Method({ artifact }: { artifact: Artifact }) {
       <Panel title="the data" delay={300}>
         <Note>
           Built on Henry Zhu's decoded replay corpus, released under Apache 2.0. The
-          published dataset is rougher than its documentation: movement orders carry no
-          entity id, there is no death packet, and there is no team, role, rank, region or
-          match id anywhere in the stream. Trajectories are recovered by data association;
-          teams, roles and kills are inferred and measured.
+          published dataset is rougher than its documentation. Movement orders carry no
+          entity id. There is no death packet. There is no team, role, rank, region or match
+          id anywhere in the stream. Trajectories are recovered by data association, and
+          teams, roles and kills are inferred, then measured against what can be checked.
         </Note>
         <Note>
           Shadowcast is not endorsed by Riot Games and does not reflect the views of Riot

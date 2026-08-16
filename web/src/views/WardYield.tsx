@@ -58,9 +58,9 @@ export function WardYield({ artifact }: Props) {
         <Note>
           A ward is credited with a sighting when an enemy stands inside its radius, that
           enemy was visible to its team, and <strong>no allied champion or turret also
-          covered them</strong>. That exclusivity clause is the metric: without it, a ward
-          next to a turret would be credited with everything the turret saw, and the
-          wards that scored best would be the most redundant ones.
+          covered them</strong>. Everything hangs on that last clause. Drop it and a ward
+          parked beside a turret gets credit for everything the turret saw, so the wards
+          scoring highest are the ones that added least.
         </Note>
         <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 4 }}>
           <Stat label="wards placed" value={`${scores.length}`} />
@@ -174,14 +174,14 @@ export function WardYield({ artifact }: Props) {
       <Panel title="what this does not claim" delay={120}>
         <Note>
           This is an <strong>attribution</strong>, not a counterfactual. It says the ward
-          was the only plausible source of vision for those sightings — not that they would
-          not have happened without it, because a team without the ward would have played
-          differently, and no replay corpus can answer that.
+          was the only plausible source of vision for those sightings. It does not say the
+          sightings would have been missed without it: a team without that ward would have
+          played differently, and no replay corpus can answer what they would have done.
         </Note>
         <Note>
           Riot's own <code style={{ font: `400 11px ${font.mono}` }}>mVisionScore</code> is
-          replicated in the packet stream, so this metric can eventually be benchmarked
-          head-to-head against it. That comparison is pending.
+          replicated in the packet stream, so this metric can be benchmarked head-to-head
+          against it. That comparison has not been run yet.
         </Note>
       </Panel>
     </div>

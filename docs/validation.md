@@ -149,17 +149,17 @@ net_id, in **100.0000%** of 16,602 pairs. That is the bug that makes the officia
 
 ## Fog agreement on REAL packets
 
-**68.0% ± 2.8, across all 23 matches in a shard.** The synthetic figure is 98.0%. This is
+**68.3% ± 2.8, across all 23 matches in a shard.** The synthetic figure is 98.0%. This is
 the number that matters and it is published as it stands. Regenerate with
 `shadowcast realfog --matches 23`; every match completed, none was skipped.
 
 | | Median | Range | SD |
 |---|---|---|---|
-| **Agreement** | **67.99%** | 61.25 – 73.35% | 2.81 |
-| False positive | 11.83% | 8.59 – 17.10% | 2.01 |
-| **False negative** | **20.43%** | 11.24 – 27.10% | 3.06 |
+| **Agreement** | **68.26%** | 61.37 – 73.34% | 2.78 |
+| False positive | 12.21% | 8.37 – 16.99% | 2.03 |
+| **False negative** | **20.16%** | 11.38 – 27.15% | 3.07 |
 | Order attribution | 91.94% | 89.87 – 93.21% | 1.14 |
-| Transitions within 150 ms | 23.2% | 14.6 – 33.0% | — |
+| Transitions within 150 ms, of those matched | 41.4% | 36.7 – 50.5% | 3.4 |
 | Lane minions modelled | 1,218 | 720 – 1,842 | — |
 | Synthetic, same code | 98.02% | — | — |
 
@@ -194,11 +194,11 @@ but far too weakly to carry the explanation.
 
 | Region | Median | Range | SD |
 |---|---|---|---|
-| Lane | 73.6% | 66.4 – 79.3% | 3.2 |
-| Base | 61.3% | 42.9 – 78.2% | 8.6 |
-| Brush-adjacent | 58.8% | 48.4 – 65.5% | 4.7 |
-| River | 51.4% | 30.5 – 65.5% | 7.9 |
-| **Jungle** | **52.9%** | 36.3 – 62.9% | 5.7 |
+| Lane | 73.4% | 66.8 – 79.1% | 3.2 |
+| Base | 60.3% | 44.0 – 78.5% | 8.2 |
+| Brush-adjacent | 59.4% | 47.7 – 65.7% | 5.0 |
+| **Jungle** | **53.0%** | 34.4 – 62.5% | 5.9 |
+| River | 51.5% | 30.9 – 64.7% | 7.9 |
 
 **The single-match region breakdown was noise.** It put river worst at 44.8% and jungle at
 59.0%; across 23 matches river is **51.4%** and jungle is **52.9%**, and river's standard

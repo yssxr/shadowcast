@@ -4,12 +4,10 @@
 
 A belief-state engine for MOBA information asymmetry, built on packet-level decoded replays.
 
-> Status: in development. The engine runs end to end on real packets and the four-view site
-> renders a real match; the open work is accuracy, not coverage. Numbers marked `[pending]` are not
-> yet measured, and this file carries no figure that was not produced by a command. See
-> [`docs/validation.md`](docs/validation.md) for the full report, including the caveats that
-> matter for reading the belief numbers — in particular that **every belief figure is
-> synthetic**, because the filter has not yet been run on real matches.
+> Status: in development. The engine runs end to end on real packets, and the site renders a real
+> match. What is left is accuracy, not coverage. No figure in this file was typed in by hand; each
+> one comes out of a command, and [`docs/validation.md`](docs/validation.md) has the full report
+> with the caveats attached.
 
 ---
 
@@ -17,63 +15,61 @@ A belief-state engine for MOBA information asymmetry, built on packet-level deco
 
 Every League analytics tool measures vision by counting wards. That is a proxy, and a bad one.
 
-Shadowcast reconstructs the actual *information state* of both teams at every moment of a game:
-not just where everyone was, but where each team could plausibly have believed the enemy was, and
-how uncertain that belief was. From that it derives metrics that do not currently exist —
-positional entropy, information advantage over time, per-ward information yield, gank
-predictability.
+Shadowcast reconstructs the *information state* of both teams at every moment of a game. Not just
+where everyone was, but where each team could plausibly have believed the enemy was, and how
+uncertain that belief was. Out of that fall metrics nothing else computes: positional entropy,
+information advantage over time, per-ward information yield, gank predictability.
 
-The interesting part is the **negative information**. A particle sitting inside a team's visible
-region without a corresponding sighting is provably falsified: if Blue can see the whole river
-and does not see Red's jungler, he is not in the river. That is what makes the belief
-distributions terrain-shaped and strange-looking instead of round circles growing from a last
-known position, and it is what separates this from every "last seen here" overlay.
+The interesting part is the negative information. A particle sitting inside a team's visible
+region without a matching sighting has been disproved. If Blue can see the whole river and does
+not see Red's jungler, he is not in the river. That single idea is why the belief distributions
+come out terrain-shaped and strange rather than as circles growing from a last known position,
+and it is the whole difference between this and a "last seen here" overlay.
 
 ## Why it is possible at all
 
-Riot's public API gives player positions once per minute — a jungler crosses half the map in that
-window, so spatial analysis on the official API is impossible. `.rofl` replay files are encrypted
-with per-patch obfuscation, which is why the entire commercial ecosystem stops at ward counts.
+Riot's public API reports player positions once a minute. A jungler crosses half the map in that
+window, so spatial analysis on the official API simply cannot be done. `.rofl` replay files are
+encrypted with per-patch obfuscation, which is why the commercial ecosystem stops at ward counts.
 
 Henry Zhu ([maknee](https://maknee.github.io/blog/2025/League-Data-Scraping/)) reverse-engineered
-the format with an instruction emulator and trampoline hooks into the game binary, decoded a
-large corpus of games, published it under Apache 2.0, and then
+the format with an instruction emulator and trampoline hooks into the game binary, decoded a large
+corpus of games, published it under Apache 2.0, and then
 [got busy](https://maknee.github.io/blog/2025/League-Data-Scraping/). That dataset is the
-foundation here, and this project is downstream of that work.
+foundation here. This project is downstream of that work.
 
 ## What the dataset actually contains
 
-The published corpus is rougher than its documentation suggests. These are measured, not
-inferred — the numbers come from range-fetching shards and parsing 965,768 real packets:
+The published corpus is rougher than its documentation suggests. Everything below was measured by
+range-fetching shards and parsing 965,768 real packets, not inferred from the docs:
 
 | Claim | Reality |
 |---|---|
-| "1TB+ (700k+ replays)" / "over 1.4M league replays" | **≈ 32,000 matches.** `12_22/batch_001.jsonl.gz` is 76 MB gzipped → 2.01 GB of JSON → 23 matches. Extrapolated over 108.47 GB of shards. |
-| Patch splits `12_22, 12_23, 13_01, 13_02, 13_03` | Actual directories are `12_22`, `12_23`, `13_1`, `13_2`. There is no `13_3`. |
-| Complete games | **Truncated prefixes**, 12–21 minutes, always ending on an exact 30-second chunk boundary. Shards are duration-sorted, so one shard is not a random sample. |
-| `WaypointGroup.waypoints` is `Dict[net_id, List[Position]]` | The dict key is the **list length**, not a net_id. 100.0000% of 41,129 pairs checked. Movement orders carry no entity attribution. |
-| `HeroDie` exists | **Never fires.** Zero occurrences; no hero net_id ever appears as a death target. No kills, deaths or assists in the stream. |
-| `CreateHero` identifies a player | It gives `net_id`, summoner name and champion — but **no team, no role, no position**. |
+| "1TB+ (700k+ replays)" / "over 1.4M league replays" | **≈ 32,000 matches.** `12_22/batch_001.jsonl.gz` is 76 MB gzipped, 2.01 GB of JSON, 23 matches. Extrapolated over 108.47 GB of shards. |
+| Patch splits `12_22, 12_23, 13_01, 13_02, 13_03` | The directories are `12_22`, `12_23`, `13_1`, `13_2`. There is no `13_3`. |
+| Complete games | **Truncated prefixes**, 10–25 minutes, always ending on an exact 30-second chunk boundary. Shards are sorted by duration, so one shard is not a random sample. |
+| `WaypointGroup.waypoints` is `Dict[net_id, List[Position]]` | The dict key is the **list length**, not a net_id. True in 100.0000% of 41,129 pairs checked. Movement orders carry no entity attribution at all. |
+| `HeroDie` exists | **Never fires.** Zero occurrences, and no hero net_id ever appears as a death target. There are no kills, deaths or assists in the stream. |
+| `CreateHero` identifies a player | It gives a `net_id`, a summoner name and a champion. **No team, no role, no position.** |
 | Match metadata | **None.** No match ID, region, patch, rank, win/loss or duration. |
 
-Consequences for anyone else considering this data: the official
+If you are considering this data yourself: the official
 [`…-gym` loader](https://github.com/Maknee/league-of-legends-decoded-replay-packets-gym) is not
-usable — `parse_waypoints` treats the length key as a net_id, so all of its position tracking
-(including its demo GIF) is wrong, and `get_heroes_by_team` reads a `team` field that does not
-exist in the data. Reading the JSONL with `gzip` + `json` is about fifteen lines and strictly
-more reliable.
+usable. `parse_waypoints` treats the length key as a net_id, so all of its position tracking is
+wrong, including its demo GIF, and `get_heroes_by_team` reads a `team` field that does not exist.
+Reading the JSONL with `gzip` and `json` takes about fifteen lines and is strictly more reliable.
 
-What *is* there, and better than expected:
+Three things are there, and better than expected:
 
 - **Fog transitions for all ten champions.** A team always sees its own members, so a fog event
-  about champion C can only come from the opposing team's view — which makes the observer team
-  derivable per event, and gives a ground-truth visibility oracle for **both** sides.
-- **Wards, completely.** They arrive as `SpawnMinion` (`SightWard`/`YellowTrinket`,
-  `JammerDevice`, `VisionWard`, …), with exact placement in `position1`, the owner's hero net_id
-  in `targetable_on_client`, and expiry via a `WardCorpse` unit. Placement, owner and lifetime
-  are all directly observed.
-- **`mVisionScore`** is replicated, so our ward metric can be benchmarked head-to-head against
-  Riot's own.
+  about champion C can only have come from the opposing team's view. That makes the observing team
+  derivable per event, which turns the corpus into a ground-truth visibility oracle for both sides
+  at once. Everything downstream rests on it, and it was tested on real packets before it was
+  trusted.
+- **Wards, completely.** They arrive as `SpawnMinion` rows with exact placement in `position1`, the
+  owner's hero net_id in `targetable_on_client`, and destruction via a `WardCorpse` unit.
+- **`mVisionScore` is replicated**, so the ward metric here can eventually be benchmarked
+  head-to-head against Riot's own.
 
 ## Architecture
 
@@ -86,29 +82,29 @@ L3   inference       masks -> belief distributions -> metrics -> validation
 L4   presentation    precomputed artifacts -> static site
 ```
 
-Everything is precomputed. There is no backend, no API key, no rate limit, and no ongoing cost —
-which means it works identically in three years with zero maintenance.
+Everything is precomputed. No backend, no API key, no rate limit, no running cost. It will work
+identically in three years with nobody maintaining it.
 
-Three design decisions worth knowing about:
+Three decisions worth knowing about.
 
-**One visibility table serves every sight radius.** For each source cell we store the
-shadowcast field of view at the *maximum* radius; visibility at any smaller radius `r` is exactly
-`FOV_max AND disc(r)`. This holds because shadowcasting decides a cell using only shadow
-intervals cast by strictly nearer occluders, so an occluder outside `disc(r)` cannot affect
-anything inside it. Verified with zero mismatches across 11,034 trials. It reduces a naively
-8.6 TB all-pairs table to about 160 MB. Two implementation choices break the property — a
-wall-lighting post-pass (68% of cases) and flood-revealing the source's whole brush (1.2%) — so
-both are banned in code, with a test that keeps them banned.
+**One visibility table serves every sight radius.** For each source cell the table stores the
+shadowcast field of view at the maximum radius, and visibility at any smaller radius `r` is
+exactly `FOV_max AND disc(r)`. This works because shadowcasting decides a cell using only shadow
+intervals from strictly nearer occluders, so an occluder outside `disc(r)` cannot reach anything
+inside it. Checked across 11,034 trials with zero mismatches. It takes a naive 8.6 TB all-pairs
+table down to about 160 MB. Two tempting implementation choices break the property: a
+wall-lighting post-pass, which breaks 68% of cases, and flood-revealing the source's whole brush,
+which breaks 1.2%. Both are banned in code, with a test that keeps them banned.
 
 **The table is a cache, not a data structure.** A miss falls back to a live field-of-view
 computation, so coverage is a performance knob and correctness never depends on it. That is what
-lets sources exist in non-walkable cells (wall-hop dashes, over-wall Farsight wards) without
-special cases.
+lets vision sources sit in non-walkable cells, like wall-hop dashes and over-wall Farsight wards,
+with no special cases anywhere.
 
-**Terrain has three channels, not two.** `blocks_move`, `blocks_vision`, and `brush_id` — because
-Riot stamps *see-through* cells along wall diagonals (1,819 of them on Summoner's Rift) that
-block movement but transmit vision. They were added after S5 Worlds specifically to fix
-line-of-sight artefacts, so deriving vision from walkability reproduces a bug they patched.
+**Terrain has three channels, not two:** `blocks_move`, `blocks_vision`, `brush_id`. Riot stamps
+see-through cells along wall diagonals, 1,819 of them on Summoner's Rift, that block movement but
+transmit vision. They were added after S5 Worlds to fix line-of-sight artefacts, so deriving
+vision from walkability reproduces a bug Riot already patched.
 
 ## Getting the data
 
@@ -131,140 +127,148 @@ uv sync
 uv run shadowcast terrain build      # navgrid -> 512^2 channels + brush groups
 uv run shadowcast fov build          # precompute the visibility table (~5 s)
 uv run shadowcast pipeline           # synthetic match end to end + fog agreement
-uv run shadowcast ablate --shard <shard>  # seven belief models, the thesis, on real data
-uv run shadowcast diagnose --shard <shard>  # HOW the belief is wrong: drift or collapse
 uv run shadowcast inspect <shard>    # test the fog oracle against real packets
-uv run shadowcast realfog --matches 23   # real fog agreement across a whole shard
-uv run shadowcast export --web --shard data/raw/12_22/batch_001.jsonl.gz   # a REAL match
-uv run shadowcast export --web       # or a synthetic one, ~1 MB either way
+uv run shadowcast realfog --matches 23      # real fog agreement across a whole shard
+uv run shadowcast ablate --shard <shard>    # seven belief models, and the thesis
+uv run shadowcast diagnose --shard <shard>  # how the belief is wrong, not just how much
 uv run shadowcast doctor             # versions, config hashes, stale artifacts
+
+# The artifact the site reads, about 1 MB either way.
+uv run shadowcast export --web --shard data/raw/12_22/batch_001.jsonl.gz
 
 cd web && npm install && npm run dev  # the site, at localhost:5173
 ```
 
+Artifacts are derived, so they are gitignored. A fresh clone has to run the export before
+`npm run dev` has anything to read, and `App.tsx` names the one it loads.
+
 ## The site
 
-Four views, all rendered from the artifact above — no backend, no API key, no rate limit.
+Four views, all drawn from that one artifact.
 
-> The site loads whichever artifact `shadowcast export --web` last wrote, and `App.tsx` names it.
-> Artifacts are derived and therefore gitignored, so a fresh clone must run the export above
-> before `npm run dev` has anything to read.
+**Replay** puts the same instant on screen twice, once per team's knowledge. The left map is
+everything Blue could see and everything Blue believed about Red. The right is the mirror. Belief
+clouds are drawn in the enemy's colour so that a cloud and the dot it collapses into share one,
+which makes the moment of discovery read as a single event rather than two.
 
-**Replay** puts the same instant on screen twice, once per team's knowledge. The left map
-is everything Blue could see and everything Blue believed about Red; the right is the
-mirror. Belief clouds are drawn in the **enemy's** colour, so a cloud and the dot it
-collapses into share one, and the moment of discovery reads as a single event.
+**Gank autopsy** takes the twenty seconds before a death and asks whether the victim's team could
+have known. *Predictable* means the killer was visible for most of the approach. *Invisible* means
+they were in fog while the belief sat somewhere else, confident and wrong. *Sudden* means the
+belief was too diffuse to count as a warning.
 
-**Gank autopsy** takes the twenty seconds before a death and asks whether the victim's
-team could have known. *Predictable* means the killer was visible for most of the
-approach. *Invisible* means they were in fog while the belief sat somewhere else —
-confident and wrong. *Sudden* means the belief was too diffuse to be a warning.
+**Ward yield** credits a ward with a sighting only when no allied champion or turret also covered
+that enemy. The exclusivity clause is the metric. Without it, the wards that score best are the
+most redundant ones.
 
-**Ward yield** credits a ward with a sighting only when no allied champion or turret also
-covered the enemy. That exclusivity clause is the metric: without it the wards that score
-best are the most redundant ones. On the sample match, six of ten wards revealed nothing
-at all.
+**Method** lists every measured number with its provenance, and an explicit list of what has not
+been measured. There is no corpus view, because rank, region and patch do not exist in this data
+and a plausible-looking aggregate would cost more credibility than it could buy.
 
-**Method** is every measured number with its provenance, and an explicit list of what has
-*not* been measured. The corpus view from the original design is not there, because rank,
-region and patch do not exist in the data and a plausible aggregate would cost more than
-it is worth.
-
-The belief renders one way: a soft cloud with the **90% credible region** outlined on it —
-the field to read at a glance, the outline to point at, enclosing exactly the area the
+The belief renders one way: a soft cloud with the 90% credible region outlined on it. The field is
+what you read at a glance, the outline is what you point at, and it encloses exactly the area the
 search-area figure reports.
 
-The maps hold **96 fps** with both boards live at 2x scale (`npm run perf`), and the belief
-layer is free — the same frame rate as with it switched off. Nothing allocates in the draw
-loop, the terrain-and-belief composite is cached against its 4 Hz and 8 Hz source ticks
-rather than rebuilt at 60, and champion positions are interpolated between ticks so they
-glide instead of stepping. React state for the sidebar is throttled to about 9 Hz; the
-digits are eased back up to 60 by writing straight to the DOM node.
+Both boards hold 96 fps live at 2× scale (`npm run perf`), and the belief layer is free — the same
+frame rate as with it switched off. Nothing allocates in the draw loop. The terrain-and-belief
+composite is cached against its 4 Hz and 8 Hz source ticks instead of being rebuilt at 60, and
+champion positions are interpolated between ticks so they glide rather than step. Sidebar React
+state is throttled to about 9 Hz, and the digits are eased back up to 60 by writing straight to
+the DOM node.
 
 ## Development
 
 ```bash
 uv sync                      # includes dev tools
 uv run pytest                # full suite, ~115s warm (fog validation + belief ablation)
-uv run ruff check --fix .     # lint
-uv run ruff format .          # format
+uv run ruff check --fix .    # lint
+uv run ruff format .         # format
 uv run pre-commit install    # optional: lint + format on commit
-uv run shadowcast doctor     # versions, config hashes, stale artifacts
 ```
 
-CI runs lint, format-check and the full test suite. It fetches the navgrid and verifies its
-SHA-256, because without that file the terrain and FOV tests skip cleanly — which would mean CI
-passing while never exercising the radius-monotonicity check the whole table design rests on.
+CI runs lint, format-check and the full suite. It fetches the navgrid and verifies its SHA-256,
+because without that file the terrain and FOV tests skip cleanly — which would mean CI passing
+green while never once exercising the radius-monotonicity property the whole table design rests
+on.
 
 ## Validation
 
-The point of having a ground-truth oracle is to be held to it. Every number below is produced by
-a command — `shadowcast pipeline`, `realfog`, `ablate`, `diagnose`, `inspect` — and written to
-[`docs/validation.md`](docs/validation.md), not typed in by hand.
+The point of having a ground-truth oracle is to be held to it. Every number below comes out of a
+command and is written into [`docs/validation.md`](docs/validation.md).
+
+### On real packets
+
+All 23 matches in one shard, none skipped.
 
 | | |
 |---|---|
-| **Fog agreement, real packets** | **67.99% median across 23 matches** (61.3–73.4%, sd 2.8) — 20.4% false negative |
-| Fog agreement, reconstructed positions | 98.17% (synthetic) |
-| Fog agreement, true positions substituted — the floor | **98.84%** (synthetic) |
-| — brush-adjacent cells specifically | 90.81% (worst category, as predicted) |
-| Movement-order attribution, harmful misattribution rate | **0.00–0.15%** |
-| Team recovery, real matches | **8 / 8**, 100.0% of damage across the split |
-| Visibility transitions we emit that the game did not | **2-3x too many** — the reconstruction flickers |
-| Conformance errors, real packet source | **0** |
-| Orders attributed, real matches | **91.9% median across 23** (99.9% synthetic) |
-| Belief calibration, synthetic — does the 90% region contain the truth 90% of the time? | **43.4%** — open defect |
-| Belief calibration, real packets | **30.2%** — and "truth" is our own reconstruction |
-| **Log-likelihood vs. the same model without negative information** | **+0.243 nats** synthetic, **+0.148** on real packets — holds |
-| Full model vs. a plain geodesic disc | wins on synthetic, **loses on real** (4.372 vs 4.168) |
-| Particle filter vs an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
+| **Fog agreement** | **68.26% median** (61.4–73.3%, sd 2.8) |
+| — false negative / false positive | 20.2% / 12.2% |
+| — by region | lane 73.4%, base 60.3%, brush 59.4%, jungle 53.0%, river 51.5% |
+| Movement orders attributed | 91.9% median |
+| Teams recovered | **8 / 8**, with 100.0% of hero damage across the split |
+| Conformance errors from the real packet source | **0** |
+| Negative information is worth | **+0.148 nats** |
+| Full model vs. a plain geodesic disc | **loses**, 4.372 against 4.168 |
+| 90% credible region contains the truth | **30.2%** |
+| Visibility transitions we emit that the game did not | **2–3× too many** |
+
+### On synthetic matches, where truth is known
+
+| | |
+|---|---|
+| Fog agreement, reconstructed positions | 98.17% |
+| Fog agreement, true positions substituted — the floor | **98.84%** |
+| — brush-adjacent cells, the worst category | 90.81% |
+| Harmful movement-order misattribution | **0.00–0.15%** |
+| Negative information is worth | **+0.243 nats** |
+| 90% credible region contains the truth | **43.4%** |
+| Particle filter vs. an exact 256-state Bayes forward pass | **TV 0.030**, falling as 1/√P |
 | Information-barrier leak detector | **bit-identical** |
-| Artifact size per match | **1.24 MB** gzipped (budget: 2 MB) |
-| Python writer vs TypeScript reader | **identical** across all 6 sections |
+| Python writer vs. TypeScript reader | **identical** across all 6 sections |
+| Artifact size per match | **1.06 MB** gzipped, against a 2 MB budget |
 
-The fourth row is the one that matters: if the full model did not beat the same model without
-negative information, negative information would be doing nothing and the central claim would
-be empty. It holds, on a comparison between two `FilterSpec`s that differ in exactly one field,
-so nothing else can explain it.
+Three of those rows deserve reading together, because they are the honest state of the project.
 
-**The third row is an open defect, and it is stated here rather than buried.** The belief is
-overconfident: its 90% region contains the truth 39% of the time, and a plain geodesic disc —
-enormously vague, and better calibrated — now beats the full model on likelihood over a whole
-match. This surfaced when two vision bugs were fixed: enemies had been visible 84.5% of the time
-instead of a realistic 45.9%, darkness episodes were short, and short episodes hid it. `shadowcast diagnose` classifies it: the truth sits a median of 182 units from the nearest
-particle but 1,862 from the cloud's centre of mass, so the cloud covers the right ground and
-puts its mass elsewhere. That is **drift**, a motion-model error, not a filter defect — which
-also means it cannot honestly be tuned away against a synthetic generator.
+**Negative information works.** It is worth +0.243 nats on synthetic data and +0.148 on real, and
+in both cases the comparison is between two `FilterSpec`s differing in exactly one field, so
+nothing else can account for the gap. That is the central claim and it survives contact with real
+packets.
 
-Every figure above is measured on **synthetic** matches, where ground truth is known.
-Real-corpus numbers are still pending and will be worse. The fog agreement is deliberately
-reported as a pair — substituting true positions separates the irreducible floor (cell
-snapping, shadowcasting's permissiveness, ward and minion models) from what the
-reconstruction itself costs, and a single percentage cannot tell a modelling limit from a
-bug.
+**The full model still loses to a plain geodesic disc on real data**, 4.372 against 4.168, having
+beaten it on synthetic. The full model concentrates belief into 5.8 km² and gets punished for
+being confident and wrong; the disc spreads over 57 km² and hedges. This project has seen that
+inversion once before, caused by a broken minion model, and fixing the vision layer reversed it.
+The same reading applies now: 68% fog agreement is not good enough for a confident filter to pay
+off, and the bottleneck is vision, not belief.
 
-Enemies are visible **45.9%** of the time here, against 25–40% in a real game. It read 84.5%
-until two vision bugs were found: the fog-attack reveal fired on attacks that had no target, so
-every champion revealed itself roughly once a second wherever it stood; and minion waves marched
-the entire lane and parked in the enemy fountain, giving each team three permanent floodlights
-inside the other team's spawn.
+**Calibration is an open defect.** The 90% region contains the truth 43.4% of the time on
+synthetic data and 30.2% on real. On real data there is no ground truth to check against either,
+so "truth" there means this pipeline's own reconstruction, and the number measures tracking rather
+than accuracy.
 
-## Limitations, stated plainly
+## Limitations, stated up front
 
 - **This is a historical corpus.** Patches 12.22–13.2, late 2022 to early 2023. Fog-of-war
-  mechanics and map geometry are unchanged, and the object of study is information dynamics
-  rather than champion balance — but nothing here is current-meta advice.
-- **Terrain provenance.** The navgrid is the Season 10 Summoner's Rift dump. Patch 12.22
-  references `AIPath_SRX_2.aimesh_ngrid`; SR did not change structurally in between, but that is
-  an argument rather than a verification.
-- **Trajectories are reconstructed, not recorded.** Movement orders are unattributed, so
-  champion paths come from data association anchored on position-tagged spell and attack packets.
-  The residual distribution is published; mobility-heavy champions are expected to be worst.
-- **Kills are inferred**, from health replication joined to the last damage event, because the
+  mechanics and map geometry have not changed since, and the object of study is information
+  dynamics rather than champion balance, but nothing here is current-meta advice.
+- **Everything real rests on one shard.** 23 matches out of roughly 32,000, from a file whose
+  contents are sorted by duration. Between-match spread on fog agreement is 2.8 points, so any
+  claimed improvement smaller than about three points cannot be demonstrated on a single match.
+- **Terrain provenance.** The navgrid is the Season 10 Summoner's Rift dump. Patch 12.22 references
+  `AIPath_SRX_2.aimesh_ngrid`. SR did not change structurally in between, but that is an argument,
+  not a verification.
+- **Trajectories are reconstructed, not recorded.** Movement orders carry no entity id, so champion
+  paths come from data association anchored on position-tagged spell and attack packets. The
+  residual distribution is published. Mobility-heavy champions are expected to be worst.
+- **The reconstruction flickers.** It produces two to three times more visibility transitions than
+  the game does, with a median visible interval of 0.9 seconds against the game's 4.9. The cause is
+  a position error of 75–220 units meeting a boolean test on a 28.8-unit cell. It is diagnosed and
+  not yet fixed, and it will not be fixed by smoothing the mask, because the mask is what the
+  belief filter consumes.
+- **Kills are inferred** from health replication joined to the last damage event, because the
   stream contains no death packet.
-- **Wards are observed but ward expiry is partly modelled** — placement and destruction are in
-  the data, but a timed ward that simply runs out needs its duration computed from the average
-  champion level at placement.
+- **Ward expiry is partly modelled.** Placement and destruction are in the data, but a ward that
+  simply times out needs its duration computed from the average champion level when it was placed.
 
 ## Credits and licence
 
