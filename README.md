@@ -175,6 +175,29 @@ champion positions are interpolated between ticks so they glide rather than step
 state is throttled to about 9 Hz, and the digits are eased back up to 60 by writing straight to
 the DOM node.
 
+## Hosting it
+
+The built site is static: an HTML file, about 78 kB of gzipped JavaScript, a 10 kB terrain
+PNG, and roughly 1 MB of artifact per match. Nothing runs on a server. Any static host will
+do, and `vite.config.ts` uses a relative base so it works from a sub-path too.
+
+`.github/workflows/deploy.yml` publishes to GitHub Pages on every push to `main`. It rebuilds
+the artifact from source rather than shipping a committed binary — navgrid, terrain, FOV
+table, then a real decoded match — so the deployed site is provably the output of the
+pipeline in that commit. To turn it on, set **Settings → Pages → Source** to *GitHub Actions*.
+It lands at `https://<user>.github.io/shadowcast/`.
+
+One detail worth knowing if you host it elsewhere. `data.bin.gz` is pre-compressed, and a
+host that sets `Content-Encoding: gzip` lets the browser inflate it during transfer. Pages
+cannot set that header, so the reader checks for the gzip magic number and inflates the bytes
+itself. Both paths are exercised; the header-less one is verified against a plain
+`python -m http.server`.
+
+You do not need Docker, and a home server buys you nothing here — there is no backend to run,
+so a Raspberry Pi would be taking on dynamic DNS, a TLS certificate and your upload bandwidth
+in exchange for a file server a CDN already does for free. Where a Pi *would* earn its place
+is running the pipeline: the corpus is 108 GB and this repo has measured 23 matches of it.
+
 ## Development
 
 ```bash

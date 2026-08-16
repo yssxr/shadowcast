@@ -29,8 +29,28 @@ const VIEWS = [
 
 type ViewId = (typeof VIEWS)[number]["id"];
 
-/** Which artifact the site loads. Written by `shadowcast export --web`. */
-const MATCH = "12_22-batch_001-0";
+/**
+ * The artifact to load if `artifacts/index.json` is missing or empty.
+ *
+ * `shadowcast export --web` writes that index, newest first, so the site follows whatever
+ * was last exported instead of naming a match in source. Hardcoding one meant a deploy
+ * that exported anything else built a page that 404s on its own data — and nothing catches
+ * it, because the bundle typechecks and compiles perfectly well while pointing at a file
+ * nobody wrote.
+ */
+const FALLBACK_MATCH = "12_22-batch_001-0";
+
+async function firstArtifact(): Promise<string> {
+  try {
+    const res = await fetch("artifacts/index.json");
+    if (!res.ok) return FALLBACK_MATCH;
+    const names: unknown = await res.json();
+    if (Array.isArray(names) && typeof names[0] === "string") return names[0];
+  } catch {
+    // An index is a convenience, not a dependency. A dev server mid-export can 404 it.
+  }
+  return FALLBACK_MATCH;
+}
 
 /** Sidebar width plus the gap beside it. */
 const SIDEBAR = 250 + 16;
@@ -47,7 +67,10 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadArtifact(`artifacts/${MATCH}`), loadTerrain("terrain.png")])
+    firstArtifact()
+      .then((match) =>
+        Promise.all([loadArtifact(`artifacts/${match}`), loadTerrain("terrain.png")]),
+      )
       .then(([loaded, loadedTerrain]) => {
         if (cancelled) return;
         setArtifact(loaded);

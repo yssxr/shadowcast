@@ -716,6 +716,7 @@ def export(
     generated match and 68% on a real one, so an unlabelled synthetic artifact shows the
     engine's geometry while looking like its accuracy.
     """
+    import json
     import time
 
     from shadowcast.config import data_dir
@@ -820,6 +821,21 @@ def export(
     colour = typer.colors.GREEN if total_mb <= budget else typer.colors.RED
     typer.secho(f"\n  {total_mb:.2f} MB against a {budget:.0f} MB budget", fg=colour, bold=True)
     typer.secho(f"  wrote {path}", fg=typer.colors.GREEN)
+
+    # An index of what is present, newest first, so the site does not have to hardcode a
+    # match id. Without it a deploy that exports a different match builds a page that 404s
+    # on its own artifact, and nothing in the build catches that — the site typechecks and
+    # compiles perfectly well while pointing at a file nobody wrote.
+    artifacts_root = dest.parent
+    if out is None and artifacts_root.is_dir():
+        found = sorted(
+            (d for d in artifacts_root.iterdir() if (d / "meta.json").is_file()),
+            key=lambda d: (d / "meta.json").stat().st_mtime,
+            reverse=True,
+        )
+        index = artifacts_root / "index.json"
+        index.write_text(json.dumps([d.name for d in found], indent=1))
+        typer.secho(f"  wrote {index} ({len(found)} artifact(s))", fg=typer.colors.GREEN)
 
     terrain_path, terrain_report = write_terrain_png(terrain, root / TERRAIN_PNG_NAME)
     typer.secho(

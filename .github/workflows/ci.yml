@@ -109,10 +109,19 @@ jobs:
 
       - run: uv sync --all-extras
 
-      # The site is checked against a REAL artifact, not a fixture. A frontend that
+      # The exporter reads the persisted FOV table, and unlike the test suite it will not
+      # build one on the fly — `load_table` raises rather than silently recomputing, so a
+      # stale or missing table can never be mistaken for a fresh one. The tests build their
+      # own into a tmpdir, which is why they passed while this job did not.
+      - name: Build terrain and the FOV table
+        run: |
+          uv run shadowcast terrain build
+          uv run shadowcast fov build
+
+      # The site is checked against a real artifact, not a fixture. A frontend that
       # typechecks against hand-written sample data proves only that the sample matches
-      # the types — the failures worth catching are an index convention that disagrees
-      # with the exporter, and those need the exporter's own output to surface.
+      # the types. The failure worth catching is an index convention that disagrees with
+      # the exporter, and that needs the exporter's own output to surface.
       - name: Export an artifact
         run: uv run shadowcast export --web --duration 200
 

@@ -1,0 +1,137 @@
+# Publishing the site to GitHub Pages.
+#
+# The whole thing is static: an HTML file, ~78 kB of gzipped JavaScript, a 10 kB terrain
+# PNG, and about 1 MB of artifact per match. No backend, no API key, no database.
+#
+# The artifact is NOT committed — it is derived data, and the project's rule is that
+# derived data is reproducible from a command rather than checked in. So this job rebuilds
+# it from source every deploy: navgrid -> terrain -> FOV table -> a real decoded match ->
+# artifact. That keeps the deployed site provably a product of the pipeline in this commit,
+# which a committed binary could not.
+#
+# `data.bin.gz` is pre-compressed and Pages cannot set `Content-Encoding: gzip`, so the
+# browser receives the raw gzip bytes. The reader sniffs the magic number and inflates them
+# itself, which is verified against a plain `python -m http.server`. Nothing here needs to
+# set a header.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages needs these; the default token is read-only.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one midway — a half-published site is worse than
+# an out-of-date one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # Riot's data, 9.4 MB, not committed. Same cache key as ci.yml so the two share it.
+      - name: Cache navgrid
+        id: navgrid
+        uses: actions/cache@v4
+        with:
+          path: data/terrain/AIPath_SRX.aimesh_ngrid
+          key: navgrid-AIPath_SRX-v7.1
+
+      - name: Fetch navgrid
+        if: steps.navgrid.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p data/terrain
+          curl -fsSL -o data/terrain/AIPath_SRX.aimesh_ngrid \
+            "https://raw.githubusercontent.com/FrankTheBoxMonster/LoL-NGRID-converter/master/test%20files/SummonersRiftSeason10/AIPath_SRX.aimesh_ngrid"
+
+      - name: Verify navgrid integrity
+        run: |
+          echo "816b8460633050f9e1d24ab2a69726574d16a134bc2889dc445ef94535e6bea6  data/terrain/AIPath_SRX.aimesh_ngrid" | sha256sum -c -
+
+      # 76 MB of someone else's corpus. Cached, because re-fetching it on every push to
+      # main is rude to HuggingFace and slow for no reason.
+      - name: Cache replay shard
+        id: shard
+        uses: actions/cache@v4
+        with:
+          path: data/raw/12_22/batch_001.jsonl.gz
+          key: shard-12_22-batch_001
+
+      - name: Fetch replay shard
+        if: steps.shard.outputs.cache-hit != 'true'
+        run: |
+          uv tool install "huggingface_hub[cli]"
+          hf download maknee/league-of-legends-decoded-replay-packets \
+            --repo-type dataset \
+            --include "12_22/batch_001.jsonl.gz" \
+            --local-dir data/raw
+
+      - run: uv sync --all-extras
+
+      - name: Build terrain and the FOV table
+        run: |
+          uv run shadowcast terrain build
+          uv run shadowcast fov build
+
+      # A real match, not a generated one. The site says which it is by reading
+      # `meta.provenance`, and shipping a synthetic match unlabelled would show the
+      # engine's geometry while reading as its accuracy — 98% fog agreement against 68%.
+      - name: Export a real match
+        run: uv run shadowcast export --web --shard data/raw/12_22/batch_001.jsonl.gz --line 0
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build the site
+        working-directory: web
+        run: npm run build
+
+      # The build succeeds whether or not the artifact it points at exists, so this asserts
+      # the deployed bundle can actually load something. Catching it here costs a job;
+      # catching it in production costs a blank page.
+      - name: The site has an artifact to load
+        run: |
+          test -f web/dist/index.html
+          test -f web/dist/terrain.png
+          test -s web/dist/artifacts/index.json
+          for dir in $(uv run python -c "
+          import json, pathlib
+          print(' '.join(json.loads(pathlib.Path('web/dist/artifacts/index.json').read_text())))
+          "); do
+            test -f "web/dist/artifacts/$dir/meta.json"
+            test -f "web/dist/artifacts/$dir/data.bin.gz"
+            echo "ok: $dir"
+          done
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
