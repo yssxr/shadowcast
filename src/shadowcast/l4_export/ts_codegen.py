@@ -6,7 +6,7 @@ cannot merge without its TypeScript counterpart, because the check is a byte com
 rather than a promise.
 
 Handwriting the reader instead would work right up until the first schema change, and
-then it would keep working — returning numbers from the wrong offsets, silently, with a
+then it would keep working, returning numbers from the wrong offsets, silently, with a
 map that renders and champions who stand in walls. There is no runtime error available
 to catch that, so it has to be caught at build time or not at all.
 
@@ -26,7 +26,7 @@ __all__ = ["GENERATED_HEADER", "generate_typescript", "write_typescript"]
 
 GENERATED_HEADER = """// GENERATED from src/shadowcast/l4_export/spec.py by `shadowcast export`.
 // Do not edit. CI regenerates this file and fails on a diff, which is what stops a
-// format change reaching Python without reaching TypeScript — a mismatch here does not
+// format change reaching Python without reaching TypeScript. A mismatch here does not
 // throw, it returns numbers from the wrong offsets and renders a plausible wrong map.
 """
 
@@ -94,7 +94,7 @@ def generate_typescript() -> str:
     lines.append("/** Decoded sections. Shapes are in the comments; the arrays are flat. */")
     lines.append("export interface Sections {")
     for section in SECTIONS:
-        lines.append(f"  /** {_shape_comment(section.shape)} — {section.codec} */")
+        lines.append(f"  /** {_shape_comment(section.shape)}: {section.codec} */")
         lines.append(f"  {section.name}: {section.ts_array};")
     lines.append("}\n")
 
