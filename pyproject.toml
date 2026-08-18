@@ -81,14 +81,14 @@ select = [
     "TID",  # tidy imports
 ]
 ignore = [
-    # The engine is full of short mathematical names — dx, dj, r2, si, wj — that read
+    # The engine is full of short mathematical names, dx, dj, r2, si, wj. That read
     # better than any expansion would. Ambiguous single letters (l, I, O) stay banned
     # via E741, which is not ignored.
     "E731",  # lambda assignment; used deliberately in a couple of sort keys
     "B905",  # zip() strict=; noisy on numpy zips where lengths are structurally equal
     "RET504", # named return values often document what is being returned
     "SIM108", # ternary-instead-of-if; frequently less readable for numeric branches
-    # Docstrings here are prose and deliberately use typographic characters — em
+    # Docstrings here are prose and deliberately use typographic characters, em
     # dashes, multiplication signs, >=. Flagging them as "ambiguous unicode" would
     # mean writing worse documentation to satisfy a lint for source identifiers.
     "RUF001",
@@ -123,7 +123,7 @@ venv = ".venv"
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
 # numba ships no type information, so every @njit function is an untyped call and
-# every numba import is unresolved-in-stubs. Reporting that is noise, not signal —
+# every numba import is unresolved-in-stubs. Reporting that is noise, not signal,
 # the JIT layer is pinned by tests, not by the checker.
 reportMissingTypeStubs = false
 reportUntypedFunctionDecorator = false

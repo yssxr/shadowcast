@@ -3,26 +3,26 @@
 Two observing teams times five enemies is ten distributions, each over "where is that
 champion right now, given everything this team could have seen". They share one state
 array and one code path; a baseline is a `FilterSpec`, not a separate implementation,
-which is what makes the ablation table trustworthy — `behavioural` and `full` differ in
+which is what makes the ablation table trustworthy, `behavioural` and `full` differ in
 one enum value, so a gap between them cannot be an artefact of one having been written
 more carefully.
 
 **The filter never sees the answer.** `run` takes an `Observation`, a `PublicInfo` and
 the observer's own visibility masks. It does not take a `TruthTable`, and there is no
 path from here to one. Scoring happens outside, in `metrics`, by zipping this generator
-against the truth — so the code that knows where the enemy is and the code that guesses
+against the truth, so the code that knows where the enemy is and the code that guesses
 never meet. See `policy.py` for why that is enforced structurally rather than by care.
 
 **Randomness is drawn from a seeded generator per tick and passed down**, never generated
 inside a kernel. Numba's RNG is a different stream from NumPy's, so a kernel that draws
 its own noise can never be compared against a NumPy reference, and two runs of the same
-seed would not be bit-identical — which the barrier test requires.
+seed would not be bit-identical, which the barrier test requires.
 
 A note on what happens when an enemy is dead. Deaths are public, so the belief collapses:
 a dead champion's position is known, and a filter that kept spreading probability over
 the map during a 30-second respawn would report enormous uncertainty at exactly the
 moment everyone on the server knows precisely where five of the ten champions are. The
-`darkness` metric treats those ticks separately for the same reason — getting this
+`darkness` metric treats those ticks separately for the same reason, getting this
 backwards makes a team look informationally dominant precisely when it is winning fights.
 """
 
@@ -53,9 +53,9 @@ class BeliefState:
     cell: np.ndarray  # i4[2, 5, P]
     logw: np.ndarray  # f8[2, 5, P]
     heading: np.ndarray  # i1[2, 5, P]
-    goal: np.ndarray  # i4[2, 5, P] — each particle's current destination
-    vel: np.ndarray  # f8[2, 5, 2] — cells/tick at the last sighting, for `constant_velocity`
-    last_cell: np.ndarray  # i4[2, 5] — last observed cell, NO_CELL before the first sighting
+    goal: np.ndarray  # i4[2, 5, P], each particle's current destination
+    vel: np.ndarray  # f8[2, 5, 2], cells/tick at the last sighting, for `constant_velocity`
+    last_cell: np.ndarray  # i4[2, 5], last observed cell, NO_CELL before the first sighting
     last_tick: np.ndarray  # i4[2, 5]
     was_alive: np.ndarray  # bool[2, 5]
     depletions: np.ndarray  # i4[2, 5]
@@ -68,7 +68,7 @@ class TickBelief:
 
     The arrays are **not copied**. A consumer that stores one gets the next tick's
     contents, which is the same bargain `VisionStream.masks` makes and for the same
-    reason — copying `(2, 5, 400)` particles for 7,201 ticks is 115 MB of garbage to
+    reason, copying `(2, 5, 400)` particles for 7,201 ticks is 115 MB of garbage to
     produce a number that is consumed immediately.
     """
 
@@ -101,7 +101,7 @@ class BeliefFilter:
 
     # -- the behavioural prior ------------------------------------------
     def _targets_for(self, role: str, team: int) -> np.ndarray:
-        """Cached per (role, team) — the team decides which fountain they recall to."""
+        """Cached per (role, team). The team decides which fountain they recall to."""
         key = f"{role}/{team}"
         if key not in self._targets:
             self._targets[key] = motion.role_targets(role, self.terrain, team)
@@ -112,7 +112,7 @@ class BeliefFilter:
         """Everyone starts on their own fountain, which is not an assumption.
 
         A match begins with all ten champions standing in their base, visible to their
-        own team and known by position to the other — it is the one moment of the game
+        own team and known by position to the other. It is the one moment of the game
         with no information asymmetry at all. Starting from a uniform prior over the map
         would be modelling ignorance nobody has.
         """
@@ -236,7 +236,7 @@ class BeliefFilter:
     ) -> Iterator[TickBelief]:
         """Step the ten filters over the match, yielding the belief at every tick.
 
-        `masks` is the observer's own visibility — its own information, not the enemy's,
+        `masks` is the observer's own visibility, its own information, not the enemy's,
         which is why it is allowed through the barrier. It arrives as the same generator
         `VisionStream.masks` produces, consumed once.
         """

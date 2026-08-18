@@ -4,7 +4,7 @@ The one that matters is `test_node_decodes_every_section_identically`. Everythin
 here checks Python against itself, which cannot catch the failure this format is actually
 exposed to: a section whose dtype, offset or codec is understood differently by the
 reader than by the writer does not throw. `new Float32Array` over bytes that are really
-`Uint16Array` returns numbers — wrong ones — and the first symptom is a rendered map with
+`Uint16Array` returns numbers, wrong ones: and the first symptom is a rendered map with
 champions standing in walls.
 
 So Node reads the same file with the generated reader and both sides checksum the
@@ -61,8 +61,8 @@ def test_delta_round_trips_for_every_value(dtype, keyframe):
 
     The extremes are the point: a delta between 0 and 255 is -255, which does not fit in
     the byte it has to be stored in. Modular arithmetic is exact for that; a clamped
-    scheme silently is not, and the case it breaks on — a champion crossing the map in
-    one tick — is exactly the one an analyst is looking at.
+    scheme silently is not, and the case it breaks on. A champion crossing the map in
+    one tick, is exactly the one an analyst is looking at.
     """
     rng = np.random.default_rng(3)
     info = np.iinfo(np.dtype(dtype))
@@ -86,7 +86,7 @@ def test_keyframes_are_absolute():
 
     A scrubber dropped at 11:42 decodes from the nearest keyframe. If keyframe rows were
     deltas like any other, it would have to decode from tick zero and the scrubber would
-    stutter — so this asserts the stored bytes at a keyframe equal the original.
+    stutter, so this asserts the stored bytes at a keyframe equal the original.
     """
     arr = np.arange(40 * 4, dtype=np.uint8).reshape(40, 4)
     coded = encode.apply_codec(arr, "delta", keyframe=8)
@@ -175,7 +175,7 @@ def test_mixture_weights_sum_to_one():
 
 
 def test_warm_starting_shrinks_the_encoded_belief(artifact):
-    """The claim, measured the way it is actually cashed out — in bytes.
+    """The claim, measured the way it is actually cashed out, in bytes.
 
     An earlier version of this test compared how far the component centres moved between
     a warm and a cold fit on a *translated* cloud, and failed: farthest-point seeding is
@@ -217,7 +217,7 @@ def test_warm_starting_shrinks_the_encoded_belief(artifact):
 def test_the_belief_codec_beats_the_alternatives(artifact):
     """Every codec choice in the spec was measured, not assumed.
 
-    The winner changed once the data did. XOR won while most ticks were skipped — a
+    The winner changed once the data did. XOR won while most ticks were skipped. A
     skipped tick is a row of zeros, and XOR against zeros is cheap. Delta wins now that
     the fog-attack fix has dropped visibility from 84% to 42%, because most ticks carry a
     real mixture and consecutive ones barely differ. The M7 note said to re-measure this
@@ -242,7 +242,7 @@ def test_a_codec_cannot_be_declared_on_a_float_section():
     """Because it would silently truncate, and would look like excellent compression.
 
     Both codecs are defined on the integer representation. Applied to f32, encoding
-    `[1.75, 2.5]` after `[1.5, 2.25]` and decoding back gives `[1.0, 2.0]` — and the
+    `[1.75, 2.5]` after `[1.5, 2.25]` and decoding back gives `[1.0, 2.0]`, and the
     `scalars` section compressed twelve times better that way, which is exactly what
     discarding the fractional part will do.
     """
@@ -379,7 +379,7 @@ def test_the_artifact_fits_the_budget(artifact):
 
 
 def test_writing_is_deterministic(artifact, tmp_path):
-    """Same input, same bytes — otherwise every export busts a CDN cache."""
+    """Same input, same bytes, otherwise every export busts a CDN cache."""
     path, _, _ = artifact
     first = (path / "data.bin.gz").read_bytes()
     art = read_artifact(path)
@@ -455,7 +455,7 @@ def test_node_decodes_every_section_identically(artifact):
 
     Both languages decode the same file and checksum the results. Checksumming the
     stored bytes would prove only that they read the same offsets; checksumming what
-    comes out proves they agree on what those bytes mean — which is the difference
+    comes out proves they agree on what those bytes mean, which is the difference
     between catching a dtype mismatch and shipping one.
     """
     if shutil.which("node") is None:
@@ -481,8 +481,8 @@ def test_node_decodes_every_section_identically(artifact):
 def test_provenance_defaults_to_synthetic_and_round_trips(artifact, tmp_path):
     """A viewer cannot tell a reconstructed real match from a generated one by looking.
 
-    The difference is the entire claim — fog agreement is 98% on synthetic and 68% on
-    real — so an unlabelled artifact shows the engine's geometry while reading as its
+    The difference is the entire claim, fog agreement is 98% on synthetic and 68% on
+    real, so an unlabelled artifact shows the engine's geometry while reading as its
     accuracy. The default is `synthetic` on purpose: mislabelling a real match as
     generated understates the work, while the reverse overstates it, and only one of
     those is a lie worth guarding against.

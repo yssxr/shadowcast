@@ -8,7 +8,7 @@ reader nobody should trust.
 
 **Modular deltas.** A delta between two `u8` values ranges over [-255, 255] and does not
 fit in a byte, so the encoder writes `(new - old) mod 256` and the decoder adds it back
-modulo 256. Exact for every input, including the one that breaks any clamped scheme — a
+modulo 256. Exact for every input, including the one that breaks any clamped scheme. A
 champion flashing across the map, which is exactly the moment an analyst is looking at.
 
 **XOR for bitmaps.** Vision changes at the edges of a region: a tick flips a few hundred
@@ -74,7 +74,7 @@ def apply_codec(arr: np.ndarray, codec: str, keyframe: int) -> np.ndarray:
 def invert_codec(arr: np.ndarray, codec: str, keyframe: int) -> np.ndarray:
     """Decode along axis 0. The Python reference the TypeScript reader is checked against.
 
-    Sequential by necessity — each row depends on the one before it — but only within a
+    Sequential by necessity: each row depends on the one before it, but only within a
     keyframe interval, which is what makes seeking cheap.
     """
     if codec == "raw" or arr.shape[0] <= 1:
@@ -145,14 +145,14 @@ def fit_mixture(
 ) -> None:
     """Weighted k-means over particle positions, into `out` as `(k, 4)` = (x, z, w, sigma).
 
-    Compiled because it runs about seventy thousand times per match — once per observer,
-    enemy and tick — and a NumPy implementation spends more time in call overhead than in
+    Compiled because it runs about seventy thousand times per match, once per observer,
+    enemy and tick, and a NumPy implementation spends more time in call overhead than in
     arithmetic at 1,024 points and 16 clusters. `fit_mixture_ref` below is the readable
     twin, and a differential test holds them together.
 
     **`warm` seeds from the previous tick's centres, and that is the point rather than an
     optimisation.** k-means from a fresh initialisation returns the same clusters in a
-    different order each tick, and a delta against a permuted set of centres is noise —
+    different order each tick, and a delta against a permuted set of centres is noise,
     it encodes *larger* than the raw values it replaced. Warm-starting keeps component
     *i* meaning the same blob from tick to tick, which is what leaves the deltas small
     enough for the mixture to fit in the byte budget at all.

@@ -3,7 +3,7 @@
  *
  * `useAnimatedNumber` exists because of the 9 Hz sidebar. The canvas runs at sixty
  * frames a second and the React state driving the text updates about nine times a
- * second, which is the right split — nobody reads a number changing sixty times a second
+ * second, which is the right split, nobody reads a number changing sixty times a second
  * and re-rendering the tree at that rate would compete with the maps for the same frame
  * budget. But a value that *jumps* nine times a second looks broken next to a map that
  * is moving smoothly.
@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *
  * A **callback ref**, not an object ref, and that is the whole subtlety. An object ref
  * with a mount-time effect observes whatever `ref.current` happened to be when the effect
- * ran — and the element it needs to watch does not exist during the loading state, so the
+ * ran, and the element it needs to watch does not exist during the loading state, so the
  * observer attaches to nothing and never retries. The measured width stays zero, the
  * maps never render, and the page is simply blank with no error anywhere. A callback ref
  * fires again every time the node changes, including the first time it appears.
@@ -76,7 +76,7 @@ export function useEasedText(
     const step = () => {
       const delta = target.current - current.current;
       // Snap when close enough that easing would only produce visual noise, and snap
-      // outright on a large jump — a scrub across the match should land, not glide.
+      // outright on a large jump. A scrub across the match should land, not glide.
       current.current =
         Math.abs(delta) < 0.005 || Math.abs(delta) > 1e4
           ? target.current

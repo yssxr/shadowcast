@@ -5,7 +5,7 @@ description: Write, debug, or optimise a Numba @njit kernel in this repo. Use wh
 
 # Numba kernels in Shadowcast
 
-The numeric core is `@njit` throughout. Numba's failure modes are unlike normal Python's — a
+The numeric core is `@njit` throughout. Numba's failure modes are unlike normal Python's. A
 typing error is a wall of text pointing at the wrong line, and a *silently wrong* kernel is more
 likely than a crashing one. This is the order of operations that works here.
 
@@ -27,7 +27,7 @@ per run.
 ## Writing a new kernel
 
 1. **Write the plain-NumPy or plain-Python version first**, in the same module or in the test.
-   It is the oracle. `fov/reference.py` is exactly this pattern — a brute-force implementation
+   It is the oracle. `fov/reference.py` is exactly this pattern: a brute-force implementation
    whose only job is to disagree with the fast one.
 2. **Pin types at the boundary.** Callers pass `np.ascontiguousarray(x, dtype=np.bool_)` (or
    `np.int64`, `np.uint64` for bitsets) before entering. Do not let a kernel accept whatever
@@ -55,12 +55,12 @@ compilation, and it is nearly always one of:
 - **A numpy scalar leaking in as a Python `int` parameter.** `np.int16(3)` and `3` are different
   types to numba and produce a second specialisation, or a typing error at the call site.
 - **A `max`/`min`/`+=` across `prange` iterations.** Numba only recognises a fixed set of
-  reduction patterns; anything else races. `fov/table.py:91` documents this exact trap — read
+  reduction patterns; anything else races. `fov/table.py:91` documents this exact trap. Read
   that comment before writing a reduction over `prange`.
 - **A stale on-disk cache** after a signature change. `find . -name __pycache__ -path "*/shadowcast/*" -exec rm -rf {} +`
   then re-run.
 
-For a typing error, read the **last** "During: resolving callee type" line, not the first — that
+For a typing error, read the **last** "During: resolving callee type" line, not the first. That
 is the actual expression numba choked on.
 
 ## Before reaching for parallel=True

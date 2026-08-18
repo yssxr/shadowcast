@@ -5,7 +5,7 @@ On synthetic data that is enough, because the remaining error is small and its c
 known. On real data it is not: a single 68% tells you nothing about whether to go and fix
 trajectories, model more vision sources, or re-examine the geometry.
 
-So this splits the disagreement along the one axis that separates those causes — **how
+So this splits the disagreement along the one axis that separates those causes, **how
 stale the position being used is**, measured as time since a *labelled* anchor, a
 `CastSpellAns` or `BasicAttackPos` that states a champion's coordinates outright.
 
@@ -24,7 +24,7 @@ position is fifteen seconds stale takes its vision with it. MEASURED: agreement 
 modelling more entity types to reconstructing better trajectories.
 
 The inversion check is the sharpest single number here. If visible champions sit *further*
-from the nearest source than hidden ones, the position estimate is not merely noisy — it
+from the nearest source than hidden ones, the position estimate is not merely noisy. It
 is anti-informative, and no amount of source modelling will help until it is fixed.
 """
 
@@ -138,7 +138,7 @@ def _team_sources(
 ) -> dict[int, np.ndarray]:
     """Every modelled vision source position, per team, at one tick.
 
-    Positions only — this asks "was anything of ours near enough to have seen it", which
+    Positions only: this asks "was anything of ours near enough to have seen it", which
     is a question about modelling coverage rather than about geometry, so occlusion is
     deliberately not applied. A source behind a wall still counts here; if the answer is
     still "nothing was near", no field-of-view fix can help.

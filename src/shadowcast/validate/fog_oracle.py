@@ -3,7 +3,7 @@
 This is the project's central validation, and the reason it can claim to be measured
 rather than merely plausible. The corpus records when each champion entered and left fog;
 we reconstruct, independently, which cells each team could see at each moment. Comparing
-the two tests the whole stack at once — champion trajectories, ward lifetimes, turret
+the two tests the whole stack at once, champion trajectories, ward lifetimes, turret
 positions, minion modelling and the field-of-view geometry.
 
 **Direction of error matters more than the headline rate**, so the two are always reported
@@ -13,8 +13,8 @@ separately:
   every information metric: an enemy we wrongly believe was seen produces too little
   darkness, too little entropy, and an understated information advantage.
 - A **false negative** is the game granting vision we failed to reconstruct. These come
-  from a missing source — an unmodelled ward, a destroyed-turret assumption, a minion wave
-  in the wrong place — and understate what a team knew.
+  from a missing source. An unmodelled ward, a destroyed-turret assumption, a minion wave
+  in the wrong place, and understate what a team knew.
 
 They have different causes and different consequences, and a single agreement percentage
 hides both.
@@ -213,7 +213,7 @@ def _match_transitions(
     MEASURED on real packets under the old scheme: median error +0.000 s with p10 at
     −12.4 s and p90 at +9.7 s, and 36% of transitions more than five seconds out. A
     symmetric distribution with enormous tails and no bias is the signature of mismatching,
-    not of lag — a real timing defect would sit off-centre.
+    not of lag. A real timing defect would sit off-centre.
 
     So: greedy one-to-one matching by increasing separation, bounded by `window`.
     Everything unmatched is reported as a count rather than absorbed into the error

@@ -7,7 +7,7 @@
  *
  * It looks like a violation of how React is meant to work, and it is the right shape
  * anyway. Driving playback through `setState` re-renders the component tree sixty times
- * a second to change one number that only the canvas reads — the canvas does not care
+ * a second to change one number that only the canvas reads. The canvas does not care
  * about React's render cycle, and the sidebar does not need 60 Hz. Separating them means
  * the map animates smoothly while the text updates at a rate a human can read, and
  * neither is competing for the same frame budget.
@@ -78,7 +78,7 @@ export class PlaybackClock {
     this.speed = speed;
   }
 
-  /** Force a redraw without moving time — for a settings change mid-pause. */
+  /** Force a redraw without moving time, for a settings change mid-pause. */
   refresh(): void {
     this.emitDraw();
   }

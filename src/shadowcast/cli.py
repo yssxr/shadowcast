@@ -83,7 +83,7 @@ def terrain_build(
         )
     else:
         typer.secho(
-            f"  brush groups {n} OUTSIDE [{lo}, {hi}] — the raster has either fused or "
+            f"  brush groups {n} OUTSIDE [{lo}, {hi}], the raster has either fused or "
             f"shattered brush patches, which breaks conditional-occluder semantics",
             fg=typer.colors.RED,
         )
@@ -154,8 +154,8 @@ def _load_match(terrain, shard: Path | None, line: int, seed: int, duration: flo
     Shared by every command that needs a match so `--shard` means the same thing
     everywhere. It also prints the caveat once, in the one place it cannot be forgotten:
     on real data there is no ground truth, so anything scored against "truth" is scored
-    against **this pipeline's own reconstruction**. That is a real measurement — it asks
-    whether the belief tracks the positions the site draws — but it is not the same
+    against **this pipeline's own reconstruction**. That is a real measurement. It asks
+    whether the belief tracks the positions the site draws, but it is not the same
     question the synthetic figures answer, and reporting the two as one number would be
     the single most misleading thing this project could do.
     """
@@ -264,8 +264,8 @@ def fov_verify(
     """Check the table against fresh computations, and shadowcasting against ray marching.
 
     Two independent checks. The first confirms the stored bytes are the field of view
-    they claim to be. The second compares against a different *class* of algorithm —
-    per-target ray marching rather than an octant sweep — so a shared mistake is
+    they claim to be. The second compares against a different *class* of algorithm,
+    per-target ray marching rather than an octant sweep, so a shared mistake is
     unlikely. Disagreement there is expected in one direction only, and that
     direction is what gets reported: shadowcasting over-reports at shadow edges but
     must never lose vision.
@@ -323,13 +323,13 @@ def fov_verify(
     problems = row_mismatch or disc_mismatch or restrictive
     if problems:
         typer.secho(
-            "FAIL — a row disagrees with a fresh computation, radius separability is "
+            "FAIL: a row disagrees with a fresh computation, radius separability is "
             "broken, or vision is being lost relative to the reference",
             fg=typer.colors.RED,
         )
         raise typer.Exit(1)
     typer.secho(
-        "OK — rows exact, radius separability exact, and no vision lost relative to "
+        "OK, rows exact, radius separability exact, and no vision lost relative to "
         "the independent reference",
         fg=typer.colors.GREEN,
     )
@@ -458,7 +458,7 @@ def ablate(
         behavioural -> full         what NEGATIVE INFORMATION is worth
 
     The second is the thesis. If `full` does not beat `behavioural`, negative information
-    is contributing nothing and the central claim is empty — which this prints plainly
+    is contributing nothing and the central claim is empty, which this prints plainly
     rather than burying.
     """
     import time
@@ -547,7 +547,7 @@ def inspect(
     Everything downstream rests on one claim: a fog event naming champion C can only come
     from C's opponents, because a team always sees its own members. That makes the
     observer team derivable per event and gives a ground-truth visibility oracle for both
-    sides — and it had never been checked against a real shard.
+    sides, and it had never been checked against a real shard.
 
     The deciding test is geometric. If the fog stream is the opposing team's vision, a
     visible champion sits close to an ENEMY and a hidden one does not, while its distance
@@ -566,7 +566,7 @@ def inspect(
     for n, match in enumerate(read_matches(shard, limit=matches)):
         report = inspect_fog(match)
         _echo_table(
-            f"match {n + 1} — {shard.name}",
+            f"match {n + 1}, {shard.name}",
             {
                 "packets": f"{match.n_packets:,}",
                 "duration": f"{report.duration / 60:.1f} min",
@@ -603,7 +603,7 @@ def inspect(
         typer.echo("")
         if report.oracle_holds:
             typer.secho(
-                "  the fog stream tracks ENEMY proximity, not isolation — the oracle holds",
+                "  the fog stream tracks ENEMY proximity, not isolation. The oracle holds",
                 fg=typer.colors.GREEN,
                 bold=True,
             )
@@ -630,7 +630,7 @@ def diagnose(
 
     A calibration number says the 90% region contains the truth 43% of the time; it does
     not say why, and the two possibilities need opposite fixes. If the truth is outside
-    the cloud entirely, the filter is killing the correct hypothesis — a defect in the
+    the cloud entirely, the filter is killing the correct hypothesis. A defect in the
     weights, the resampling or the negative update. If the truth is near the cloud but
     the cloud's mass has moved elsewhere, the machinery is fine and the motion model
     believes champions go somewhere they do not.
@@ -659,7 +659,7 @@ def diagnose(
     )
 
     _echo_table(
-        f"belief diagnostic — {model}",
+        f"belief diagnostic, {model}",
         {
             "scored moments": f"{result.scored:,}",
             "truth inside the cloud": f"{result.in_support:.1%}",
@@ -745,7 +745,7 @@ def export(
         bundle = source.read(source.match_ids()[line])
         provenance = PROVENANCE_REAL
         # `/` and `:` both appear in a real match id and neither belongs in a path
-        # segment — the id is `12_22/batch_001:0`, which would silently become a nested
+        # segment. The id is `12_22/batch_001:0`, which would silently become a nested
         # directory the site cannot fetch back.
         match_id = bundle.meta.match_id
         slug = match_id.replace("/", "-").replace(":", "-")
@@ -824,7 +824,7 @@ def export(
 
     # An index of what is present, newest first, so the site does not have to hardcode a
     # match id. Without it a deploy that exports a different match builds a page that 404s
-    # on its own artifact, and nothing in the build catches that — the site typechecks and
+    # on its own artifact, and nothing in the build catches that. The site typechecks and
     # compiles perfectly well while pointing at a file nobody wrote.
     artifacts_root = dest.parent
     if out is None and artifacts_root.is_dir():
@@ -952,7 +952,7 @@ def _realfog_corpus(shard: Path, matches: int, stride: int, run_bundle, out: Pat
 
     typer.echo("")
     _echo_table(
-        f"across {len(rows)} matches — median, range, standard deviation",
+        f"across {len(rows)} matches, median, range, standard deviation",
         {
             "agreement": spread("agreement"),
             "false positive": spread("false_positive"),
@@ -962,7 +962,7 @@ def _realfog_corpus(shard: Path, matches: int, stride: int, run_bundle, out: Pat
     )
     typer.echo("")
     _echo_table(
-        "by region — median across matches",
+        "by region, median across matches",
         {
             k.removeprefix("region_"): f"{statistics.median(float(r[k]) for r in rows):.1%}"
             for k in rows[0]
@@ -1009,8 +1009,8 @@ def realfog(
     The headline number is the project's central claim submitting to the only ground truth
     that exists for it. The decomposition is what makes it actionable: agreement is split
     by how stale the positions involved are, separately for the champion being looked at
-    and for the nearest champion doing the looking. Those two point at different repairs —
-    a missing vision source versus a misplaced one — and a single percentage hides both.
+    and for the nearest champion doing the looking. Those two point at different repairs,
+    a missing vision source versus a misplaced one, and a single percentage hides both.
 
     With `--matches N` the whole shard is read in one pass and the spread is reported
     instead of a single number, which is the only way to know whether one match's figure
@@ -1050,7 +1050,7 @@ def realfog(
     events, att, real = run(source, match_id)
 
     _echo_table(
-        f"fog agreement — {match_id}",
+        f"fog agreement, {match_id}",
         {
             "agreement": f"{real.rate:.2%}",
             "false positive": f"{real.false_positive_rate:.2%}",
@@ -1079,12 +1079,12 @@ def realfog(
     report = decompose_fog(events, att, terrain, table, stride=stride)
     for title, bands, note in (
         (
-            "by the TARGET's position staleness — is a source missing?",
+            "by the TARGET's position staleness, is a source missing?",
             report.by_target_age,
             "the last column is a floor: better trajectories cannot close it",
         ),
         (
-            "by the nearest OBSERVER's staleness — is a source misplaced?",
+            "by the nearest OBSERVER's staleness, is a source misplaced?",
             report.by_observer_age,
             "vision comes from someone else, so their position is the one that moves it",
         ),
@@ -1170,8 +1170,8 @@ def doctor() -> None:
     _echo_table(
         "artifacts",
         {
-            "navgrid": "present" if navgrid.exists() else "MISSING — see README",
-            "terrain": f"{len(built)} built" if built else "none — run `shadowcast terrain build`",
+            "navgrid": "present" if navgrid.exists() else "MISSING. See README",
+            "terrain": f"{len(built)} built" if built else "none, run `shadowcast terrain build`",
             "fov tables": _count_fov_tables(fov_table_dir(grid, terrain_spec).parent),
         },
     )
@@ -1179,10 +1179,10 @@ def doctor() -> None:
 
 def _count_fov_tables(root: Path) -> str:
     if not root.exists():
-        return "none — run `shadowcast fov build`"
+        return "none: run `shadowcast fov build`"
     tables = [d for d in root.iterdir() if d.is_dir()]
     if not tables:
-        return "none — run `shadowcast fov build`"
+        return "none: run `shadowcast fov build`"
     total = sum(f.stat().st_size for d in tables for f in d.rglob("*") if f.is_file())
     return f"{len(tables)} built, {total / 1e6:,.1f} MB total"
 

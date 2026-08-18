@@ -12,7 +12,7 @@ across a 2 GB match would be miserable. So violations are collected, classified 
 errors or warnings, and returned alongside statistics worth eyeballing.
 
 The error/warning split encodes what is a bug versus what is merely the corpus being
-itself. Unknown entity ids are a warning — the real stream has pets and clones that
+itself. Unknown entity ids are a warning. The real stream has pets and clones that
 cast spells without ever being created. Out-of-order timestamps are a warning within a
 tolerance, because arrival jitter is real. A waypoint payload that runs off the end of
 its buffer is an error, because nothing legitimate produces that.
@@ -39,7 +39,7 @@ __all__ = ["ConformanceReport", "validate_bundle", "validate_source"]
 TIME_INVERSION_TOLERANCE = 0.25
 
 #: Positions are checked against the map with generous slack rather than exactly.
-#: Real `CastSpellAns.target_position` ranges to +-32,000 — far off-map — so tight
+#: Real `CastSpellAns.target_position` ranges to +-32,000, far off-map: so tight
 #: bounds would fire constantly on legitimate data.
 POSITION_SLACK = 2000.0
 
@@ -180,7 +180,7 @@ def _known_net_ids(bundle) -> set[int]:
         (bundle.turrets, ("net_id", "owner_net_id")),
         (bundle.minions, ("net_id",)),
         (bundle.neutrals, ("net_id",)),
-        # Lane minions are created here and nowhere else — they never appear in
+        # Lane minions are created here and nowhere else. They never appear in
         # `SpawnMinion`. The barrack itself is deliberately NOT counted: the real stream
         # emits no create packet for one, so treating it as known would hide exactly the
         # kind of dangling reference this check exists to surface.
@@ -246,7 +246,7 @@ def _check_fog(bundle, rep) -> None:
     rep.stats["fog_rows_about_heroes"] = int(hero_fog.sum())
 
     # Transitions must alternate per entity. A repeated enter or leave means either
-    # duplicates were not deduped or the two event types were confused — and the real
+    # duplicates were not deduped or the two event types were confused, and the real
     # corpus does duplicate heavily, so this check earns its keep there.
     for nid in np.unique(fog["net_id"]):
         seq = fog[fog["net_id"] == nid]

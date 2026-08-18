@@ -3,15 +3,15 @@
 Everything downstream of L2 rests on one claim, taken from the plan:
 
     A team always sees its own members, so a fog event naming champion C can only come
-    from C's OPPONENTS' view — which makes the observer team derivable per event and
+    from C's OPPONENTS' view, which makes the observer team derivable per event and
     gives a ground-truth visibility oracle for both sides.
 
 That is the project's central asset and it had never been tested against real packets.
 This module tests it, on any shard, and prints what it found rather than asserting it.
 
 The test that settles it is the last one. Fog semantics cannot be read off the packet
-names — `EnterFog` could plausibly mean "entered the fog" or "entered view from the fog"
-— and the counts do not settle it either, because both are heavily duplicated. What does
+names, `EnterFog` could plausibly mean "entered the fog" or "entered view from the fog"
+and the counts do not settle it either, because both are heavily duplicated. What does
 settle it is geometry: if a fog event is about the opposing team's vision, then a champion
 marked visible should be *close to an enemy* and one marked hidden should be far from
 enemies, while its distance to its own allies should barely change. That is a prediction
@@ -19,7 +19,7 @@ no other interpretation makes. Camera-based interest culling, for instance, pred
 a hidden champion is far from everyone.
 
 MEASURED on `12_22/batch_001.jsonl.gz`, first match: visible champions sit a median 885
-units from the nearest enemy — inside the 1,350-unit champion sight radius — and 2,748
+units from the nearest enemy, inside the 1,350-unit champion sight radius. And 2,748
 units when hidden, while the ally distance moves only from 2,858 to 2,638. The oracle
 holds.
 """
@@ -43,7 +43,7 @@ __all__ = ["FogReport", "ShardMatch", "inspect_fog", "read_matches"]
 CHAMPION_SIGHT = 1350.0
 
 #: A hero-to-hero damage pair below this count is treated as noise rather than evidence
-#: of enmity — reflected damage, shared effects and the odd mis-parse all produce ones.
+#: of enmity: reflected damage, shared effects and the odd mis-parse all produce ones.
 MIN_DAMAGE_FOR_ENMITY = 3
 
 
@@ -65,7 +65,7 @@ def read_matches(path: Path | str, limit: int = 1) -> Iterator[ShardMatch]:
 
     Fifteen lines of `gzip` and `json`, deliberately. The official `…-gym` loader treats
     `WaypointGroup`'s dict key as a net_id when it is the list length, so its position
-    tracking is wrong throughout — reading the file directly is both simpler and the only
+    tracking is wrong throughout, reading the file directly is both simpler and the only
     version that is correct.
     """
     with gzip.open(path, "rt") as fh:
@@ -124,12 +124,12 @@ def teams_from_damage(match: ShardMatch) -> dict[int, int]:
     It colours each connected component from zero independently, so "colour 0" means a
     different team in each component and a disconnected graph comes out 6/4 with nothing
     raising. And it assumes the graph is bipartite, which real matches are not: in one of
-    twelve, a champion traded 75 hits with a genuine enemy and 3 with a teammate — enough
+    twelve, a champion traded 75 hits with a genuine enemy and 3 with a teammate, enough
     to close an odd cycle and make any colouring arbitrary. A maximum cut is indifferent
     to a few stray edges; a two-colouring is decided by them.
 
     Recovered without turret names, spawn sides or any position data, which makes it a
-    genuinely independent check on the resolver — if the two disagree, one is wrong and it
+    genuinely independent check on the resolver, if the two disagree, one is wrong and it
     is worth knowing which.
     """
     ids = sorted(match.heroes)
@@ -227,7 +227,7 @@ class FogReport:
 
         Stated as a ratio on purpose. An earlier version asserted that a visible champion
         sits within the 1,350-unit sight radius, which is true on average and fails on any
-        match where the position track — interpolated between sparse labelled anchors — is
+        match where the position track, interpolated between sparse labelled anchors, is
         a few hundred units loose. That tested the reconstruction, not the claim.
         """
         return (

@@ -1,4 +1,4 @@
-"""Shadowcast — reconstructing League of Legends information state from replays.
+"""Shadowcast: reconstructing League of Legends information state from replays.
 
 Layers, each behind an interface so any one can be rebuilt without the others:
 

@@ -2,7 +2,7 @@
 
 The table is the reason this project is tractable, and the reason it is dangerous:
 a table that does not match its terrain yields masks that are subtly wrong and never
-crash. So the tests here fall into two groups — does a row equal a fresh
+crash, so the tests here fall into two groups, does a row equal a fresh
 computation, and does the table refuse to be used with the wrong inputs.
 """
 
@@ -34,7 +34,7 @@ def table_dir(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def table(terrain, table_dir):
-    """One table for the whole module — building it takes about four seconds."""
+    """One table for the whole module, building it takes about four seconds."""
     return build_table(terrain, out_dir=table_dir)
 
 
@@ -101,8 +101,8 @@ def test_packed_discs_match_the_boolean_discs(table):
 def test_lookup_misses_for_vision_blocking_cells(table, terrain):
     """A source in a wall is a table miss, not a wrong answer.
 
-    Walls are excluded from the table, and the live fallback is what makes that safe
-    — wall-hop dashes and over-wall Farsight wards put real sources there.
+        Walls are excluded from the table, and the live fallback is what makes that safe
+    wall-hop dashes and over-wall Farsight wards put real sources there.
     """
     j, i = np.unravel_index(
         int(np.flatnonzero(~terrain.walkable.ravel())[0]), terrain.walkable.shape
@@ -325,7 +325,7 @@ def test_assemble_takes_the_live_path_for_a_brush_mismatch(table, terrain):
 
 
 def test_assemble_falls_back_for_an_unprecomputed_radius(table, terrain):
-    """An arbitrary radius still works — it just does not use the table."""
+    """An arbitrary radius still works. It just does not use the table."""
     j, i = divmod(int(terrain.walkable_cells()[5000]), terrain.grid)
     got = mask_to_bool(
         assemble(table, terrain, [(i, j, 1111.0, int(terrain.brush_id[j, i]))]), terrain.grid

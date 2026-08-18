@@ -3,8 +3,8 @@
 The centrepiece is `test_radius_monotonicity_is_exact`. That property is what lets
 one precomputed table serve every sight radius in the game, turning a naively
 8.6 TB all-pairs problem into 286 MB. It is a permanent test rather than a one-off
-verification because the two changes that break it — a wall-lighting post-pass and
-flood-revealing the source's brush — are both things a well-meaning contributor
+verification because the two changes that break it. A wall-lighting post-pass and
+flood-revealing the source's brush, are both things a well-meaning contributor
 would plausibly add.
 """
 
@@ -52,7 +52,7 @@ def make_terrain(grid: int = 96, walls=None, brush=None) -> Terrain:
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("radius", [100.0, 200.0, 500.0, 900.0])
 def test_empty_grid_gives_exactly_the_integer_disc(radius):
-    """With nothing to occlude, field of view IS the radius disc — no tolerance.
+    """With nothing to occlude, field of view IS the radius disc. No tolerance.
 
     This also catches the octant-transform class of bug: indexing the output window
     with scan-space offsets instead of grid offsets collapses all eight octants onto
@@ -67,7 +67,7 @@ def test_empty_grid_gives_exactly_the_integer_disc(radius):
 def test_a_full_length_wall_casts_an_analytic_half_plane_shadow():
     """A wall spanning the window blocks everything beyond it, exactly.
 
-    Wall cells themselves stay visible — a wall face is visible from outside, and
+    Wall cells themselves stay visible. A wall face is visible from outside, and
     lighting occluders inside the scan (rather than in a post-pass) is what keeps
     radius separability intact.
     """
@@ -91,13 +91,13 @@ def test_off_grid_is_opaque():
     """The map border must block, or vision wraps around the edge of the world."""
     terrain = make_terrain(grid=96)
     got = fov_bool(terrain, 2, 2, 900.0, half=HALF)
-    # Nothing outside the grid can be visible, so the window's far corner — which
-    # maps to negative grid coordinates — must be dark.
+    # Nothing outside the grid can be visible, so the window's far corner, which
+    # maps to negative grid coordinates, must be dark.
     assert not got[: HALF - 2, : HALF - 2].any()
 
 
 # ---------------------------------------------------------------------------
-# Brush semantics — the four cases
+# Brush semantics. The four cases
 # ---------------------------------------------------------------------------
 def _brush_fixture():
     """Two separate brush patches, both within sight of the origin cell.
@@ -146,7 +146,7 @@ def test_a_different_brush_is_still_opaque_from_inside_one():
 
 
 def test_you_can_see_out_of_your_own_brush():
-    """Case 4: brush is transparent outward — no vision penalty for standing in it.
+    """Case 4: brush is transparent outward. No vision penalty for standing in it.
 
     Checked in the direction away from the other brush, so brush B's opacity cannot
     account for the result.
@@ -164,7 +164,7 @@ def test_source_brush_can_be_overridden():
 
     At 28.8 units per cell a champion 10 units inside a brush can snap to a cell
     classified as non-brush. Brush transparency is a discrete switch, so that error
-    is not small — it flips a large part of the field of view. The caller must
+    is not small. It flips a large part of the field of view. The caller must
     therefore be able to pass the brush id it determined from the true position.
     """
     terrain, a, _ = _brush_fixture()
@@ -249,7 +249,7 @@ def test_radius_monotonicity_is_exact(terrain):
 
     assert mismatches == 0, (
         f"{mismatches} of {len(picks) * len(GAME_RADII)} (source, radius) pairs violate "
-        "radius separability — the single-table FOV design is invalid"
+        "radius separability. The single-table FOV design is invalid"
     )
 
 
@@ -306,10 +306,10 @@ def test_radius_monotonicity_holds_through_brush(terrain):
 def test_scan_stack_headroom(terrain):
     """Measure the real high-water mark rather than arguing about worst cases.
 
-    A pathological checkerboard could in principle push O(radius^2) frames. Real
-    Summoner's Rift peaks around 52 of 8,192, so the capacity is not a live concern
-    — but it is measured, and a terrain change that altered this by two orders of
-    magnitude would be caught here rather than by a truncated mask in production.
+        A pathological checkerboard could in principle push O(radius^2) frames. Real
+        Summoner's Rift peaks around 52 of 8,192, so the capacity is not a live concern
+    but it is measured, and a terrain change that altered this by two orders of
+        magnitude would be caught here rather than by a truncated mask in production.
     """
     rng = np.random.default_rng(9)
     cells = terrain.walkable_cells()
@@ -392,7 +392,7 @@ def test_shadowcast_is_never_more_restrictive_than_ray_marching(terrain):
         excluded += e
 
     excl_frac = excluded / (considered + excluded)
-    assert excl_frac < 0.15, f"excluded {excl_frac:.1%} as boundary — too much to conclude from"
+    assert excl_frac < 0.15, f"excluded {excl_frac:.1%} as boundary, too much to conclude from"
     assert restrictive == 0, (
         f"{restrictive} cells the reference can see but shadowcasting cannot. "
         "Shadowcasting should only ever over-report; a restrictive disagreement means "
@@ -439,7 +439,7 @@ def test_exhaustive_small_map_oracle():
     """Every source cell of the adversarial map, checked against ray marching.
 
     MEASURED: 4,286 permissive and 0 restrictive disagreements over 3,064,927
-    compared cells, all of them within two cells of a shadow boundary — 4,241 at
+    compared cells, all of them within two cells of a shadow boundary, 4,241 at
     distance 1 and 45 at distance 2, none beyond. That distribution is the whole
     point of the test: quantisation clusters at edges, whereas a genuine bug in the
     slope arithmetic or the octant transforms would scatter disagreements through
@@ -498,5 +498,5 @@ def test_disagreements_are_confined_to_shadow_boundaries():
     assert total > 0, "expected some boundary quantisation on adversarial geometry"
     assert worst_distance <= 2, (
         f"a disagreement sits {worst_distance} cells from any visibility boundary. "
-        "Boundary quantisation cannot explain that — this is a real FOV bug."
+        "Boundary quantisation cannot explain that. This is a real FOV bug."
     )

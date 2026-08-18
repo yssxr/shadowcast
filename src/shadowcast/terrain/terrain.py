@@ -3,7 +3,7 @@
 Built by *upsampling* the navgrid, and that direction matters. The navgrid is
 50 world units per cell; our grid is 28.83. Every grid cell therefore falls
 entirely inside exactly one navgrid cell, so point-sampling the containing cell is
-exact — no information is lost, no brush entrance can be sealed, and no topology
+exact. No information is lost, no brush entrance can be sealed, and no topology
 repair is needed. The elaborate area-majority-plus-repair machinery that a
 *downsample* would demand is simply not applicable here, and adding it would
 invent precision the source does not have.
@@ -178,7 +178,7 @@ def _label_brush_groups(brush: np.ndarray, diagonal: bool = True) -> tuple[np.nd
     MEASURED on the S10 Summoner's Rift navgrid: 4- and 8-connectivity give an
     identical 40 components, so no two patches are even diagonally adjacent and the
     connectivity choice is moot here. 8-connectivity is kept because it is the
-    conservative direction for the failure we care about — it fuses rather than
+    conservative direction for the failure we care about. It fuses rather than
     shatters, and a fused pair is caught by the count assertion while a shattered
     patch would silently make one brush behave as several.
     """
@@ -247,7 +247,7 @@ def build_terrain(
     #
     # MEASURED: 251 of the navgrid's 2,129 HAS_GRASS cells also carry
     # NOT_PASSABLE, and none of those is see-through. They are the 50-unit raster
-    # straddling a brush/terrain boundary — brush painted up against a wall.
+    # straddling a brush/terrain boundary, brush painted up against a wall.
     #
     # Such a cell is opaque no matter what its brush flag says, so its brush
     # membership can never affect a vision decision. Excluding it keeps the

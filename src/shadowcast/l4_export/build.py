@@ -1,8 +1,8 @@
 """Turning a reconstructed match into the arrays the artifact holds.
 
 One pass. The vision masks and the belief both arrive as generators that can only be
-consumed once, and neither is small enough to materialise — 472 MB of masks and 115 MB
-of particles for a fifteen-minute match — so this tees the mask stream into the belief
+consumed once, and neither is small enough to materialise, 472 MB of masks and 115 MB
+of particles for a fifteen-minute match, so this tees the mask stream into the belief
 filter and takes what it needs from both as they go past.
 
 **The mixture fit is where the lossiness lives**, and it is the only lossy step in the
@@ -52,8 +52,8 @@ class BuildResult:
 def downsample_mask(mask: np.ndarray, grid: int, out_grid: int) -> np.ndarray:
     """Packed 512² team mask to a packed `out_grid`² bitmap, LSB-first within bytes.
 
-    A coarse cell counts as visible if *any* fine cell in it is. The alternative — a
-    majority rule — would erase exactly the features the display exists to show: a ward's
+    A coarse cell counts as visible if *any* fine cell in it is. The alternative: a
+    majority rule: would erase exactly the features the display exists to show: a ward's
     vision cone through a brush entrance is a few fine cells wide and would vanish, and
     the frontend would render a map with less vision than the engine computed.
     """
@@ -221,10 +221,10 @@ def _cell_points(cell: np.ndarray, grid: int) -> np.ndarray:
 def _quantise_components(fit: np.ndarray) -> np.ndarray:
     """`(k, 4)` float components to bytes: x, z over the world span; weight and sigma.
 
-    Sigma is quantised over 0..2000 units rather than the world span. A component's
-    spread is a few hundred units at most — beyond that the cluster would have been split
-    — so spending the byte on the range that occurs gives 7.8 units of resolution instead
-    of 58.
+        Sigma is quantised over 0..2000 units rather than the world span. A component's
+        spread is a few hundred units at most, beyond that the cluster would have been split
+    so spending the byte on the range that occurs gives 7.8 units of resolution instead
+        of 58.
     """
     out = np.empty(fit.shape, dtype=np.uint8)
     out[:, 0] = np.clip((fit[:, 0] - C.WORLD_MIN_X) / C.WORLD_SPAN * 255.0, 0, 255)
@@ -239,14 +239,14 @@ def _mixture_divergence(pts: np.ndarray, weights: np.ndarray, fit: np.ndarray) -
 
     The comparison has to be like for like, and a first version was not. Binning the
     particles into a histogram and comparing it against smooth Gaussians measured mostly
-    the spikiness of a thousand samples over a thousand bins — it reported 0.32 nats for
+    the spikiness of a thousand samples over a thousand bins. It reported 0.32 nats for
     a fit that was in fact close, because the reference was a discretisation artefact
     rather than the belief.
 
     So the particle cloud goes through the same kernel the mixture does: each particle is
     a component of weight `w` whose sigma falls to the same floor. What remains is the
-    question actually being asked — did sixteen components capture the shape of a
-    thousand particles — measured on the grid the frontend draws.
+    question actually being asked, did sixteen components capture the shape of a
+    thousand particles, measured on the grid the frontend draws.
     """
     grid = C.DISPLAY_BELIEF_GRID
     reference = np.zeros((pts.shape[0], 4))

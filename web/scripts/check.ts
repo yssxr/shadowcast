@@ -2,7 +2,7 @@
  * Headless check: decode a real artifact and run every derived metric on it.
  *
  * Not a substitute for looking at the page, but it catches the class of bug that looking
- * at the page catches worst — an off-by-one in an index, a metric that silently returns
+ * at the page catches worst. An off-by-one in an index, a metric that silently returns
  * zero for everything, a coordinate convention flipped in one place. Those render as a
  * map that looks *plausible*, which is exactly the failure this project keeps running
  * into and keeps having to measure its way out of.
@@ -29,7 +29,7 @@ const artifact = new Artifact(meta, decode(meta, buffer));
 
 const failures: string[] = [];
 function check(name: string, ok: boolean, detail = ""): void {
-  if (!ok) failures.push(`${name}${detail ? ` — ${detail}` : ""}`);
+  if (!ok) failures.push(`${name}${detail ? `: ${detail}` : ""}`);
   console.log(`${ok ? "ok  " : "FAIL"}  ${name}${detail ? `  ${detail}` : ""}`);
 }
 
@@ -89,7 +89,7 @@ check(
   `${(litFraction * 100).toFixed(1)}%`,
 );
 
-// The two teams must not have identical vision — if they do, the observer index is being
+// The two teams must not have identical vision, if they do, the observer index is being
 // ignored somewhere and every asymmetry claim on the site is empty.
 let differing = 0;
 for (let j = 0; j < 128; j += 2) {

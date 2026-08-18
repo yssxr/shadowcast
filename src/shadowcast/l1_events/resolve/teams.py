@@ -1,6 +1,6 @@
 """Resolving which team each champion is on.
 
-`CreateHero` carries a summoner name and a champion name and nothing else — no team, no
+`CreateHero` carries a summoner name and a champion name and nothing else. No team, no
 side, no position. So team membership has to be inferred, and it is inferred from
 turrets, which are the only entities that state their side outright: the internal name
 encodes `T1` for ORDER and `T2` for CHAOS.
@@ -12,7 +12,7 @@ whichever team's structures a champion is standing among at its first observatio
 team.
 
 **The 5/5 constraint does the real work.** Nearest-shrine alone is a decent signal but it
-can misfire — a champion that leaves the fountain before its first anchor, or a match
+can misfire. A champion that leaves the fountain before its first anchor, or a match
 where a shrine turret never fires and so has no recovered position. Every Summoner's
 Rift match has exactly five champions per side, which is a hard structural fact, so
 instead of thresholding a distance the champions are *ranked* by how ORDER-leaning they
@@ -28,15 +28,15 @@ leave base immediately, so "whose structures were you standing among at your fir
 observation" is a much weaker signal than it looked.
 
 Damage is not. Champions damage enemies and not allies, so the true split is the one that
-puts essentially all hero-to-hero damage *across* it — and with ten champions there are
+puts essentially all hero-to-hero damage *across* it, and with ten champions there are
 only `C(10,5)/2 = 126` balanced splits, so the maximum cut is found exactly by
 enumeration rather than approximated. MEASURED on eight real matches: the recovered split
 carries 100.0% of hero damage in seven and 99.4% in the eighth.
 
 It needs no positions, no turret names and no trajectory quality, which makes it both
 more accurate and independent of every layer it feeds. Turret proximity remains as the
-fallback for a match with too little combat to separate the teams — the first minute of
-a truncated stream, say — and the two disagreeing is worth logging, because one of them
+fallback for a match with too little combat to separate the teams. The first minute of
+a truncated stream, say, and the two disagreeing is worth logging, because one of them
 is wrong and the cut fraction says which.
 """
 
@@ -137,7 +137,7 @@ def teams_from_damage(events: MatchEvents) -> tuple[np.ndarray, float]:
         return team, 0.0
 
     # `DAMAGE_EVENT` is already resolved to slots, with UNKNOWN for anything that is not
-    # a champion — so minion and turret damage drops out here without a filter.
+    # a champion, so minion and turret damage drops out here without a filter.
     weight = np.zeros((n_slots, n_slots))
     source = events.damage["source"].astype(np.int64)
     target = events.damage["target"].astype(np.int64)
@@ -165,7 +165,7 @@ def teams_from_damage(events: MatchEvents) -> tuple[np.ndarray, float]:
             ties += 1
 
     # **A unique maximum is the whole point.** A sparse damage graph can put 100% of its
-    # edges across many different splits at once — the synthetic generator emits about
+    # edges across many different splits at once. The synthetic generator emits about
     # thirty-five hero-to-hero damage events where a real twelve-minute match has
     # eighteen thousand, and dozens of partitions tie there. The cut fraction cannot see
     # that: it is 100% for every one of them. So a tie means the graph does not determine
@@ -181,7 +181,7 @@ def resolve_teams(events: MatchEvents) -> TeamResolution:
     """Infer champion teams, preferring the damage graph over geometry.
 
     The damage split is exact when there is combat to learn from; turret proximity is the
-    fallback. See the module docstring for why the order is that way round — the
+    fallback. See the module docstring for why the order is that way round. The
     geometric method scored 100% on synthetic data and is wrong on 2-4 champions in 7 of
     8 real matches.
     """

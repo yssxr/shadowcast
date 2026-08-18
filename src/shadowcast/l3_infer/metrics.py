@@ -1,7 +1,7 @@
 """Scoring a belief, and the units that make the score mean something.
 
 This is where truth is finally allowed in, and it is deliberately a separate module from
-the filter for that reason — `pf.run` yields beliefs, `evaluate` zips them against a
+the filter for that reason, `pf.run` yields beliefs, `evaluate` zips them against a
 `TruthTable`, and the two never share a scope.
 
 Four numbers, and the reason there are four is that no one of them is sufficient:
@@ -25,7 +25,7 @@ calibration cannot quietly disagree about what space they are defined on.
 
 **Calibration** is what stops NLL being gamed by a filter that is sharp and wrong. A
 model with lower entropy and broken calibration is overconfident garbage, and there is no
-way to tell from entropy alone — so a reliability curve is reported next to every score,
+way to tell from entropy alone, so a reliability curve is reported next to every score,
 and a model that beats another on NLL while sitting off-diagonal has not won anything.
 """
 
@@ -55,8 +55,8 @@ __all__ = [
 #: truth falls inside its `q` region exactly `q` of the time, for every one of these.
 CALIBRATION_LEVELS = (0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
 
-#: Area unit. One "ku" is a thousand game units, so Summoner's Rift — 14,759 units on a
-#: side — is 217.8 ku². Named rather than called km² because a game unit is not a metre
+#: Area unit. One "ku" is a thousand game units, so Summoner's Rift, 14,759 units on a
+#: side: is 217.8 ku². Named rather than called km² because a game unit is not a metre
 #: and quietly implying it is would make every area figure a small lie.
 UNITS_PER_KU = 1000.0
 
@@ -103,7 +103,7 @@ class LatticeIndex:
 
         The smoothing is part of the metric, not a tidy-up: a particle set cannot
         resolve a distribution below one particle per bin, so an unsmoothed histogram
-        assigns exactly zero to any bin that happens to hold none — and then every
+        assigns exactly zero to any bin that happens to hold none, and then every
         credible region at every level excludes a truth that lands there. That is a
         statement about the sample rather than about the belief.
 
@@ -145,17 +145,17 @@ def _normalised_weights(logw: np.ndarray) -> np.ndarray:
 
 
 def _entropy_bits(p: np.ndarray, ess: float, max_bits: float) -> float:
-    """Plug-in entropy with the Miller–Madow correction, capped at the lattice ceiling.
+    """Plug-in entropy with the Miller-Madow correction, capped at the lattice ceiling.
 
     The correction matters more than it looks. Plug-in entropy of a finite sample is
     biased *downward* by roughly `(K-1) / (2N ln 2)` bits, where K is the number of
-    occupied bins — and K grows as the belief spreads, so the bias is a function of
+    occupied bins. And K grows as the belief spreads, so the bias is a function of
     precisely the quantity being measured. Uncorrected, a diffuse belief is understated
     more than a concentrated one, which flatters the model's apparent sharpness in the
     exact regime the project cares about.
 
-    The cap is not cosmetic. Miller–Madow is asymptotic in particles per bin, and near a
-    uniform belief there is barely one of those — measured, the correction added 0.63
+    The cap is not cosmetic. Miller-Madow is asymptotic in particles per bin, and near a
+    uniform belief there is barely one of those, measured, the correction added 0.63
     bits to a 9.35-bit estimate on an 890-bin lattice whose maximum is 9.80. Entropy
     over K bins cannot exceed log2 K by any amount, so a correction that pushes past it
     has left its validity range and the ceiling is the right answer.
@@ -179,7 +179,7 @@ def _credible(p: np.ndarray, mass: float) -> tuple[int, float]:
 def _pit(p: np.ndarray, truth_bin: int) -> float:
     """Smallest credible level whose region contains the truth.
 
-    Under a correctly calibrated filter this is Uniform(0, 1) — so the empirical CDF of
+    Under a correctly calibrated filter this is Uniform(0, 1), so the empirical CDF of
     these values against the diagonal *is* the reliability curve, with no binning choices
     to argue about. A filter that is systematically overconfident piles these up near 1.
     """
@@ -197,8 +197,8 @@ def belief_summary(
 
     The pair the artifact ships per tick. Exported here rather than recomputed in
     `l4_export` so the number on the site and the number in the validation report come
-    from the same three lines — a display that quietly used a different lattice or
-    skipped the Miller–Madow correction would disagree with the report and nobody would
+    from the same three lines. A display that quietly used a different lattice or
+    skipped the Miller-Madow correction would disagree with the report and nobody would
     know which was right.
     """
     p = lattice.histogram(cell, weights)
@@ -256,8 +256,8 @@ def evaluate(
 
     **Only ticks where the enemy is alive and unseen are scored.** A seen enemy's belief
     is a point mass at their exact cell by construction, so including those ticks would
-    average in a perfect score for every moment the question was not being asked — and
-    since visibility runs 25–40%, that alone would move every model a third of the way
+    average in a perfect score for every moment the question was not being asked. And
+    since visibility runs 25-40%, that alone would move every model a third of the way
     toward looking good. It would also flatter whichever model happens to see more, which
     is none of them: visibility is identical across the ablation.
     """

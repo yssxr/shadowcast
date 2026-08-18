@@ -7,7 +7,7 @@ the input hash before doing anything.
 
 This exists because of one specific failure mode. The FOV table is a 160 MB
 derived artifact keyed to the terrain it was built from. If the terrain changes
-and the table does not, every visibility mask afterwards is subtly wrong — and
+and the table does not, every visibility mask afterwards is subtly wrong. And
 nothing crashes. Masks still look like masks, unions still union, the site still
 renders, and the validation numbers move by a few percent in a way that reads as
 a modelling issue. Content hashing turns that into a loud error at the boundary.
@@ -186,7 +186,7 @@ class TickSpec(_Spec):
 MotionModel = Literal[
     "uniform",  # B0: resample uniformly over walkable every tick
     "disc",  # B1: uniform in a growing Euclidean disc
-    "geodisc",  # B1': same, but geodesic — isolates the value of the navmesh
+    "geodisc",  # B1': same, but geodesic: isolates the value of the navmesh
     "constant_velocity",  # B2: extrapolate, no terrain clamp
     "navmesh_diffusion",  # B3: random walk on the navmesh
     "navmesh_behavioural",  # Full: navmesh walk with an objective-aware prior
@@ -323,7 +323,7 @@ class StageHeader:
     """Provenance stamped into every derived file.
 
     `validate_against` is the whole point. A consumer calls it with the hash of
-    what it actually loaded, and a mismatch raises instead of proceeding — which
+    what it actually loaded, and a mismatch raises instead of proceeding, which
     is the difference between "the numbers look slightly off" and a stack trace
     naming the stale file.
     """
@@ -379,7 +379,7 @@ def fov_table_dir(grid: GridSpec, terrain: TerrainSpec) -> Path:
     """The table is keyed by both specs, so a terrain change orphans it by name.
 
     Naming rather than in-file checking means a stale table is not merely
-    detected, it is not found at all — and `fov build` writes the new one beside
+    detected, it is not found at all. And `fov build` writes the new one beside
     it instead of overwriting, so an interrupted rebuild cannot leave a
     half-written table where a valid one used to be.
     """

@@ -3,7 +3,7 @@
 #
 # This is the same ruff-format + ruff-check --fix pair that .pre-commit-config.yaml
 # runs, applied one file at a time as it is edited. The point is not the formatting
-# — pre-commit would catch that anyway — it is that whatever ruff *cannot* fix gets
+#, pre-commit would catch that anyway. It is that whatever ruff *cannot* fix gets
 # reported straight back into the conversation, so lint errors are corrected while
 # the code is still in context rather than at commit time.
 #
@@ -36,7 +36,9 @@ fi
 ruff format --quiet "$file" >/dev/null 2>&1
 ruff check --quiet --fix "$file" >/dev/null 2>&1
 
-remaining="$(ruff check --no-cache --output-format=concise "$file" 2>/dev/null)"
+# --quiet suppresses the "All checks passed!" summary, which is otherwise non-empty
+# stdout and would be reported back as a finding on every clean edit.
+remaining="$(ruff check --no-cache --quiet --output-format=concise "$file" 2>/dev/null)"
 if [ -n "$remaining" ]; then
 	jq -n --arg r "$remaining" '{
 		hookSpecificOutput: {

@@ -1,13 +1,13 @@
 /**
  * The advantage timeline: mirrored area fills about a midline, with events as ticks.
  *
- * Straight from the mockup — ward placements below the line, kills above, objectives as
+ * Straight from the mockup, ward placements below the line, kills above, objectives as
  * dashed verticals, and pointer-capture drag anywhere on the strip to scrub.
  *
  * The quantity plotted is **information advantage**: the difference between the two
  * teams' total uncertainty about their enemies. Above the midline means Order knows more
  * about Chaos than Chaos knows about Order. Plotting it mirrored rather than as a single
- * signed line is what makes "who is ahead" pre-attentive — you see which side is filled
+ * signed line is what makes "who is ahead" pre-attentive. You see which side is filled
  * before reading anything.
  *
  * Pointer capture matters more than it sounds: without it a drag that leaves the strip
@@ -101,7 +101,7 @@ export function Timeline({ artifact, clock, width, height = 112 }: Props) {
         c.stroke();
       }
 
-      // Wards below the midline, kills above — the mockup's arrangement, and it keeps
+      // Wards below the midline, kills above. The mockup's arrangement, and it keeps
       // the two event kinds from colliding on a dense strip.
       for (const ward of artifact.wards) {
         const x = (ward.t0 / artifact.duration) * width;

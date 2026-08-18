@@ -14,12 +14,12 @@ sweep, the cells are sorted by distance, and "sample a cell within radius r" bec
 
 **The lattice is coarse on purpose.** 128² at 115 u/cell, not the 512² the rest of the
 engine uses. A reachability set is a claim about which *region* an enemy could be in, and
-115 u is already finer than that question deserves — while Dijkstra over 16k cells is
+115 u is already finer than that question deserves, while Dijkstra over 16k cells is
 some sixty times cheaper than over 262k, which matters because the geodesic baseline
 wants a fresh field at every sighting and there are hundreds of those per match.
 A coarse cell counts as walkable if *any* fine cell inside it is, because the opposite
 rule would close one-cell corridors that the map genuinely has and make parts of the
-jungle unreachable — a reachability set that is too small breaks calibration outright,
+jungle unreachable. A reachability set that is too small breaks calibration outright,
 while one that is too large only costs sharpness.
 """
 
@@ -35,7 +35,7 @@ from shadowcast.terrain.terrain import Terrain
 
 __all__ = ["ReachabilityIndex"]
 
-#: How many fields to keep. Each is 64 KB, so this is 4 MB — small next to the cost of
+#: How many fields to keep. Each is 64 KB, so this is 4 MB, small next to the cost of
 #: recomputing one, and a match revisits sighting locations constantly (lanes, camps,
 #: the fountain), so the hit rate is high.
 CACHE_ENTRIES = 64
@@ -110,7 +110,7 @@ class ReachabilityIndex:
     def _nearest_walkable_coarse(self, coarse: int) -> np.ndarray:
         """A seed for a sighting that snapped into a wall.
 
-        Reconstructed positions land in non-walkable cells occasionally — dashes over
+        Reconstructed positions land in non-walkable cells occasionally, dashes over
         walls, and the 28.8 u quantisation near a wall face. Refusing to produce a field
         would leave the filter with no prior at all, which is strictly worse than
         seeding from the walkable cell next door.
@@ -146,7 +146,7 @@ class ReachabilityIndex:
         `rnd` is pre-drawn uniform noise of shape `(n, 2)`: one draw to pick the coarse
         cell, one to pick a fine cell inside it. Randomness is passed in rather than
         generated so that the NumPy and Numba paths, and successive runs, are
-        bit-comparable — the barrier test compares outputs exactly.
+        bit-comparable. The barrier test compares outputs exactly.
 
         `blocked` is the observer's current visibility as a flat boolean over fine
         cells. Excluding it *is* the negative information, applied here as a hard

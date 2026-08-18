@@ -12,8 +12,8 @@
  * mount happens inside a `requestAnimationFrame` callback writing to a canvas, which is
  * why its props are settings rather than state.
  *
- * Inside that callback the rule is **no allocation**. Every buffer — the belief field,
- * the mixture components, the trail points, the scratch surface — is allocated at mount
+ * Inside that callback the rule is **no allocation**. Every buffer: the belief field,
+ * the mixture components, the trail points, the scratch surface, is allocated at mount
  * and reused. Five enemies times two maps times sixty frames is six hundred allocations
  * a second otherwise, and the symptom is not a slow frame but a periodic one: a sawtooth
  * as the collector runs, which reads as stutter rather than as slowness.
@@ -88,7 +88,7 @@ export function MapCanvas({
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   // Settings live in a ref because the draw loop reads them every frame and must not
-  // need a re-render — a stale closure here would silently freeze the controls.
+  // need a re-render. A stale closure here would silently freeze the controls.
   const live = useRef(settings);
   live.current = settings;
   const pick = useRef(onPickChampion);
@@ -111,8 +111,8 @@ export function MapCanvas({
 
     // The fog composite is built at the TERRAIN's own resolution, not the display's.
     // Its source images are 512² and the map is drawn at roughly 800 CSS px on a 2x
-    // display, so compositing at display size was doing 1600² of work — five million
-    // pixels per rebuild — to upscale a 512² image. Building at 512² and letting the
+    // display, so compositing at display size was doing 1600² of work, five million
+    // pixels per rebuild, to upscale a 512² image. Building at 512² and letting the
     // per-frame blit do the magnification is the same picture for a tenth of the cost,
     // and it was most of the 26 ms worst frame.
     const fog = document.createElement("canvas");
@@ -123,8 +123,8 @@ export function MapCanvas({
     let fogVision = live.current.showVision;
 
     // Terrain and belief are composited together at 512² and blitted once. Both are
-    // inherently low-resolution — the terrain source IS 512² and the belief is a 32-cell
-    // field — so compositing them at display size was doing 2.56 million pixels of
+    // inherently low-resolution. The terrain source IS 512² and the belief is a 32-cell
+    // field, so compositing them at display size was doing 2.56 million pixels of
     // `screen` blending per map per frame to magnify images that had no detail to
     // magnify. MEASURED: the belief layer alone took the page from 110 fps to 67.
     // Entities are drawn afterwards at full display resolution, because a champion dot
@@ -135,19 +135,19 @@ export function MapCanvas({
     const composeCtx = compose.getContext("2d", { alpha: false })!;
 
     // The composite is cached against the ticks that feed it. Vision is exported at 4 Hz
-    // and the belief at 8, while the canvas draws at 60 — so rebuilding it every frame
+    // and the belief at 8, while the canvas draws at 60, so rebuilding it every frame
     // recomputed an identical picture six or fourteen times over. Champions are drawn on
     // top every frame and interpolated between ticks, which is what actually needs 60.
     let composeKey = "";
 
-    // Rebuilt only when the belief tick changes — see the compose cache below.
+    // Rebuilt only when the belief tick changes. See the compose cache below.
     function rebuildBelief(s: MapSettings, belTick: number, posTick: number) {
       if (!s.showBelief) return;
       // The CLOUD merges the five enemies; the BOUNDARY does not.
       //
       // Merging is right for the fill: every enemy on this map is on the same team and
       // therefore the same colour, so five separate `screen` composites produce a
-      // picture that one composite of the per-enemy maximum already gives — and that
+      // picture that one composite of the per-enemy maximum already gives, and that
       // blend is the most expensive thing on the page.
       //
       // A credible region is the opposite case. It is a statement about ONE champion,
@@ -174,7 +174,7 @@ export function MapCanvas({
       if (count > 0) {
         // Cloud first, outlines second. The cloud is a `screen` composite, so drawing
         // it over the outlines would wash them out exactly where the belief is
-        // strongest — which is the one place the boundary needs to be legible.
+        // strongest, which is the one place the boundary needs to be legible.
         drawCloud(composeCtx, scratch.merged, 1 - observer, terrain.grid, scratch);
         if (s.showBoundary) {
           for (let k = 0; k < count; k++) {

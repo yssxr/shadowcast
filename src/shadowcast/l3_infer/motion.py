@@ -6,7 +6,7 @@ into two families, and the split is not cosmetic:
 **Re-derived models** (`uniform`, `disc`, `geodisc`) ignore their own previous state and
 recompute the belief from the last sighting and the elapsed time. They are closed forms
 pretending to be filters, which is the honest way to represent "grow a circle from where
-we last saw them" — the thing every existing vision overlay does.
+we last saw them". The thing every existing vision overlay does.
 
 **Propagated models** (`constant_velocity`, `navmesh_diffusion`, `navmesh_behavioural`)
 carry state forward tick by tick, so evidence accumulated at tick 40 is still shaping the
@@ -16,7 +16,7 @@ have anything for it to act on.
 Particles are **cell indices, not points.** That decision buys three things. The negative
 update becomes a mask bit lookup instead of an interpolation, so "is this particle inside
 the visible region" is exact rather than nearly-exact. Entropy, credible area and the
-export mixture are all grid-shaped anyway. And — the reason that settled it — a lattice
+export mixture are all grid-shaped anyway. And: the reason that settled it. A lattice
 walk has a transition matrix you can write down, which is what lets `single_step_matrix`
 below be checked against an exact Bayesian forward pass using *the shipped kernel* rather
 than a stand-in written for the test.
@@ -73,7 +73,7 @@ def sub_steps_per_tick(
 ) -> int:
     """Lattice steps per simulation tick, from the speed the walk should represent.
 
-    At 8 Hz and 335 u/s a champion covers 41.9 units — 1.45 cells — so two sub-steps
+    At 8 Hz and 335 u/s a champion covers 41.9 units, 1.45 cells: so two sub-steps
     with a stay probability lands the right displacement rather than a round number
     chosen for looking tidy.
     """
@@ -101,17 +101,17 @@ def propose_cells(
 
     Three effects, each disableable to zero so the baselines really are the same code:
 
-    `p_stay` — champions do stand still: recalling, holding a brush, hitting a camp.
-    `persistence` — and when they do move, repeating the previous heading is more likely
+    `p_stay`: champions do stand still: recalling, holding a brush, hitting a camp.
+    `persistence`: and when they do move, repeating the previous heading is more likely
     than a fresh isotropic draw.
-    `goal_beta` — and, mostly, they are walking somewhere specific. `goal[p]` is that
+    `goal_beta`: and, mostly, they are walking somewhere specific. `goal[p]` is that
     somewhere, managed by the caller; the kernel only biases each step toward it.
 
     **The goal term is not a refinement, it is the model.** An unbiased walk was tried
     first and it cannot reproduce how far champions actually travel: measured against
     synthetic ground truth, the median twenty-second displacement is 1,395 units, and no
     combination of sub-steps, stay probability and heading persistence gets a diffusive
-    walk past 900. A random walk is recurrent — it wanders back over itself — while a
+    walk past 900. A random walk is recurrent. It wanders back over itself, while a
     champion crossing the map does not. Raising persistence far enough to fix the long
     horizon breaks the short one, because a straight-line walk at champion speed covers
     1,600 units in the two seconds where the truth is 268.
@@ -163,7 +163,7 @@ def propose_cells(
             # Stay gets whatever weight makes its probability exactly `p_stay`, rather
             # than a fixed weight competing against however many moves the terrain
             # happens to allow. Otherwise a particle in a corridor stands still far more
-            # often than one in the open — an accident of the lattice masquerading as a
+            # often than one in the open. An accident of the lattice masquerading as a
             # behavioural claim.
             # `p_stay` must be in [0, 1); a belief that never moves is not a model.
             weights[8] = move_total * p_stay / (1.0 - p_stay)
@@ -204,7 +204,7 @@ def single_step_matrix(walkable: np.ndarray, p_stay: float) -> np.ndarray:
     so that `tests/test_pf.py` can compare the particle filter against an exact Bayesian
     forward pass over every state, and `tests/test_motion.py` can check that the kernel's
     empirical transition frequencies match this matrix. If the two ever drift apart, both
-    tests fail, which is the point — a filter validated against a hand-written toy model
+    tests fail, which is the point. A filter validated against a hand-written toy model
     proves only that the toy model was written to agree.
 
     `p_stay` must be in [0, 1), as in the kernel.
@@ -251,7 +251,7 @@ def single_step_matrix(walkable: np.ndarray, p_stay: float) -> np.ndarray:
 #:
 #: **Keyed on `roles.ROLES` verbatim**, and that is the point rather than a style note.
 #: An earlier version matched `"jng"` and `"sup"` while the resolver emits `"jungle"` and
-#: `"support"`, so two of every five enemies fell silently through to the catch-all — and
+#: `"support"`, so two of every five enemies fell silently through to the catch-all. And
 #: one of them was the jungler, the champion who spends the most time in fog and the one
 #: this whole tool exists to locate. Nothing failed; the prior was simply absent for 40%
 #: of the targets, and the only symptom was a belief that was confident in the wrong
@@ -263,8 +263,8 @@ _JUNGLE_ROLE = "jungle"
 def role_targets(role: str, terrain, team: int | None = None) -> np.ndarray:
     """Cells a champion of this role plausibly walks toward.
 
-    Roles are resolved upstream and a role is public information — everyone watching can
-    see who went to the jungle — so conditioning the prior on it leaks nothing.
+    Roles are resolved upstream and a role is public information, everyone watching can
+    see who went to the jungle, so conditioning the prior on it leaks nothing.
 
     This is a *random-waypoint* mobility model, which is the standard treatment of
     purposeful movement and, more to the point, is how champions actually move: pick a
@@ -283,7 +283,7 @@ def role_targets(role: str, terrain, team: int | None = None) -> np.ndarray:
         pts = [np.asarray(v, dtype=np.float64) for v in sr.LANES.values()]
         pts += [np.asarray(r, dtype=np.float64) for r in sr.JUNGLE_ROUTES.values()]
     # Champions recall. The generator sends them back every 190 seconds for 26, and real
-    # players do it constantly — so a belief whose goal set contains only lanes and camps
+    # players do it constantly, so a belief whose goal set contains only lanes and camps
     # walks the whole cloud up the lane while the champion is walking down it. Adding the
     # champion's OWN fountain is not a synthetic detail; it is a behaviour the model was
     # simply missing.
@@ -312,7 +312,7 @@ def refresh_goals(
     """Give a new destination to every particle that reached its old one.
 
     Done in NumPy rather than inside the kernel so that all randomness stays on one
-    generator — the barrier test asserts two runs of the same seed are bit-identical, and
+    generator. The barrier test asserts two runs of the same seed are bit-identical, and
     a second RNG inside Numba would make that impossible to guarantee.
     """
     dj = goal // grid - cell // grid

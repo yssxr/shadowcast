@@ -2,7 +2,7 @@
 
 This is the module the project exists for. Every League vision tool in existence draws a
 circle growing from a last known position. None of them subtract the region the team is
-currently looking at — which is strange, because that is where most of the information
+currently looking at, which is strange, because that is where most of the information
 is. If Blue holds the whole river and does not see Red's jungler, Red's jungler is not in
 the river, and after twenty seconds of that the surviving belief is a thin terrain-shaped
 sliver rather than a fat disc.
@@ -19,7 +19,7 @@ positions snap to 28.8-unit cells, recursive shadowcasting is a few percent perm
 wall corners, trajectories carry their own timing error, and a ward's exact expiry is
 modelled. A particle killed by a mask that is wrong at its edge can never come back, so
 one bad cell at one tick permanently deletes the correct hypothesis, and the filter
-reports high confidence in a wrong answer — the single worst failure mode available to a
+reports high confidence in a wrong answer. The single worst failure mode available to a
 Bayesian filter, because it looks like success.
 
 So `p_d` is 0.98 in the interior and 0.75 in the outer two-cell ring, and the ring is
@@ -57,14 +57,14 @@ def detection_field(
 ) -> None:
     """Per-particle detection probability against a packed visibility mask.
 
-    Zero where the particle is outside the visible region — we are not looking there, so
+    Zero where the particle is outside the visible region. We are not looking there, so
     not seeing them is not evidence.
 
     Interior versus edge is decided by probing the eight cells at Chebyshev distance
     `ring` rather than by eroding the mask. Two reasons: an erosion of a 512² mask at
     every tick for both teams is 3.8 billion cell operations a match, against 230 million
     bit reads this way; and the probe is exact for a locally convex region and only
-    slightly permissive otherwise, which errs toward calling a cell an edge — the
+    slightly permissive otherwise, which errs toward calling a cell an edge. The
     cautious direction, since edge cells get the weaker update.
     """
     n = cell.shape[0]
@@ -108,7 +108,7 @@ def negative_update(logw: np.ndarray, pd: np.ndarray) -> None:
 
     Log weights rather than linear ones, and that is not fastidiousness. A particle in a
     permanently visible region accumulates `log(0.02)` per tick; in float32 linear
-    weights it underflows to exactly zero inside about 200 ticks — twenty-five seconds —
+    weights it underflows to exactly zero inside about 200 ticks, twenty-five seconds,
     after which it is indistinguishable from a particle that was never possible, and the
     normalisation silently divides by zero when *every* particle gets there.
     """
@@ -125,7 +125,7 @@ def negative_update(logw: np.ndarray, pd: np.ndarray) -> None:
 def collapse_to_cell(cell: np.ndarray, logw: np.ndarray, observed: int) -> None:
     """A sighting is exact, so the posterior is a point mass.
 
-    Champions are rendered at their true position the moment they enter vision — there is
+    Champions are rendered at their true position the moment they enter vision. There is
     no measurement noise in a replay, only the 28.8-unit quantisation the cell already
     represents. Spreading particles around a sighting would be inventing uncertainty that
     the observer did not have, and it would show up directly as miscalibration: the 50%
@@ -165,11 +165,11 @@ def effective_sample_size(logw: np.ndarray) -> float:
 def systematic_resample(logw: np.ndarray, u: float, out: np.ndarray) -> None:
     """Systematic resampling: one uniform draw, `n` evenly spaced strata.
 
-    Chosen over multinomial because it has strictly lower variance for the same cost and
-    — the reason that matters here — it is deterministic given one number, so a filter
-    run twice with the same seed produces bit-identical particle sets. The
-    information-barrier test asserts exactly that, and multinomial resampling would make
-    the assertion untestable without weakening it to a statistical comparison.
+        Chosen over multinomial because it has strictly lower variance for the same cost and
+    the reason that matters here. It is deterministic given one number, so a filter
+        run twice with the same seed produces bit-identical particle sets. The
+        information-barrier test asserts exactly that, and multinomial resampling would make
+        the assertion untestable without weakening it to a statistical comparison.
     """
     n = logw.shape[0]
     m = -np.inf

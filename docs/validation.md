@@ -9,17 +9,17 @@ is a figure someone will eventually be unable to defend.
 
 > Unless a section says otherwise, figures are measured on **synthetic** matches where ground
 > truth is known. Real-corpus figures are now available for the vision layer and are much
-> worse — see "Fog agreement on REAL packets" below. Regenerate with `shadowcast pipeline`,
+> worse. See "Fog agreement on REAL packets" below. Regenerate with `shadowcast pipeline`,
 > `shadowcast realfog`, `shadowcast ablate`, `shadowcast diagnose` and `shadowcast inspect`.
 
 ---
 
-## R1 — does the fog oracle hold on real packets?
+## R1: does the fog oracle hold on real packets?
 
 **Yes, in 23 of 23 matches.** Regenerate with `shadowcast inspect`.
 
 Everything downstream of L2 rests on one claim: a fog event naming champion C can only
-come from C's *opponents*, because a team always sees its own members — which makes the
+come from C's *opponents*, because a team always sees its own members, which makes the
 observer team derivable per event and turns the corpus into a ground-truth visibility
 oracle for **both** sides. It had never been tested against a real shard, and it was the
 project's largest unexamined risk.
@@ -42,7 +42,7 @@ would not toggle that team's own members at all.
 Three things the recon corrected along the way:
 
 - **The 6:1 `EnterFog`:`LeaveFog` ratio is duplication, not semantics.** `LeaveFog` is
-  65–70% of every packet in the corpus with 20+ repeats each. Deduping exact `(time, kind)`
+  65-70% of every packet in the corpus with 20+ repeats each. Deduping exact `(time, kind)`
   pairs and then collapsing consecutive same-kind runs leaves a perfectly alternating
   sequence. The plan flagged this ratio as possibly meaning the names were inverted; they
   are not.
@@ -50,7 +50,7 @@ Three things the recon corrected along the way:
   reach a client that can see it, and 83.7% of labelled positions land in `LeaveFog`
   intervals.
 - **Teams are recoverable from the damage graph alone**, with no turret names, spawn sides
-  or positions. Champions damage enemies and not allies, so the split is the maximum cut —
+  or positions. Champions damage enemies and not allies, so the split is the maximum cut,
   solved exactly, since ten champions admit only 126 balanced splits. Two-colouring the
   graph was the obvious method and is wrong twice: it colours disconnected components
   independently, so "colour 0" means a different team in each and a match comes out 6/4;
@@ -71,14 +71,14 @@ the whole pipeline runs on real matches.
 |---|---|
 | Conformance errors, real source | **0** across 3 matches |
 | Matches that complete the pipeline | **23 of 23**, none skipped |
-| Labelled anchors per champion | **331–483** (plan predicted 546–1,085) |
+| Labelled anchors per champion | **331-483** (plan predicted 546-1,085) |
 | Frame calibration | 99.71% walkable, well determined |
 | Orders attributed | **91.9% median across 23** (99.9% synthetic) |
 | Order residual, median | **219 u** (0.0003 u synthetic) |
 | Anchor residual, median | **75 u** |
 | Deaths inferred | 11 in a 12-minute match |
-| Lane minions per match | **1,218** median (720–1,842) |
-| Turrets destroyed per match | 1–3, from 11 minutes |
+| Lane minions per match | **1,218** median (720-1,842) |
+| Turrets destroyed per match | 1-3, from 11 minutes |
 
 The conformance warnings are all expected: 17 ms of timestamp jitter (one 30 Hz tick),
 references to entities created before the recording began, and the documented fog
@@ -86,9 +86,9 @@ duplication.
 
 ### Team resolution was wrong on real data, and only real data could show it
 
-The turret-proximity resolver scores **100% on synthetic matches** and is wrong on **2–4
+The turret-proximity resolver scores **100% on synthetic matches** and is wrong on **2-4
 champions in 7 of 8 real ones**. The synthetic scenario holds champions at their fountain
-until their first anchor — which this report already flagged as unusually clean — while
+until their first anchor, which this report already flagged as unusually clean, while
 real champions leave base immediately, so "whose structures were you standing among at
 your first observation" is a far weaker signal than it looked.
 
@@ -100,16 +100,16 @@ positions, no turret names and no trajectory quality.
 | | Before | After |
 |---|---|---|
 | Agrees with an independent recovery | 1 / 8 | **8 / 8** |
-| Hero damage across the recovered split | — | **100.0%** (99.5% in one) |
+| Hero damage across the recovered split | n/a | **100.0%** (99.5% in one) |
 
 **A tie means the graph does not decide.** A sparse damage graph can put 100% of its edges
-across many splits at once, and the cut fraction cannot see that — it is 100% for every
+across many splits at once, and the cut fraction cannot see that. It is 100% for every
 one of them. The synthetic generator emits about 35 hero-to-hero damage events where a
 real twelve-minute match has 18,465, and dozens of partitions tie there. So a non-unique
 maximum falls back to geometry, which is what keeps the synthetic tests meaningful and
 would also cover a real match truncated before any fighting.
 
-## R3 — the Replication index pairs
+## R3: the Replication index pairs
 
 Confirmed exactly as the plan predicted, against real packets: `mHP` = (32, 0),
 `mMaxHP` = (32, 1), `mPAR` = (32, 14), `mMoveSpeed` = (32, 24).
@@ -117,9 +117,9 @@ Confirmed exactly as the plan predicted, against real packets: `mHP` = (32, 0),
 One correction the seam will have to absorb: `Replication` arrives as a **dict of
 `net_id -> {primary_index, secondary_index, name, data}`**, not as flat rows carrying a
 `net_id` field. 38% of entries have a non-empty name, so the index pair is the only
-reliable key — 59 distinct pairs appear across a single match.
+reliable key, 59 distinct pairs appear across a single match.
 
-## R2 — the waypoint frame
+## R2: the waypoint frame
 
 **The offset is the navgrid midpoint, per axis.** No fitting required; the calibration is
 now a check rather than a fit.
@@ -131,7 +131,7 @@ now a check rather than a fit.
 | Difference | 5.00 u | 4.50 u |
 
 Both differences are well inside the 28.8-unit cell, which is the finest any
-walkability-based fit can resolve — so the recovered offset and the midpoint are the same
+walkability-based fit can resolve, so the recovered offset and the midpoint are the same
 answer. Walkable coverage is 99.71% at the fitted optimum and 99.64% at the midpoint.
 
 Two things this corrected:
@@ -155,15 +155,15 @@ the number that matters and it is published as it stands. Regenerate with
 
 | | Median | Range | SD |
 |---|---|---|---|
-| **Agreement** | **68.26%** | 61.37 – 73.34% | 2.78 |
-| False positive | 12.21% | 8.37 – 16.99% | 2.03 |
-| **False negative** | **20.16%** | 11.38 – 27.15% | 3.07 |
-| Order attribution | 91.94% | 89.87 – 93.21% | 1.14 |
-| Transitions within 150 ms, of those matched | 41.4% | 36.7 – 50.5% | 3.4 |
-| Lane minions modelled | 1,218 | 720 – 1,842 | — |
-| Synthetic, same code | 98.02% | — | — |
+| **Agreement** | **68.26%** | 61.37-73.34% | 2.78 |
+| False positive | 12.21% | 8.37-16.99% | 2.03 |
+| **False negative** | **20.16%** | 11.38-27.15% | 3.07 |
+| Order attribution | 91.94% | 89.87-93.21% | 1.14 |
+| Transitions within 150 ms, of those matched | 41.4% | 36.7-50.5% | 3.4 |
+| Lane minions modelled | 1,218 | 720-1,842 | n/a |
+| Synthetic, same code | 98.02% | n/a | |
 
-The failure is mostly **false negatives** — we claim darkness the game did not have.
+The failure is mostly **false negatives**. We claim darkness the game did not have.
 
 It started at 65.83%. Three fixes since, each measured separately: turret positions taken
 from the map by name rather than derived from attack packets (**+1.2**), lane minions
@@ -173,7 +173,7 @@ replacing the assumed midpoint (**+1.5**).
 ### One match was not enough, and knowing that changes what can be claimed
 
 Every real figure this project published before now came from `12_22/batch_001:0`. That
-match scores **68.37%**, which lands at the **65th percentile** of the 23 — so it was
+match scores **68.37%**, which lands at the **65th percentile** of the 23, so it was
 mildly flattering but broadly representative, and the headline survives.
 
 What does not survive is any claim built on a small difference. Agreement spans **12
@@ -183,7 +183,7 @@ each of that order, and each was measured on one match; they are reported here a
 single-match deltas and should be re-measured across the shard before being leaned on.
 
 **A hypothesis this killed.** The worst match in the first few was also the longest, which
-suggested agreement decays with match length through then-unmodelled turret destruction — the
+suggested agreement decays with match length through then-unmodelled turret destruction. The
 corpus has no building-death packet, so a dead turret keeps granting vision forever, and
 late matches have more dead turrets. The correlation between agreement and duration is
 **−0.111**: nothing. The longest match in the shard, 25 minutes, scores 70.87%, above the
@@ -194,11 +194,11 @@ but far too weakly to carry the explanation.
 
 | Region | Median | Range | SD |
 |---|---|---|---|
-| Lane | 73.4% | 66.8 – 79.1% | 3.2 |
-| Base | 60.3% | 44.0 – 78.5% | 8.2 |
-| Brush-adjacent | 59.4% | 47.7 – 65.7% | 5.0 |
-| **Jungle** | **53.0%** | 34.4 – 62.5% | 5.9 |
-| River | 51.5% | 30.9 – 64.7% | 7.9 |
+| Lane | 73.4% | 66.8-79.1% | 3.2 |
+| Base | 60.3% | 44.0-78.5% | 8.2 |
+| Brush-adjacent | 59.4% | 47.7-65.7% | 5.0 |
+| **Jungle** | **53.0%** | 34.4-62.5% | 5.9 |
+| River | 51.5% | 30.9-64.7% | 7.9 |
 
 **The single-match region breakdown was noise.** It put river worst at 44.8% and jungle at
 59.0%; across 23 matches river is **51.4%** and jungle is **52.9%**, and river's standard
@@ -213,13 +213,13 @@ that the one-match river figure suggested is correspondingly weaker than it look
 
 Brush-adjacent is *not* the worst category on real data, which contradicts the project
 plan's prediction. It is the worst on synthetic data, where it is the only category that
-misses — the difference is that real data has larger errors elsewhere, not that brush
+misses. The difference is that real data has larger errors elsewhere, not that brush
 suddenly became easy.
 
 ### The disagreement splits by *whose* position is stale
 
-Conditioning on time since a **labelled anchor** — a `CastSpellAns` or `BasicAttackPos`
-that states a champion's coordinates outright — separates two different repairs. The
+Conditioning on time since a **labelled anchor**. A `CastSpellAns` or `BasicAttackPos`
+that states a champion's coordinates outright, separates two different repairs. The
 distance columns ignore occlusion on purpose: they ask whether anything of the observing
 team was *near enough to have seen it*, which is a question about modelling coverage, not
 about geometry.
@@ -228,19 +228,19 @@ about geometry.
 
 | Since an anchor | Agreement | Visible → source | Hidden → source | No source in range |
 |---|---|---|---|---|
-| 0–0.5 s | 77.4% | 482 u | 1,482 u | **20.0%** |
-| 0.5–2 s | 76.4% | 521 u | 1,336 u | 19.4% |
-| 2–5 s | 71.3% | 649 u | 1,454 u | 24.0% |
+| 0-0.5 s | 77.4% | 482 u | 1,482 u | **20.0%** |
+| 0.5-2 s | 76.4% | 521 u | 1,336 u | 19.4% |
+| 2-5 s | 71.3% | 649 u | 1,454 u | 24.0% |
 | Over 5 s | 57.2% | 1,072 u | 1,542 u | 42.6% |
 
 **By the nearest observer's staleness**, we learn whether the sources are in the right
-place — a champion is visible because *someone else* can see it:
+place. A champion is visible because *someone else* can see it:
 
 | Since an anchor | Agreement | Visible → source | Hidden → source | No source in range |
 |---|---|---|---|---|
-| 0–1 s | 74.1% | 535 u | 1,517 u | 19.2% |
-| 1–5 s | 70.9% | 642 u | 1,590 u | 24.1% |
-| 5–15 s | 67.9% | 667 u | 1,349 u | 29.9% |
+| 0-1 s | 74.1% | 535 u | 1,517 u | 19.2% |
+| 1-5 s | 70.9% | 642 u | 1,590 u | 24.1% |
+| 5-15 s | 67.9% | 667 u | 1,349 u | 29.9% |
 | Over 15 s | **54.9%** | 1,059 u | 1,396 u | 46.7% |
 
 **Observer trajectories are now the binding constraint.** Agreement falls 19 points across
@@ -250,15 +250,15 @@ one.
 
 **The estimate is informative at every band now**, which it was not before: visible
 champions sit closer to a source than hidden ones in every row. The previous measurement
-inverted past ten seconds — hidden champions appeared *nearer* a source than visible ones,
-1,031 u against 1,991 u — meaning the position estimate carried no information there at
+inverted past ten seconds, hidden champions appeared *nearer* a source than visible ones,
+1,031 u against 1,991 u, meaning the position estimate carried no information there at
 all. `AnchorBand.informative` checks this, because it is a different failure from being
 merely imprecise and a single agreement percentage hides it.
 
 **A missing-source floor of 20.0% remains** where positions are near-exact. Down from
 23.9%, but still a fifth of visible moments with nothing modelled in range. Known gaps:
 
-- **Turret destruction is now modelled** and was worth nothing — see "Turret destruction:
+- **Turret destruction is now modelled** and was worth nothing. See "Turret destruction:
   modelled, and worth nothing" below. It was thought unobservable for most of this
   project's life; it is not.
 - **Neutral monsters grant no vision**, correctly. But the Rift Scuttler's death does, and
@@ -266,12 +266,12 @@ merely imprecise and a single agreement percentage hides it.
   like the river's problem when river appeared worst on one match; across 23 it is 51.4%
   against jungle's 52.9%, so the lead is real but small and not where the region evidence
   points.
-- **Champion-ability vision** — traps, charms, revealed areas — is not modelled at all.
+- **Champion-ability vision**: traps, charms, revealed areas, is not modelled at all.
 
 ### What the lane minion fix actually was
 
 `SpawnMinion` carries wards, plants, camps and ability summons, and **not one lane
-minion** — the two net_id sets do not intersect on a real match. Lane minions arrive only
+minion**. The two net_id sets do not intersect on a real match. Lane minions arrive only
 via `BarrackSpawnUnit`, 1,363 packets a match covering 834 distinct minions, of which
 **94.5%** have an observed death and whose spawn times land exactly on the 30-second wave
 schedule from 65.1 s.
@@ -281,8 +281,8 @@ create packet at all. It is labelled by the turret its minions trade damage with
 resolve to distinct turrets with no ties. On synthetic data the labelling recovers the
 generator's schedule exactly, 168 of 168 on (lane, team, spawn time).
 
-Position still has to be modelled, and its one free parameter — where the two waves
-meet — was fixed at the lane midpoint. That is right on average and wrong at every moment:
+Position still has to be modelled, and its one free parameter, where the two waves
+meet, was fixed at the lane midpoint. That is right on average and wrong at every moment:
 
 | Lane | Median distance of the real front from the midpoint | Length |
 |---|---|---|
@@ -291,7 +291,7 @@ meet — was fixed at the lane midpoint. That is right on average and wrong at e
 | Bot | 1,640 u | 20,138 u |
 
 Further than a minion can see. The front is estimated instead from the only evidence
-available — a champion trading damage with a lane minion is standing at the front — with
+available. A champion trading damage with a lane minion is standing at the front, with
 the midpoint entering as a **prior worth eight observations** rather than as a fallback.
 That distinction is load-bearing: a synthetic match whose waves genuinely do meet at 0.500
 yields ~3.5 units of kernel weight per lane against a real match's ~66, so the estimator
@@ -304,8 +304,8 @@ Reconstructed per-team visibility versus the fog transitions the stream itself p
 Measured over a 900-second synthetic match with every stream pathology enabled.
 
 **Reported as a decomposition, not a single number.** Substituting the true positions isolates
-the irreducible floor — cell snapping, shadowcasting's permissiveness, and the ward and minion
-models — from what the reconstruction itself costs. One percentage cannot tell a modelling limit
+the irreducible floor, cell snapping, shadowcasting's permissiveness, and the ward and minion
+models, from what the reconstruction itself costs. One percentage cannot tell a modelling limit
 from a bug.
 
 | | Agreement | False positive | False negative |
@@ -330,7 +330,7 @@ By region, reconstructed positions:
 
 Brush-adjacent is the worst category, as predicted: brush is a conditional occluder and the grid
 quantises its boundary, so a champion a few units either side of an entrance is genuinely
-borderline. Lane being strongest is the check that matters — disagreement in open ground would
+borderline. Lane being strongest is the check that matters, disagreement in open ground would
 mean something is wrong rather than merely quantised.
 
 Transition timing is measured separately, because getting the state right while flickering would
@@ -346,22 +346,22 @@ score well on state agreement and still ruin any metric that integrates over a w
 **Transition timing regressed and is not yet understood.** It read 93.6%, then 74.4% after
 the fog-attack reveal was gated on having an enemy target, then 67.4% after minion waves were
 stopped at the lane meeting point. State agreement went *up* across both fixes, so the
-reconstruction is more accurate — what changed is the denominator. Reveals used to manufacture
+reconstruction is more accurate, what changed is the denominator. Reveals used to manufacture
 transitions, 2,027 of them against 472 now, and a metric averaged over thousands of spurious
 events is easy to score well on. With only real transitions left, the ~9% we emit that the
 oracle does not are each matched to a distant partner, which is what the 7.6 s p98 is. Whether
 that is a real defect or an artefact of matching transitions by nearest time is an open
 question; the test asserts a floor rather than a target until it is settled.
 
-**On real packets it is far worse: 23.2% median across 23 matches, range 14.6–33.0%.**
+**On real packets it is far worse: 23.2% median across 23 matches, range 14.6-33.0%.**
 Every figure in this section is synthetic. Timing is the weakest real-data result the
-project has — state agreement is 68% while barely a fifth of transitions land within
-150 ms — and it is the one number here with no explanation attached to it yet.
+project has, state agreement is 68% while barely a fifth of transitions land within
+150 ms, and it is the one number here with no explanation attached to it yet.
 
 ### The plan's ≥99.9% gate was mis-specified
 
 That figure was set for *field-of-view geometry* against a ray-march reference at identical
-positions — and geometry does reach it: `shadowcast fov verify` reports zero disagreements in
+positions, and geometry does reach it: `shadowcast fov verify` reports zero disagreements in
 either direction across 947,984 cells. This is a different comparison: an entire reconstruction,
 through a 28.8-unit grid, against continuous-position ground truth. 99.9% was never reachable
 here. The gates in `tests/test_vision.py` are what the measurement can actually support.
@@ -373,7 +373,7 @@ downstream metric.
 
 | Bug | Symptom |
 |---|---|
-| Reveal-on-attack fired on attacks with **no target**, ignoring the rule's requirement of an enemy | Both teams lit each other's fountain at 0:00 — 488 spurious reveals in four seconds. |
+| Reveal-on-attack fired on attacks with **no target**, ignoring the rule's requirement of an enemy | Both teams lit each other's fountain at 0:00, 488 spurious reveals in four seconds. |
 | Minion waves marched the **whole lane** and parked in the enemy fountain | A clump's arclength was clipped to [0, 1] rather than to the meeting point, and at 325 u/s a 55-second wave covers 18,000 units on a 20,000-unit lane. By five minutes each team had three permanent 1,200-unit floodlights inside the other team's spawn. Found because a reader asked what the unexplained circle on the map was. |
 | Reveal-on-attack applied unconditionally instead of gated on the attacker having been in fog | Agreement 98.8% → 43.4%, false-positive rate 56.6% |
 | Reveal modelled as revealing the *champion* for 4.5 s rather than a static *area* | 11 points of false negatives |
@@ -384,13 +384,13 @@ downstream metric.
 Stated here rather than discovered later:
 
 - **Turret destruction was thought unobservable, and is not.** There is no `BuildingDie`,
-  `TurretDie` or `ObjectDie` packet — that much is true, and it is what the earlier version of
+  `TurretDie` or `ObjectDie` packet. That much is true, and it is what the earlier version of
   this line concluded from. But turret net_ids appear as `killed_net_id` in the ordinary
   `NPCDieMapView` stream, which nothing had checked. Now modelled, and measured at zero effect;
   the section below records why.
 - **A minion wave is one clump.** A real wave is six units spread over ~400 units; a single
   1,200-unit source at the centre approximates the union rather than reproducing it. Both the
-  oracle and the reconstruction use the same model, so on synthetic data this cancels — on real
+  oracle and the reconstruction use the same model, so on synthetic data this cancels, on real
   data its error becomes part of the measured disagreement.
 - **Sources snap to cell centres** (up to 20 units) while the oracle uses continuous positions.
   This is most of the 1.47% floor.
@@ -416,12 +416,12 @@ against known ownership, with the frame offset held exact so calibration error d
 ### Why raw accuracy is the wrong headline
 
 97% sounds mediocre and misrepresents the result. A misattributed order's true and assigned
-owners sit a **median of zero units apart** — the assignment is arbitrary precisely when it makes
+owners sit a **median of zero units apart**. The assignment is arbitrary precisely when it makes
 no difference to any position, because for the first ten seconds of a match five champions per
 team stand on the same fountain (measured nearest-same-team separation: 0 units at t=2s, 6 units
 at t=10s). No position-based method can separate them there, and nothing downstream cares.
 
-`order_margin` — the cost gap to the runner-up champion — separates the two cases using no ground
+`order_margin`: the cost gap to the runner-up champion, separates the two cases using no ground
 truth at all, which is what lets later layers discount uncertain positions rather than trusting
 every attribution equally.
 
@@ -433,14 +433,14 @@ asserting they still hurt:
 | Idea | Result |
 |---|---|
 | Direction term (order heading vs champion heading) | −6.7 points of accuracy on the adversarial stream; worst trajectory error 855 u → 8,371 u |
-| Iterating assignment against the integrated trajectory | Accuracy flat across 1–4 rounds; p99 error 419 u → 691 u |
+| Iterating assignment against the integrated trajectory | Accuracy flat across 1-4 rounds; p99 error 419 u → 691 u |
 
 ### Frame calibration bounds everything
 
 The map-centred waypoint frame is recovered by maximising the fraction of waypoints landing on
 walkable ground: offset found to within half a cell, scoring 1.000 against 0.966 at the naive
-7500 guess. The method **cannot** resolve finer than one cell — offsets differing by less than a
-cell width assign every waypoint to the same cell and score identically — and the measured plateau
+7500 guess. The method **cannot** resolve finer than one cell, offsets differing by less than a
+cell width assign every waypoint to the same cell and score identically, and the measured plateau
 is 28.0 u against a 28.8 u cell, which is that limit rather than weak signal.
 
 That propagates exactly: a 2.5 u offset error produces a 3.54 u median trajectory residual, which
@@ -457,15 +457,15 @@ Team, role and death are all absent from the corpus. Each is inferred, and each 
 | Deaths detected (health reaching zero) | **5 / 5** |
 | Killers attributed (last damager before death) | **5 / 5** |
 | Mean killer confidence | 0.74 |
-| Respawns observed rather than computed | 5 / 5, within 0.6–2.1 s |
+| Respawns observed rather than computed | 5 / 5, within 0.6-2.1 s |
 
 Caveats the synthetic scenario makes easier than reality will be, stated so the numbers are not
 over-read: champions here sit at their fountain until their first anchor, so the nearest-shrine
-team signal is unusually clean — a test deliberately destroys one champion's evidence to confirm
+team signal is unusually clean. A test deliberately destroys one champion's evidence to confirm
 the 5/5 constraint carries it. Ward-share separation of support from carry is a clean split here;
 real supports and carries will overlap more.
 
-## Baseline ablation — the thesis
+## Baseline ablation: the thesis
 
 Every model over one 900-second adversarial synthetic match, scored every 4th tick. Regenerate
 with `shadowcast ablate`. Lower NLL is better; area is the 90% credible region.
@@ -481,13 +481,13 @@ with `shadowcast ablate`. Lower NLL is better; area is the 90% credible region.
 | **Full (with negative information)** | **3.961** | 4.49 | 6.81 | 3.6% | 0.370 |
 
 **The thesis holds: +0.243 nats** from negative information alone, on a comparison that changes
-one field of one spec — and the full model is the best in the table, ahead of the geodesic
+one field of one spec, and the full model is the best in the table, ahead of the geodesic
 disc (3.961 against 4.106).
 
 There was a point during the vision fixes when `geodisc` beat it, which is recorded here
 because it was informative: with waves floodlighting both bases the darkness episodes were the
 wrong shape, and vagueness won. Correcting the minion model restored the ordering. These figures replace an
-earlier set — 0.418 for the full model against 0.822 — measured when the scenario had enemies
+earlier set, 0.418 for the full model against 0.822, measured when the scenario had enemies
 visible 84.5% of the time. Nothing about the filter changed; fixing the fog-attack reveal made
 darkness episodes realistic, and the models that looked strong over short episodes do not hold
 up over long ones. Every number in the table moved by an order of magnitude, which is what it
@@ -496,7 +496,7 @@ looks like when a validation was measuring an easier problem than the one it cla
 The comparison that matters is **B3′ → Full**, not B3 → Full, and the difference is not
 pedantry. B3′ and Full are the same `FilterSpec` with one field changed (`obs`), so the gap
 between them cannot come from anything but the observation model. An earlier version of this
-table compared navmesh diffusion directly against the full model — two changes at once — which
+table compared navmesh diffusion directly against the full model, two changes at once, which
 would have let a win from the behavioural prior be reported as a win for negative information.
 `test_belief.py` asserts the pair still differs in exactly one field.
 
@@ -530,7 +530,7 @@ truth actually disperses.
 What has been ruled out so far:
 
 - **Not the motion model's spread.** Measured against ground truth, the walk's median
-  displacement is 0.95x at 2 s and 1.16–1.38x at 40–80 s — it over-disperses at exactly the
+  displacement is 0.95x at 2 s and 1.16-1.38x at 40-80 s. It over-disperses at exactly the
   horizons that matter, not under.
 - **Not the detection probability.** Softening p_d from 0.98/0.75 to 0.85/0.50 moved NLL by
   0.015 and coverage by 0.6 points.
@@ -538,8 +538,8 @@ What has been ruled out so far:
 - **Not the negative update alone.** `behavioural`, which has no negative update at all, is
   just as badly calibrated (ECE 0.383 against 0.376).
 - **Partly a role-vocabulary bug, now fixed.** The resolver emits `"jungle"` and `"support"`
-  while the motion model matched `"jng"` and `"sup"`, so two of every five enemies — including
-  the jungler, who spends the most time in fog — silently fell through to a catch-all prior.
+  while the motion model matched `"jng"` and `"sup"`, so two of every five enemies, including
+  the jungler, who spends the most time in fog, silently fell through to a catch-all prior.
   Nothing raised; the only symptom was a belief confident in the wrong places. Worth 0.037
   nats. `tests/test_pf.py` now asserts every resolved role gets a distinct target set.
 
@@ -557,28 +557,28 @@ possibilities need opposite fixes. **The filter is not the problem.**
 
 A cloud that has *lost* the truth would show a large nearest-particle distance. This shows a
 small one and a centroid error ten times larger: the cloud covers the right ground and puts its
-mass somewhere else. That is drift, and it is a motion-model error — no amount of work on
+mass somewhere else. That is drift, and it is a motion-model error. No amount of work on
 weights, resampling or the negative update touches it.
 
 The breakdown by darkness is the part that identifies the mechanism:
 
 | Hidden for | n | Nearest particle | Centroid error |
 |---|---|---|---|
-| 0–5 s | 746 | 0 u | 176 u |
-| 5–15 s | 807 | 838 u | 1,788 u |
-| **15–30 s** | 877 | **1,712 u** | **3,854 u** |
-| 30–60 s | 1,357 | 144 u | 2,304 u |
+| 0-5 s | 746 | 0 u | 176 u |
+| 5-15 s | 807 | 838 u | 1,788 u |
+| **15-30 s** | 877 | **1,712 u** | **3,854 u** |
+| 30-60 s | 1,357 | 144 u | 2,304 u |
 | 60 s+ | 955 | 119 u | 2,098 u |
 
 **Non-monotonic.** Uncertainty cannot shrink with time under diffusion, so the recovery after
-30 s is not the motion model getting better — it is the effective sample size collapsing and
+30 s is not the motion model getting better. It is the effective sample size collapsing and
 the filter reinitialising from the geodesic reachability set, which covers the truth by
 construction. At long darkness the full model is quietly falling back to being a geodesic disc.
 
-The failure is therefore concentrated in a 15–30 second window where the cloud moves
+The failure is therefore concentrated in a 15-30 second window where the cloud moves
 *coherently* to the wrong place. One cause found and fixed: the motion model had no notion of
-**recall**. Champions go back to base — the generator sends them every 190 seconds for 26, and
-real players do it constantly — while the goal set contained only lanes and camps, so the whole
+**recall**. Champions go back to base. The generator sends them every 190 seconds for 26, and
+real players do it constantly, while the goal set contained only lanes and camps, so the whole
 cloud walked up the lane as the champion walked down it. Adding the champion's own fountain to
 its goal set was worth:
 
@@ -591,7 +591,7 @@ its goal set was worth:
 Real but partial, and **this is where the work stops on synthetic data**. Drift can always be
 reduced by teaching the motion model more about the scenario it is scored against, and on a
 generator I wrote that is fitting to my own assumptions rather than to League. The next
-behaviours to add — grouping for objectives, backing off when outnumbered, warding routes — are
+behaviours to add, grouping for objectives, backing off when outnumbered, warding routes, are
 things I would be inventing. The same diagnostic run against the real corpus measures something,
 and that is where it should be run.
 
@@ -605,7 +605,7 @@ A model ranked on calibration alone would pick the least informative one in the 
 A particle set cannot resolve a distribution below about one particle per bin, so a truth
 landing in an empty bin gets probability exactly zero and is excluded from *every* credible
 region at every level. Unsmoothed, coverage at the 25% level came out at 0.0% for all four
-propagated models — a statement about the sample, not the belief. One bin of smoothing fixes
+propagated models. A statement about the sample, not the belief. One bin of smoothing fixes
 it, and `test_belief.py` re-runs the ranking with smoothing off and asserts the models finish
 in the same order, because a result that only appears under smoothing is an artefact of it.
 
@@ -613,13 +613,13 @@ in the same order, because a result that only appears under smoothing is an arte
 
 | Was | Is | Why it mattered |
 |---|---|---|
-| `PARTICLES = 400`, on an estimate of "~358 walkable bins, max 8.49 bits" | **1024**, against a measured **890 bins and 9.80 bits** | Plug-in entropy saturates at log2(P) = 8.64 at P=400. Measured entropy of a uniform belief was **8.74 bits** — the estimator was pinned, and H was reporting the particle budget rather than the game. That is exactly the failure the 32² lattice choice was written to prevent. |
-| Miller–Madow applied unconditionally | Capped at log2(bins) | The correction is asymptotic in particles per bin, and near a uniform belief there is barely one. It added 0.63 bits to a 9.35-bit estimate on a lattice whose maximum is 9.80. |
+| `PARTICLES = 400`, on an estimate of "~358 walkable bins, max 8.49 bits" | **1024**, against a measured **890 bins and 9.80 bits** | Plug-in entropy saturates at log2(P) = 8.64 at P=400. Measured entropy of a uniform belief was **8.74 bits**. The estimator was pinned, and H was reporting the particle budget rather than the game. That is exactly the failure the 32² lattice choice was written to prevent. |
+| Miller-Madow applied unconditionally | Capped at log2(bins) | The correction is asymptotic in particles per bin, and near a uniform belief there is barely one. It added 0.63 bits to a 9.35-bit estimate on a lattice whose maximum is 9.80. |
 
 `FilterSpec` now refuses a lattice/particle combination that violates the ceiling, with no
-slack — the previous two-bit allowance is what let the broken configuration through.
+slack. The previous two-bit allowance is what let the broken configuration through.
 
-## Motion model — fitted, not chosen
+## Motion model: fitted, not chosen
 
 The belief's walk is a **random-waypoint** model. An unbiased diffusion was tried first and
 rejected on measurement.
@@ -630,29 +630,29 @@ rejected on measurement.
 | Fitted model | 257.8 u | 531.5 u | 979.7 u | 1782.9 u |
 | Best diffusive walk, any parameters | 265.8 u | 407.7 u | 550.7 u | **895.5 u** |
 
-A random walk is recurrent — it wanders back over its own path — while a champion crossing the
+A random walk is recurrent. It wanders back over its own path, while a champion crossing the
 map does not, so no combination of sub-steps, stay probability and heading persistence got a
 diffusion past 900 units at twenty seconds against a truth of 1,395. Raising persistence far
 enough to fix the long horizon broke the short one: a straight-line walk at champion speed
 covers 1,600 units in the two seconds where the truth is 268.
 
 Mean absolute log error of the fit is 0.087, reproducible across seeds. **Known bias:** it
-overshoots at twenty seconds by 28%, because real champions reverse course — recall, then walk
-back — and a random-waypoint model does not. That direction is the safe one, since the belief
+overshoots at twenty seconds by 28%, because real champions reverse course, recall, then walk
+back, and a random-waypoint model does not. That direction is the safe one, since the belief
 ends up slightly too spread rather than too confident.
 
 ## Read the belief numbers against this caveat
 
-Enemies are visible **45.9%** of the time, against a real-game figure nearer 25–40%. That is
+Enemies are visible **45.9%** of the time, against a real-game figure nearer 25-40%. That is
 close enough to be representative, and it was not always: the figure was **84.5%** until the
 fog-attack reveal was found to be firing on attacks with no target, so every champion revealed
 itself roughly once a second wherever it stood.
 
 An earlier version of this section blamed the generator, claiming it "sends champions to
-uniformly random destinations". That was written without checking and is **false** — the
+uniformly random destinations". That was written without checking and is **false**. The
 generator walks champions along their lanes, cycles junglers through camps, roams supports and
-recalls everyone periodically. The visibility figure was two bugs in the vision model — the
-untargeted fog-attack reveal and minion waves parking in the enemy base — not unrealism in
+recalls everyone periodically. The visibility figure was two bugs in the vision model. The
+untargeted fog-attack reveal and minion waves parking in the enemy base. Not unrealism in
 the scenario.
 
 ## The two tests that carry the milestone
@@ -663,7 +663,7 @@ rather than merely convenient.
 **Exact Bayes.** On a 16×16 world with a wall and a one-cell door there are 256 states, so the
 posterior can be computed by matrix multiplication and compared against the particle cloud
 directly. Total variation is 0.030 at P = 20,000. More importantly it *falls at the Monte
-Carlo rate* — 0.115 → 0.030 → 0.012 for P = 2k → 20k → 100k, against the √10 and √5 that pure
+Carlo rate*, 0.115 → 0.030 → 0.012 for P = 2k → 20k → 100k, against the √10 and √5 that pure
 sampling error predicts. A filter targeting a subtly wrong posterior would plateau at a
 non-zero value while still passing a fixed threshold at any one particle count.
 
@@ -674,7 +674,7 @@ would prove only that the analytic matrix agrees with itself.
 
 **Information barrier.** Every champion in fog is moved 2,000 units and the filter's entire
 output stream must be bit-identical. The perturbation is rejected wherever it would pull
-someone into view, and the vision masks are held fixed — a mask is the observer's own
+someone into view, and the vision masks are held fixed. A mask is the observer's own
 information, and regenerating it from perturbed positions would change what the observer
 legitimately knows, so the test would be measuring the game rather than the barrier. Over
 2,000+ perturbed positions, output is identical to the bit.
@@ -694,12 +694,12 @@ Things that should hold if the model is right. A failure is either a bug or a fi
 | Negative information shrinks the credible region | **passing** (1.35 vs 1.42 ku²) |
 | Negative information improves calibration | **passing** (ECE 0.181 vs 0.208) |
 | Darkness excludes dead time | **passing** |
-| Depletion is rare | **passing** — 36 events over 24,300 filter-ticks (0.15%) |
-| Entropy spikes when a ward expires | — |
-| Entropy collapses during teamfights | — |
-| Junglers have the highest mean darkness time | — |
-| Supports have the lowest | — |
-| Information advantage correlates with, but does not determine, objective control | — |
+| Depletion is rare | **passing**, 36 events over 24,300 filter-ticks (0.15%) |
+| Entropy spikes when a ward expires | n/a |
+| Entropy collapses during teamfights | n/a |
+| Junglers have the highest mean darkness time | n/a |
+| Supports have the lowest | n/a |
+| Information advantage correlates with, but does not determine, objective control | n/a |
 
 ## Belief on REAL packets
 
@@ -707,7 +707,7 @@ Every belief figure in this document below this section is synthetic. These are 
 Regenerate with `shadowcast ablate --shard …` and `shadowcast diagnose --shard …`.
 
 **Read them as tracking, not accuracy.** There is no ground truth in the corpus, so
-"truth" here is *this pipeline's own reconstruction* — the positions the site draws, whose
+"truth" here is *this pipeline's own reconstruction*. The positions the site draws, whose
 fog agreement is 68%. The question these answer is whether the belief tracks that, not
 whether it tracks what happened.
 
@@ -726,13 +726,13 @@ comparison that changes one field of one spec. Smaller than the synthetic +0.243
 the same direction. That is the project's central claim tested against real data for the
 first time.
 
-**And the full model loses to the geodesic disc — 4.372 against 4.168.** On synthetic data
+**And the full model loses to the geodesic disc, 4.372 against 4.168.** On synthetic data
 it wins, 3.961 against 4.106. The ordering inverts.
 
 This is not a new mystery. The synthetic ablation section below already records this exact
 inversion happening once before, when lane minion waves were floodlighting both bases: with
 darkness episodes the wrong shape, the vague model won, and fixing the minions restored the
-ordering. Real data reproduces the symptom because it has the same disease — a vision
+ordering. Real data reproduces the symptom because it has the same disease. A vision
 reconstruction that is 68% right rather than 98%. The full model concentrates belief into
 5.81 ku² and is punished for being confident and wrong; `geodisc` spreads over 57.18 ku²
 and hedges.
@@ -742,8 +742,8 @@ completely different direction: **the vision layer is the bottleneck, not the fi
 Nothing about the belief machinery needs to change before the masks improve, and a filter
 tuned against these numbers would be tuned to compensate for a defect elsewhere.
 
-Calibration is correspondingly worse — the 90% credible region contains the truth **30.2%**
-of the time against 43.4% on synthetic — and `shadowcast diagnose` returns **mixed**, where
+Calibration is correspondingly worse. The 90% credible region contains the truth **30.2%**
+of the time against 43.4% on synthetic. And `shadowcast diagnose` returns **mixed**, where
 synthetic returns drift. With inputs this noisy that verdict is what it should be.
 
 ## Comparing two runs: use the paired difference, not the medians
@@ -760,7 +760,7 @@ being measured are a tenth of that, so on medians every one of them reads as zer
 | Both together | **+0.162%** | 0.060 | **2.71** | 14 / 23 |
 
 Reading them honestly: turret destruction is a **real** improvement and a **negligible**
-one — significant at t = 3.69 and worth eight hundredths of a point. Path-join is not
+one, significant at t = 3.69 and worth eight hundredths of a point. Path-join is not
 distinguishable from zero (t = 1.35) and is kept on physical grounds rather than measured
 ones. Together they move false negatives by −0.161% (t = −3.20, 17 of 23 improved) and
 false positives not at all.
@@ -778,7 +778,7 @@ Recorded as a negative result because the reasoning that motivated it was sound 
 measurement disagreed.
 
 Turret destruction turned out to be observable after all. There is no `BuildingDie` packet
-and no `TurretDie` — the original conclusion was drawn from grepping packet *names* — but
+and no `TurretDie`. The original conclusion was drawn from grepping packet *names*. But
 turret net_ids appear as `killed_net_id` in the ordinary `NPCDieMapView` stream. MEASURED
 across six matches: one to three outer turrets fall per match, between 11 and 17 minutes.
 
@@ -793,7 +793,7 @@ large.
 | **Paired mean Δ** | **+0.082%** (SE 0.022, t = 3.69, 14 of 23 improved) |
 
 The median says nothing happened; the paired test says something real and tiny did. The
-paired test is the correct one — the between-match spread is 2.8 points and the effect is
+paired test is the correct one. The between-match spread is 2.8 points and the effect is
 0.08, so a median comparison cannot resolve it either way.
 
 Two reasons the effect is so small, both visible in the blame analysis below: only one to
@@ -822,7 +822,7 @@ cell, because that is the subset a fix to that class would actually move.
 | ward | 10.4% | 9.0% |
 | reveal-on-attack | 0.0% | 0.0% |
 
-**No single class dominates, and 54% of false positives are over-determined** — two or
+**No single class dominates, and 54% of false positives are over-determined**, two or
 more independent sources agree the cell should be visible and the game says it was not.
 That rules out "we are modelling one source too generously" as the explanation and points
 at something systematic. Reveal-on-attack, the mechanism most suspected historically,
@@ -831,7 +831,7 @@ causes none of them.
 Two candidates tested and eliminated:
 
 - **Brush is working.** Champions standing in brush are 10.9% of correctly-hidden moments
-  and only 3.2% of false positives — brush makes us *more* likely to be right, which is
+  and only 3.2% of false positives, brush makes us *more* likely to be right, which is
   the opposite of a broken conditional occluder.
 - **Death is minor.** Dead champions are 5.0% of false positives against 2.5% of correct
   hidden moments, so they are over-represented 2× and still explain at most 5%.
@@ -852,12 +852,12 @@ substituting truth that real data allows.
 | Both stale beyond 5 s | 965 | 22.4% |
 
 **It saturates.** Tightening from 0.5 s to 0.25 s buys 0.3 points. So essentially exact
-positions give about 78–82%, and the remaining ~20 points are modelling error that no
+positions give about 78-82%, and the remaining ~20 points are modelling error that no
 trajectory work can reach.
 
 The target's own position matters far more than the observers': requiring *every* observer
 to be anchored within 2 s moves agreement from 69.5% to only 71.1%, while adding "target
-within 0.5 s" takes it to 81.7%. That is mechanical — if the target's position is wrong we
+within 0.5 s" takes it to 81.7%. That is mechanical: if the target's position is wrong we
 test the wrong cell, a direct error, whereas the observers' vision is a union of five
 champions plus wards, turrets and minions and is robust to one of them being misplaced.
 
@@ -866,7 +866,7 @@ champions plus wards, turrets and minions and is robust to one of them being mis
 are not: that gradient is largely a confound, because a stale nearest observer usually
 means there *is* no nearby observer, and those are exactly the moments when vision comes
 from a ward or a minion and the modelling is weakest. Stratifying by what the oracle says
-separates it — within visible-only moments, agreement still falls from 80.6% to 61.9%
+separates it, within visible-only moments, agreement still falls from 80.6% to 61.9%
 across the staleness range, so the effect is real but roughly half the size the raw
 numbers implied.
 
@@ -883,8 +883,8 @@ six and reverses direction on one in six, while the generator's ground truth nev
 moves more than 200 units in a 125 ms tick.
 
 **94.1% of those jumps land exactly on an attributed movement order.** The integrator
-treats `waypoints[0]` as authoritative for where the entity was — which is what makes
-attribution work at all — and snaps to it. On synthetic data that snap is the 12-unit
+treats `waypoints[0]` as authoritative for where the entity was, which is what makes
+attribution work at all, and snaps to it. On synthetic data that snap is the 12-unit
 jitter the generator injects; on real data the order residual is 219 units at the median
 and 2,681 at p99, and a champion cannot be 2,681 units from where it was a moment ago.
 
@@ -894,14 +894,14 @@ Two treatments were measured rather than argued:
   the longest dashes about 1,000, so beyond that is not a movement). Spurious transitions
   fell 855 → 588 on one match, and agreement fell with them, 68.61% → 68.34%: a rejected
   order leaves the champion on a stale path.
-- **Take the path, not the position** — adopt the polyline and start progress at the point
+- **Take the path, not the position**, adopt the polyline and start progress at the point
   on it nearest the current estimate, so the champion walks the real route from where we
   believe it is and the trajectory stays continuous.
 
 The second is what ships, on physical grounds rather than measured ones: across 23 matches
 its paired effect is **+0.080% at SE 0.059 (t = 1.35)**, which is not distinguishable from
-zero. It is the correct statement of what is known — the route is evidence, the opening
-waypoint is contaminated by server-side smoothing — and it does not *cost* anything, which
+zero. It is the correct statement of what is known. The route is evidence, the opening
+waypoint is contaminated by server-side smoothing, and it does not *cost* anything, which
 is the most that can be claimed for it.
 
 **It does not fix the jump rate**, which stays near 16%: the gate fires only above 1,200
@@ -918,7 +918,7 @@ transitions by nearest time. It was both, and separating them found a real bug.
 is neither exclusive nor bounded: one of ours could answer for several of theirs, and an
 oracle transition we never produced paired with whatever was closest. Under that scheme the
 error distribution was median **+0.000 s** with p10 at **−12.4 s** and p90 at **+9.7 s**,
-and 36% of transitions more than five seconds out. Symmetric, unbiased, enormous tails —
+and 36% of transitions more than five seconds out. Symmetric, unbiased, enormous tails,
 that is the signature of mismatching, not of lag, because a genuine timing defect sits
 off-centre.
 
@@ -945,9 +945,9 @@ A third of our visibility intervals last under half a second; the game's median 
 five seconds. The reconstruction toggles visibility on a timescale the real game does not.
 
 The mechanism is position noise meeting a boolean test: a champion's cell is tested against
-the mask, the position carries a 75–219 unit error, cells are 28.75 units, so a champion
+the mask, the position carries a 75-219 unit error, cells are 28.75 units, so a champion
 near any vision boundary flips in and out. Synthetic data, whose positions are near-exact,
-barely flickers — 87 spurious against 855 — which is the control.
+barely flickers, 87 spurious against 855, which is the control.
 
 This is deliberately **not** fixed by smoothing the mask. The mask is what the belief filter
 consumes, and smoothing it to improve a metric would change the information state the whole
@@ -976,7 +976,7 @@ MEASURED across three real matches:
 | `FakeCrab` | 29 | **0** | 13 | 148 u |
 
 Two independent facts, either sufficient. Every real ward carries its owner in
-`targetable_on_client` and neither of these ever does — and `PlantVision` respawns at
+`targetable_on_client` and neither of these ever does. And `PlantVision` respawns at
 **exactly six fixed sites**, which is how many Scryer's Blooms Summoner's Rift has. A
 player ward goes where the player puts it, across 77 distinct sites.
 
@@ -1006,16 +1006,16 @@ One 900-second match, regenerate with `shadowcast export`.
 
 | Section | Codec | Raw | Gzipped |
 |---|---|---|---|
-| `masks` — 128² per team at 4 Hz | xor | 14.75 MB | 750 kB |
-| `belief` — 16-component mixture at 8 Hz | xor | 4.61 MB | 66 kB |
-| `scalars` — 25 metrics per tick | raw | 0.72 MB | 106 kB |
-| `positions` — 10 champions at 8 Hz, 12-bit | delta | 0.29 MB | 64 kB |
+| `masks`, 128² per team at 4 Hz | xor | 14.75 MB | 750 kB |
+| `belief`, 16-component mixture at 8 Hz | xor | 4.61 MB | 66 kB |
+| `scalars`, 25 metrics per tick | raw | 0.72 MB | 106 kB |
+| `positions`, 10 champions at 8 Hz, 12-bit | delta | 0.29 MB | 64 kB |
 | `belief_seen` | raw | 0.07 MB | 3 kB |
 | `alive` | raw | 0.07 MB | 0.1 kB |
 | **total shipped** (with `meta.json`) | | **20.51 MB** | **1.00 MB** |
 
-**1.00 MB against a 2 MB budget**, a 20.7× compression. The site is two files per match —
-`meta.json` and `data.bin.gz` — served with `Content-Encoding: gzip`, so the browser
+**1.00 MB against a 2 MB budget**, a 20.7× compression. The site is two files per match,
+`meta.json` and `data.bin.gz`, served with `Content-Encoding: gzip`, so the browser
 inflates during transfer and the reader ships no decompression code at all.
 
 ### Every codec choice was measured, not assumed
@@ -1024,17 +1024,17 @@ Over a 200-second match, gzipped kB per section under each codec. Bold is what s
 
 | Section | raw | delta | xor |
 |---|---|---|---|
-| `positions` | 22.2 | **13.8** | — |
+| `positions` | 22.2 | **13.8** | n/a |
 | `alive` | **0.1** | 0.1 | 0.1 |
 | `masks` | 172.0 | 134.7 | **129.6** |
 | `belief_seen` | **0.7** | 0.7 | 0.6 |
 | `belief` | 19.4 | 19.9 | **17.5** |
-| `scalars` | **24.4** | *2.0 — see below* | — |
+| `scalars` | **24.4** | *2.0. See below* | n/a |
 
 Two of these went against the plan:
 
 - **`belief` uses XOR, not delta.** A component that jitters by one unit encodes as
-  `0xFF` under a modular delta — a high-entropy byte gzip cannot exploit — and as `0x01`
+  `0xFF` under a modular delta. A high-entropy byte gzip cannot exploit, and as `0x01`
   under XOR. Worth 2.4 kB on 19.9.
 - **`alive` is raw.** Ten booleans that change a handful of times compress to 0.1 kB
   whatever is done to them, so it stays readable.
@@ -1047,7 +1047,7 @@ Two of these went against the plan:
 | k-means re-seeded each tick | 129.5 kB |
 
 Cold-starting reorders the components whenever the cloud changes shape, and a delta or
-XOR against a permuted set of centres is noise — it encodes larger than the raw values it
+XOR against a permuted set of centres is noise. It encodes larger than the raw values it
 replaced. This is the single reason a 16-component mixture fits the byte budget.
 
 ### Mixture fit loss
@@ -1070,12 +1070,12 @@ the bytes mean.
 
 | Bug | Symptom |
 |---|---|
-| `meta.json` contained bare `NaN` from an unknown respawn time | Valid to Python's parser and to **no other JSON parser** — `JSON.parse` throws, so the artifact was unopenable in a browser while every Python test passed. Found on the conformance test's first run. |
-| `delta` and `xor` applied to a float section truncate it | Both codecs are defined on the integer representation. `[1.5, 2.25] → [1.75, 2.5]` round-trips to `[1.0, 2.0]`. It *looked* like excellent compression — delta-coded `scalars` came out 12× smaller than raw, which is what discarding the fractional part will do. Now refused at spec-definition time. |
+| `meta.json` contained bare `NaN` from an unknown respawn time | Valid to Python's parser and to **no other JSON parser**, `JSON.parse` throws, so the artifact was unopenable in a browser while every Python test passed. Found on the conformance test's first run. |
+| `delta` and `xor` applied to a float section truncate it | Both codecs are defined on the integer representation. `[1.5, 2.25] → [1.75, 2.5]` round-trips to `[1.0, 2.0]`. It *looked* like excellent compression, delta-coded `scalars` came out 12× smaller than raw, which is what discarding the fractional part will do. Now refused at spec-definition time. |
 
 ## Frontend frame rate
 
-Measured with `npm run perf` — 150 frames of playback at 1728x1080, deviceScaleFactor 2,
+Measured with `npm run perf`, 150 frames of playback at 1728x1080, deviceScaleFactor 2,
 both maps live. Headless Chromium is uncapped, so anything above 60 holds 60 on a real
 display.
 
@@ -1088,7 +1088,7 @@ display.
 | **Composite cached by tick, histogram threshold** | **96.4** | **18 ms** |
 
 Toggling the belief layer off originally took the page from 67 to 110 fps, so the layer
-was the entire cost — trails, wards and fog were free. Four changes, each measured:
+was the entire cost, trails, wards and fog were free. Four changes, each measured:
 
 - **Blur off display resolution.** A canvas blur is per-destination-pixel, so blurring
   during an upscale to 800² cost 640,000 pixels per cloud to soften a field with 128 cells
@@ -1101,7 +1101,7 @@ was the entire cost — trails, wards and fog were free. Four changes, each meas
   map per frame is six hundred sorts a second and cost 36 fps. A 256-bin histogram finds
   the same threshold in one linear pass, to within a 256th of the peak density.
 - **Cache the composite against its ticks.** Vision is exported at 4 Hz and the belief at
-  8, while the canvas draws at 60 — so the same picture was being recomputed six to
+  8, while the canvas draws at 60, so the same picture was being recomputed six to
   fourteen times over. Champions are drawn on top every frame and *interpolated* between
   position ticks, which is the part that actually needs 60: without it a champion advances
   in eight visible steps a second, which reads as stutter even when every frame is on
@@ -1113,7 +1113,7 @@ against 95.6 fps with the belief switched off entirely.
 ### One rendering, not three
 
 The belief had cloud / contour / grid modes, from the mockup. Putting all three on the
-same data retired two of them. *Grid* drew the raw display lattice — a debug view. *Contour*
+same data retired two of them. *Grid* drew the raw display lattice. A debug view. *Contour*
 drew iso-lines at fixed fractions of the peak density and degenerated into two nested
 rectangles, because a belief concentrated in four cells puts every level on nearly the
 same cells. *Cloud* read well but had no boundary, so a faint edge could hold ten percent
@@ -1122,7 +1122,7 @@ of the mass or one.
 What ships is the cloud with its **90% credible boundary** drawn on it: the field for the
 at-a-glance read, the outline for something to point at. The outline encloses exactly the
 area the search-area figure reports, and the threshold comes from walking the cumulative
-density — the definition of a highest-density region — rather than from a fraction of the
+density. The definition of a highest-density region, rather than from a fraction of the
 peak. It is evaluated at 128² rather than the design's 32², which is reading the mixture
 more finely rather than interpolating a histogram: the belief ships as a continuous sum of
 Gaussians.
@@ -1139,22 +1139,22 @@ Tests with analytically known answers, not comparisons against the data.
 | Walkable space is a single connected component | **passing** (54,955 cells, 0 orphans) |
 | Terrain upsample is exact vs independently located navgrid cells | **passing** |
 | Brush groups within band of the documented 39 | **passing** (40, identical under 4- and 8-connectivity) |
-| **Radius monotonicity: `fov(r) == fov(RMAX) & disc(r)`** | **passing, exact** — 0 mismatches over 2,000 (source, radius) pairs on real SR, plus 240 brush-standing pairs |
+| **Radius monotonicity: `fov(r) == fov(RMAX) & disc(r)`** | **passing, exact**, 0 mismatches over 2,000 (source, radius) pairs on real SR, plus 240 brush-standing pairs |
 | Empty-grid FOV equals the integer disc exactly | **passing** at 4 radii |
 | Full-length wall casts an analytic half-plane shadow | **passing** |
 | Brush fixture: four semantic cases | **passing** (opaque inward, own brush visible, foreign brush opaque, transparent outward) |
-| Shadowcast is never more restrictive than ray marching | **passing** — 0 restrictive disagreements |
-| Exhaustive adversarial-map oracle vs ray marching | **passing** — 99.860% over 3,064,927 cells |
-| Disagreements confined to shadow boundaries | **passing** — max distance 2 cells |
-| Scan-stack headroom | **passing** — high-water 52 of 8,192 frames over 2,000 sources |
-| **Particle filter vs exact 256-state Bayes forward pass** | **passing** — total variation 0.030 at P=20,000 |
-| — and the error falls at the Monte Carlo rate | **passing** — 0.115 / 0.030 / 0.012 at P = 2k / 20k / 100k |
-| Motion kernel frequencies vs its analytic transition matrix | **passing** — max deviation < 0.005 over 200,000 samples |
-| **Information-barrier leak detector** | **passing** — bit-identical over 2,000+ perturbed positions |
+| Shadowcast is never more restrictive than ray marching | **passing**, 0 restrictive disagreements |
+| Exhaustive adversarial-map oracle vs ray marching | **passing**, 99.860% over 3,064,927 cells |
+| Disagreements confined to shadow boundaries | **passing**, max distance 2 cells |
+| Scan-stack headroom | **passing**, high-water 52 of 8,192 frames over 2,000 sources |
+| **Particle filter vs exact 256-state Bayes forward pass** | **passing**, total variation 0.030 at P=20,000 |
+| and the error falls at the Monte Carlo rate | **passing**, 0.115 / 0.030 / 0.012 at P = 2k / 20k / 100k |
+| Motion kernel frequencies vs its analytic transition matrix | **passing**, max deviation < 0.005 over 200,000 samples |
+| **Information-barrier leak detector** | **passing**, bit-identical over 2,000+ perturbed positions |
 | Belief never leaves the navmesh | **passing** |
 | Credible regions are nested (coverage rises with level) | **passing**, all 7 models |
-| **Artifact round trip, Python writer vs TypeScript reader** | **passing** — all 6 sections decode to identical checksums |
-| Artifact under its size budget | **passing** — 1.00 MB against 2 MB |
+| **Artifact round trip, Python writer vs TypeScript reader** | **passing**, all 6 sections decode to identical checksums |
+| Artifact under its size budget | **passing**, 1.00 MB against 2 MB |
 | Committed `artifact.ts` matches the regenerated one | **passing** |
 | Codec round trip at dtype extremes, every keyframe period | **passing** |
 | Partial decode from a keyframe equals a full decode | **passing** |
@@ -1175,7 +1175,7 @@ On **real Summoner's Rift terrain**, 150 sources at champion sight radius:
 
 ### On the two agreement figures
 
-The 99.860% figure above comes from the *adversarial* 64² fixture — a map deliberately
+The 99.860% figure above comes from the *adversarial* 64² fixture. A map deliberately
 built with a one-cell door, a wall diagonal, a pillar and adjacent brushes, i.e. worse
 geometry than Summoner's Rift contains. Real terrain agrees exactly.
 
@@ -1194,7 +1194,7 @@ which is still `[pending]` and will be worse.
 | | Value |
 |---|---|
 | Single field-of-view computation at RMAX | 34 µs |
-| FOV table build (165,578 rows, 6 threads) | 2.0–4.3 s |
-| FOV table size | 286 MB — `walkable` is 62.9%, not the 25–40% budgeted |
+| FOV table build (165,578 rows, 6 threads) | 2.0-4.3 s |
+| FOV table size | 286 MB, `walkable` is 62.9%, not the 25-40% budgeted |
 | Mask union, 40 sources | 23.9 µs per team-tick |
 | Projected mask assembly per match (7,200 ticks × 2 teams) | 0.34 s |

@@ -15,8 +15,8 @@ is decided using only shadow intervals cast by *strictly nearer* occluders, so a
 occluder outside `disc(r)` cannot influence any cell inside it. Two specific
 changes break it, both verified empirically:
 
-- A **wall-lighting post-pass** — marking occluder faces visible after the scan
-  finishes — breaks 68% of cases, because a wall's visibility then depends on a
+- A **wall-lighting post-pass**, marking occluder faces visible after the scan
+  finishes, breaks 68% of cases, because a wall's visibility then depends on a
   *farther* cell's visibility. Occluders are therefore lit inside the scan, using
   the same slope and radius tests as everything else.
 - **Flood-revealing the source's whole brush** breaks 1.2%, exactly when the brush
@@ -31,7 +31,7 @@ fraction.
 any cell whose extremities overlap it, so it over-reports relative to a
 centre-to-centre visibility test. MEASURED against the ray-march reference over
 3,064,927 cells of deliberately adversarial geometry: 4,286 cells lit here but not
-there, and **zero** the other way — the disagreement is strictly one-directional,
+there, and **zero** the other way. The disagreement is strictly one-directional,
 and every instance lies within two cells of a shadow boundary (4,241 at distance
 one, 45 at distance two, none beyond).
 
@@ -41,7 +41,7 @@ a transposed octant, an off-by-one in a slope, or an inverted brush comparison
 would all produce restrictive disagreements immediately, while any of them could
 hide inside a 99.9% rate.
 
-Classic shadowcasting is also about 3% asymmetric at wall corners — A sees B while
+Classic shadowcasting is also about 3% asymmetric at wall corners. A sees B while
 B does not see A. Both properties are of the algorithm, not of this code, and
 "fixing" either would be optimising for the wrong target: we are trying to match
 Riot's engine, which can only be settled against the fog oracle. The residual is
@@ -63,8 +63,8 @@ __all__ = ["SCRATCH_FRAMES", "StackOverflowInFOV", "fov_bool", "fov_into", "new_
 #:
 #: Numba supports recursion poorly, so the recursive scan is flattened onto a
 #: stack the caller supplies (allocating per call would dominate the cost of
-#: 165k table rows). The bound is not obvious analytically — a pathological
-#: checkerboard could in principle push O(radius^2) frames — so the capacity is
+#: 165k table rows). The bound is not obvious analytically. A pathological
+#: checkerboard could in principle push O(radius^2) frames, so the capacity is
 #: generous and `fov_into` returns the high-water mark. A test measures the real
 #: maximum across every walkable cell of Summoner's Rift and asserts the headroom,
 #: which is a stronger guarantee than an argument about worst cases.
@@ -126,7 +126,7 @@ def _lightable(brush_id: np.ndarray, j: int, i: int, src_brush: int) -> bool:
 
     Foreign brush may **not**, and this is the single most consequential line in
     the module. Marking a brush cell visible from outside would mean an enemy
-    hiding in that brush counted as seen — inverting the central mechanic of
+    hiding in that brush counted as seen, inverting the central mechanic of
     jungle and river play, and quietly inflating every fog-agreement number.
     """
     b = brush_id[j, i]
@@ -147,7 +147,7 @@ def fov_into(
 ) -> int:
     """Compute field of view from (si, sj) into a window-local boolean mask.
 
-    `out` is indexed [dj + half, di + half]. It is *not* cleared — the caller owns
+    `out` is indexed [dj + half, di + half]. It is *not* cleared. The caller owns
     that, so a scratch window can be reused without a fresh allocation.
 
     Returns the high-water mark of the scan stack, for headroom measurement. A
@@ -259,11 +259,11 @@ def fov_bool(
 ) -> np.ndarray:
     """Convenience wrapper: field of view as a fresh boolean window.
 
-    `src_brush` defaults to the brush the source cell sits in. Callers with a
-    continuous position should pass the brush determined from that position rather
-    than relying on the cell, because a champion 10 units inside a brush can snap
-    to a cell classified as non-brush, and brush transparency is a discrete switch
-    — the resulting error is not small.
+        `src_brush` defaults to the brush the source cell sits in. Callers with a
+        continuous position should pass the brush determined from that position rather
+        than relying on the cell, because a champion 10 units inside a brush can snap
+        to a cell classified as non-brush, and brush transparency is a discrete switch
+    the resulting error is not small.
     """
     from shadowcast.geom.grid import radius_cells_sq
 

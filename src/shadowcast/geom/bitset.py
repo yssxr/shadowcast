@@ -1,13 +1,13 @@
 """Packed-uint64 bitset primitives.
 
 Visibility masks are bitsets because a team's visible region is the union over its
-sources, and union over a bitset is a bitwise OR. A 512x512 team mask is 32 KB —
+sources, and union over a bitset is a bitwise OR. A 512x512 team mask is 32 KB,
 it fits in L2, so assembling one per tick costs a memcpy plus a few dozen shifted
 ORs instead of touching a quarter-million bytes.
 
 Every kernel here exists twice: a Numba version and a NumPy reference with an
 identical signature. That is not redundancy. The reference is the test oracle, the
-readable specification, and the fallback when `SHADOWCAST_NO_NUMBA=1` — and a
+readable specification, and the fallback when `SHADOWCAST_NO_NUMBA=1`, and a
 bit-for-bit differential test between them is the only thing that catches the
 shift bugs described below.
 
@@ -111,7 +111,7 @@ def mask_range(lo: int, hi: int) -> np.uint64:
 
     Both shifts are in range for those bounds: `<< lo` with lo <= 63, and
     `>> (64 - hi)` with hi >= 1 so the shift is at most 63. hi == 64 gives a
-    shift of 0, which is fine — it is only shifts *at or beyond* the width that
+    shift of 0, which is fine. It is only shifts *at or beyond* the width that
     are undefined.
     """
     if not (0 <= lo < hi <= 64):
@@ -139,7 +139,7 @@ def or_row_into(
     """OR a packed bit row into a packed destination row at bit offset `x0`.
 
     `x0` may be negative and `x0 + src_width` may exceed `dst_width`; the overhang
-    is clipped. That clipping is not an edge case to handle later — every source
+    is clipped. That clipping is not an edge case to handle later. Every source
     within RMAX_CELLS of a map border overhangs, which is a large fraction of the
     map perimeter.
 

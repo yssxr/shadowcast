@@ -5,7 +5,7 @@ chosen to measure what actually matters. Raw attribution accuracy is the wrong h
 a misattributed order's true and assigned owners sit a median of zero units apart,
 because the assignment is only ambiguous when the champions are in the same place. So
 the gates are on *harmful* misattribution, on the margin-conditioned accuracy, and on
-trajectory error — all of which are consequences a later layer would actually feel.
+trajectory error, all of which are consequences a later layer would actually feel.
 """
 
 from __future__ import annotations
@@ -98,7 +98,7 @@ def test_orders_are_spread_across_all_champions(which, request):
 
 
 # ---------------------------------------------------------------------------
-# Accuracy — the metrics that matter
+# Accuracy. The metrics that matter
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("which", ["run_clean", "run_dirty"])
 def test_harmful_misattribution_is_rare(which, request):
@@ -271,7 +271,7 @@ def test_direction_term_is_off_by_default_and_hurts_when_on(run_dirty):
     """A term that seemed obviously right and measurably was not.
 
     While five champions share a fountain, where they are heading is the only thing that
-    separates them — so weighting order direction against champion heading looks like
+    separates them, so weighting order direction against champion heading looks like
     the answer. It is not: the heading is interpolated between anchors and therefore
     noisy, and a champion's instantaneous heading routinely disagrees with its next
     order's opening direction because it stops and turns.
@@ -292,8 +292,8 @@ def test_direction_term_is_off_by_default_and_hurts_when_on(run_dirty):
 def test_iterating_does_not_help(run_clean):
     """The other rejected idea: reassigning against the integrated trajectory.
 
-    It reintroduces exactly the feedback the anchor skeleton exists to remove — a wrong
-    assignment corrupts the estimate that later assignments are judged against — and the
+    It reintroduces exactly the feedback the anchor skeleton exists to remove. A wrong
+    assignment corrupts the estimate that later assignments are judged against, and the
     tail gets worse while accuracy stays flat.
     """
     events, truth, at, _ = run_clean
@@ -318,7 +318,7 @@ def test_with_owners_writes_ownership_back(run_clean):
     filled = with_owners(events, at)
     np.testing.assert_array_equal(filled.orders["owner"], at.owner)
     # `orders_attributed` answers "has attribution run", which is the only part of this
-    # with a yes/no answer — a clean stream still leaves a few orders owned by nobody.
+    # with a yes/no answer. A clean stream still leaves a few orders owned by nobody.
     # The fraction is the measurement.
     assert filled.orders_attributed
     expected = 1.0 - at.stats["unattributed"] / at.owner.size
@@ -353,14 +353,14 @@ def test_handles_a_match_with_no_orders(synth_clean, terrain):
 def test_a_track_joins_an_implausible_order_without_teleporting():
     """A champion cannot be 2,700 units from where it was a moment ago.
 
-    `waypoints[0]` is authoritative for where the entity was — that is what makes
-    attribution work at all — so the track snaps to it. On synthetic data that snap is the
+    `waypoints[0]` is authoritative for where the entity was. That is what makes
+    attribution work at all, so the track snaps to it. On synthetic data that snap is the
     12-unit jitter the generator injects. On real data the order residual is 219 units at
     the median and **2,681 at p99**, and a snap that size means the order belongs to
     somebody else; taking it moves this champion on top of another one.
 
     MEASURED before this gate: 15.9% of real ticks moved more than 200 units in a 125 ms
-    step — 1,600 u/s against a champion's 350 — with p99 at 16,447 u/s, and 94.1% of those
+    step, 1,600 u/s against a champion's 350, with p99 at 16,447 u/s, and 94.1% of those
     jumps landed exactly on an attributed order. Synthetic *truth* never exceeds 200 units
     in a tick, not once.
 

@@ -5,7 +5,7 @@ Two tests here carry the milestone.
 `test_perturbing_unobserved_truth_changes_nothing` is the information-barrier leak
 detector. It moves every unobserved enemy two thousand units and asserts the filter's
 output is bit-identical. Without it, the project would eventually publish a number that
-is far too good and have no way of knowing why — a leak does not crash, does not look
+is far too good and have no way of knowing why. A leak does not crash, does not look
 wrong, and improves every metric at once.
 
 `test_negative_information_beats_the_same_model_without_it` is the thesis. If it fails,
@@ -29,7 +29,7 @@ from shadowcast.l3_infer.policy import NO_CELL, observe
 from shadowcast.l3_infer.reachability import ReachabilityIndex
 
 #: Short by the standards of a match, long enough that champions leave vision and come
-#: back many times — which is the only regime in which any of this is being tested.
+#: back many times: which is the only regime in which any of this is being tested.
 _DURATION = 200.0
 
 #: The ablation runs seven models over the whole match, so the suite scores every fourth
@@ -155,7 +155,7 @@ def test_perturbing_unobserved_truth_changes_nothing(terrain, match, reach):
 
     **The vision masks are held fixed on purpose.** A mask is the observer's own
     information, and moving a hidden enemy does not change what the observer is looking
-    at — but it does change where *that champion's team* has vision, so regenerating the
+    at, but it does change where *that champion's team* has vision, so regenerating the
     masks from perturbed positions would alter the observations legitimately and the test
     would be measuring the game rather than the barrier.
 
@@ -204,7 +204,7 @@ def test_negative_information_beats_the_same_model_without_it(ablation):
 
     If this fails, negative information is contributing nothing and the project's
     central claim is empty. That would be a result worth publishing, not a test to
-    relax — so the assertion message reports the gap rather than hiding it.
+    relax, so the assertion message reports the gap rather than hiding it.
     """
     a, b = THESIS_PAIR
     before, after = ablation.scores[a], ablation.scores[b]
@@ -230,7 +230,7 @@ def test_the_shipped_models_beat_the_uniform_prior(ablation):
     """A model that cannot beat "somewhere on the map" is not a model.
 
     Asserted for the ones that carry the argument rather than for all six. MEASURED:
-    plain `navmesh_diffusion` does NOT reliably beat a uniform prior on a short window —
+    plain `navmesh_diffusion` does NOT reliably beat a uniform prior on a short window,
     it is the sharpest model in the table (1.6% of the map) and the least likely to have
     the truth inside, which is what a likelihood score is supposed to punish. That is a
     result about diffusion without a prior, not a bug, and it is reported in
@@ -298,7 +298,7 @@ def test_coverage_rises_with_the_credible_level(ablation):
 
     A 90% region contains everything a 75% region does, so its coverage cannot be lower.
     A violation would mean the credible regions are not nested, i.e. the highest-density
-    region is being built wrong — which no amount of modelling uncertainty explains.
+    region is being built wrong, which no amount of modelling uncertainty explains.
     """
     for name, score in ablation.scores.items():
         values = [score.coverage[q] for q in sorted(CALIBRATION_LEVELS)]
@@ -309,8 +309,8 @@ def test_the_full_model_is_overconfident_and_this_is_tracked(ablation):
     """**A known, open defect, pinned so it cannot quietly get worse.**
 
     Coverage was 55.6% / 87.1% / 91.5% at the 75/90/95% levels while the synthetic
-    scenario had enemies visible 84% of the time. Fixing the fog-attack reveal — it was
-    firing on attacks that had no target — dropped visibility to a realistic 42%, and the
+    scenario had enemies visible 84% of the time. Fixing the fog-attack reveal. It was
+    firing on attacks that had no target, dropped visibility to a realistic 42%, and the
     same measurement is now 29.8% / 39.1% / 47.1%.
 
     Nothing about the filter changed. Longer darkness episodes simply exposed that the
@@ -318,8 +318,8 @@ def test_the_full_model_is_overconfident_and_this_is_tracked(ablation):
     hid. A geodesic disc, which is enormously vague and well calibrated, now beats the
     full model on likelihood over a whole match.
 
-    This asserts the two things that must still hold — the belief is informative, and it
-    is better than having no belief — plus a floor on coverage so a regression is caught.
+    This asserts the two things that must still hold. The belief is informative, and it
+    is better than having no belief, plus a floor on coverage so a regression is caught.
     It deliberately does NOT assert the model is calibrated, because it is not.
     """
     score = ablation.scores["full"]
@@ -334,7 +334,7 @@ def test_negative_information_does_not_cost_calibration(ablation):
     """It should not buy its likelihood by becoming more overconfident.
 
     A weaker claim than the one this test used to make. Negative information DID improve
-    calibration measurably — 0.208 against 0.181 — while the scenario had enemies visible
+    calibration measurably, 0.208 against 0.181: while the scenario had enemies visible
     84% of the time. With realistic darkness the two are a tie (0.371 against 0.370), so
     the honest assertion is that the negative update improves the likelihood without
     making the belief more overconfident, which is the failure mode that would matter.
@@ -350,7 +350,7 @@ def test_vagueness_calibrates_easily(ablation):
 
     `geodisc` has a far better calibration error than the full model over a credible
     region an order of magnitude larger. It buys that purely by being uninformative, and
-    on a full-length match it now also wins on likelihood — which is the open defect
+    on a full-length match it now also wins on likelihood, which is the open defect
     recorded above. Calibration alone would rank it first; area alone would rank it last.
     Neither is reported without the other.
     """
@@ -372,7 +372,7 @@ def test_only_unseen_living_enemies_are_scored(ablation):
     """A seen enemy's belief is a point mass by construction.
 
     Including those ticks would average in a perfect score for every moment the question
-    was not being asked, and since visibility runs 25–40% that alone would move every
+    was not being asked, and since visibility runs 25-40% that alone would move every
     model a third of the way toward looking good.
     """
     for score in ablation.scores.values():
@@ -381,7 +381,7 @@ def test_only_unseen_living_enemies_are_scored(ablation):
 
 
 def test_darkness_excludes_dead_time(match):
-    """Dead time is not darkness — a dead enemy's position is known.
+    """Dead time is not darkness. A dead enemy's position is known.
 
     Getting this backwards makes a team look informationally dominant exactly when it is
     winning fights, which inverts the whole analysis.
@@ -398,7 +398,7 @@ def test_darkness_excludes_dead_time(match):
 def test_entropy_never_exceeds_the_lattice_ceiling(ablation, lattice):
     """Entropy is measured against a frozen lattice, so it has a hard maximum.
 
-    Exceeding it would mean the estimator, not the game, is producing the number — which
+    Exceeding it would mean the estimator, not the game, is producing the number, which
     is the failure the 32² lattice choice exists to prevent.
     """
     for score in ablation.scores.values():

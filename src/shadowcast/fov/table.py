@@ -1,4 +1,4 @@
-"""The precomputed visibility table — a cache, not a data structure.
+"""The precomputed visibility table. A cache, not a data structure.
 
 For each walkable cell we store the field of view at RMAX, bit-packed over a
 107x107 window. Because occlusion geometry is radius-independent, visibility at any
@@ -19,7 +19,7 @@ otherwise need special cases:
   28.8 units per cell a champion 10 units inside a brush snaps to a non-brush cell,
   and since brush transparency is a discrete switch that error is large. The table
   stores the row for a cell's own brush id and refuses any other, so those sources
-  take the live path — which removes the need for the per-(cell, brush) variant rows
+  take the live path, which removes the need for the per-(cell, brush) variant rows
   the design originally called for, an entire subsystem traded for a rare 34 µs.
 - Runtime occluders: Trundle's pillar, Anivia's wall, Jarvan's flag.
 
@@ -185,7 +185,7 @@ class FovTable:
 
 
 #: Radii we precompute discs for: every sight radius in the game at this patch.
-#: A radius absent from this list still works — it takes the live path.
+#: A radius absent from this list still works. It takes the live path.
 DEFAULT_RADII: tuple[float, ...] = (
     C.FOG_ATTACK_REVEAL_RADIUS,
     C.SIGHT_GHOST_PORO,
@@ -300,7 +300,7 @@ def load_table(
     """Memory-map an existing table, refusing one that does not match the terrain.
 
     The refusal is the point. A table built from different terrain produces masks
-    that are subtly wrong and never crash — they still look like masks, still union,
+    that are subtly wrong and never crash. They still look like masks, still union,
     and shift the validation numbers by a few percent in a way that reads as a
     modelling issue. So the header is validated against the terrain's hash and a
     mismatch raises.

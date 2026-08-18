@@ -109,7 +109,7 @@ def test_diagonal_rule_is_strict():
     voxel traversal in `chord_walkable` rejects such a chord, and the disagreement
     showed up as synthetic ground-truth positions sitting inside walls.
 
-    It is also wrong for League specifically — a one-cell gap is 28.8 world units,
+    It is also wrong for League specifically. A one-cell gap is 28.8 world units,
     well under a champion's ~65-unit collision radius. And it costs nothing on the
     real map: Summoner's Rift stays 100% connected under the strict rule, with an
     unchanged diameter (see `test_map_diameter_matches_the_documented_nexus_distance`).
@@ -236,7 +236,7 @@ def test_map_diameter_matches_the_documented_nexus_distance(terrain):
     """Independent corroboration of the whole coordinate pipeline.
 
     The LoL Wiki puts nexus obelisk to nexus obelisk at "about 20500" units. The
-    longest geodesic path across our reconstructed terrain measures 20,786 — which
+    longest geodesic path across our reconstructed terrain measures 20,786, which
     it has no business matching unless the navgrid bounds, the cell size, the
     resample and the octile metric are all right. Nothing else in the suite tests
     those four things jointly against an external number.

@@ -7,12 +7,12 @@ to know who moved.
 
 **The anchors are what make it possible.** `CastSpellAns` and `BasicAttackPos` pair a
 net_id with a position, giving one labelled observation per champion roughly every
-0.75 s — 546 to 1,085 per champion per match in the real corpus. Interpolating between a
+0.75 s, 546 to 1,085 per champion per match in the real corpus. Interpolating between a
 champion's own anchors gives a position estimate that is accurate to a measured 10-unit
 median, and crucially it depends on *no* prior assignment. So the design is three passes
 with no feedback loop:
 
-    A. Build an anchor skeleton per champion — position from labelled observations only.
+    A. Build an anchor skeleton per champion, position from labelled observations only.
     B. Assign each order to the champion whose skeleton position best matches the
        order's first waypoint, jointly across simultaneous orders.
     C. Integrate the assigned orders into a full-rate trajectory, resetting at each
@@ -31,7 +31,7 @@ with which to do it.
 
 But that ambiguity is almost entirely **harmless**, and measuring it that way is the
 honest framing. Against ground truth, a misattributed order's true and assigned owners
-sit a median of **zero units** apart — the assignment is arbitrary exactly when it makes
+sit a median of **zero units** apart. The assignment is arbitrary exactly when it makes
 no difference to any position. Raw attribution accuracy is about 97%; genuinely harmful
 misattributions, where the two champions were more than 300 units apart, are 8 of 5,470
 orders (0.15%) on a clean stream and **zero** on the fully adversarial one.
@@ -45,13 +45,13 @@ attributions rather than treat every one as equally certain.
 Three residuals come out of this and they measure different things:
 
 - The **order residual** is the gap between the skeleton position and the assigned
-  order's first waypoint. It is the assignment cost, so it is not independent evidence —
+  order's first waypoint. It is the assignment cost, so it is not independent evidence,
   and its magnitude (~20 units median) is set by the skeleton's interpolation error, not
   by how well anything was reconstructed. It should not be read as an accuracy figure.
 - The **order margin** is the confidence signal described above.
 - The **anchor residual** is the gap between the integrated trajectory and a labelled
   observation, measured *before* the estimate is reset to it. Nothing about it feeds the
-  assignment, so it is the honest error figure — and on a clean stream with an exact
+  assignment, so it is the honest error figure, and on a clean stream with an exact
   frame offset it is 0.0003 units, which is float32 noise.
 
 Two ideas that seemed obviously right and measurably were not, both kept as ablatable
@@ -62,7 +62,7 @@ along with the numbers that rejected it.
 
 Trajectory accuracy is bounded below by the frame calibration, visibly so: with a
 2.5-unit offset error the median residual is 3.54 units, which is exactly sqrt(2) times
-2.5. Not a bug in either component — it is the frame's half-cell resolution limit
+2.5. Not a bug in either component. It is the frame's half-cell resolution limit
 propagating, and it means no trajectory claim can be tighter than the calibration.
 """
 
@@ -109,8 +109,8 @@ class AttributionSpec:
     #: Cost added for an order heading the opposite way to the champion's motion.
     #:
     #: **Default zero, because it measurably hurts.** The reasoning for adding it was
-    #: sound — while five champions stand on one fountain, where they are *going* is the
-    #: only thing that separates them — but the measurement disagreed: at 600 it cost
+    #: sound: while five champions stand on one fountain, where they are *going* is the
+    #: only thing that separates them, but the measurement disagreed: at 600 it cost
     #: 6.7 points of accuracy on the adversarial stream (96.9% -> 90.2%) and took the
     #: worst trajectory error from 855 to 8,371 units. The heading estimate is
     #: interpolated between anchors and therefore noisy, and a champion's instantaneous
@@ -130,7 +130,7 @@ class AttributionSpec:
     #: order is rejected rather than snapped to. CHOSEN on physical grounds, not fitted: at
     #: patch 12.22 Flash moves 400 units and the longest champion dashes about 1,000, so a
     #: disagreement beyond this cannot be a real movement. It is either a misattributed
-    #: order — in which case snapping puts this champion on top of another one — or our own
+    #: order: in which case snapping puts this champion on top of another one, or our own
     #: drift, which the next labelled anchor corrects properly. Anchors are NOT gated: they
     #: carry a net_id, so they cannot be misattributed and are the better evidence.
     max_order_snap: float = C.MAX_INSTANT_DISPLACEMENT
@@ -154,7 +154,7 @@ class Attribution:
         """Orders whose attribution was not a near-tie.
 
         Measured against ground truth, a misattributed order's true and assigned owners
-        sit a median of ZERO units apart — the assignment is arbitrary precisely when it
+        sit a median of ZERO units apart. The assignment is arbitrary precisely when it
         does not matter. This is the truth-free way to spot those.
         """
         return (self.owner != UNKNOWN) & (self.order_margin >= min_margin)
@@ -252,7 +252,7 @@ class _TrajectoryEstimate:
     """Position source backed by a previously integrated trajectory.
 
     Used by iteration rounds after the first. Between anchors it is far more accurate
-    than linear interpolation — it follows the actual order polylines — at the cost of
+    than linear interpolation. It follows the actual order polylines, at the cost of
     depending on the previous round's assignments, which is why the number of rounds is
     bounded rather than iterated to convergence.
     """
@@ -332,22 +332,22 @@ class _Track:
     def set_order(self, poly: np.ndarray, max_snap: float = np.inf) -> bool:
         """Adopt an order, unless doing so would teleport the champion.
 
-        `waypoints[0]` is authoritative for where the entity was at that instant — that
-        is the whole basis of the attribution — so the track snaps to it. On synthetic
+        `waypoints[0]` is authoritative for where the entity was at that instant. That
+        is the whole basis of the attribution, so the track snaps to it. On synthetic
         data the snap is the 12-unit jitter the generator injects. On real data the order
         residual is 219 units at the median and **2,681 at p99**, and a champion cannot be
         2,681 units from where it was a moment ago. Such an order belongs to somebody
         else, and snapping to it moves this champion onto another one.
 
         MEASURED before this gate: 15.9% of real ticks moved more than 200 units in a
-        125 ms step — 1,600 u/s against a champion's 350 — with p99 at 16,447 u/s, and
+        125 ms step, 1,600 u/s against a champion's 350, with p99 at 16,447 u/s, and
         **94.1% of those jumps landed exactly on an attributed order**. Synthetic truth
         never exceeds 200 units in a tick, not once.
 
         **When the disagreement is too large, the path is still taken but the position is
         not.** Rejecting the order outright leaves the champion following a stale path;
         teleporting it onto `poly[0]` is the flicker. So the polyline is adopted and
-        progress is set to the point on it nearest the current estimate — the champion
+        progress is set to the point on it nearest the current estimate. The champion
         walks the real route from where we believe it is, and the trajectory stays
         continuous. If the order was genuinely someone else's, the next labelled anchor
         corrects this within about 1.5 seconds; anchors carry a net_id and cannot be
@@ -481,7 +481,7 @@ def _assign_orders(
     # Ambiguity margin: how much better the chosen champion is than the runner-up.
     #
     # This is the honest, truth-free confidence signal for an attribution. A margin near
-    # zero means two champions were equally good candidates — which, measured against
+    # zero means two champions were equally good candidates, which, measured against
     # ground truth, is exactly when a "wrong" assignment is harmless, because the two
     # occupy the same point. Downstream consumers can discount positions derived from
     # low-margin orders instead of treating every attribution as equally certain.

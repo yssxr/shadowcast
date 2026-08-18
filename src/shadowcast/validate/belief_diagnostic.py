@@ -3,17 +3,17 @@
 A calibration number says the 90% region contains the truth 43% of the time. It does not
 say why, and the two possibilities need opposite fixes:
 
-**Collapse** — the truth is outside the particle cloud's support entirely. The filter
+**Collapse**: the truth is outside the particle cloud's support entirely. The filter
 killed the correct hypothesis and cannot recover it. That is a defect in the machinery:
 weights, resampling, or an over-aggressive negative update.
 
-**Drift** — the truth is inside the support, or near it, but the cloud's mass has moved
+**Drift**: the truth is inside the support, or near it, but the cloud's mass has moved
 somewhere else. The machinery is fine and the *motion model* believes champions go
 somewhere they do not. That is a modelling error, and no amount of filter work fixes it.
 
 The distinction is worth a module because getting it backwards costs weeks. It also has a
 particular trap attached: drift can always be reduced by teaching the motion model more
-about the scenario it is being scored against — and on synthetic data that is fitting to
+about the scenario it is being scored against, and on synthetic data that is fitting to
 the generator, which measures nothing. So this reports the classification and leaves the
 conclusion to whoever is reading, rather than optimising against it.
 
@@ -57,9 +57,9 @@ class BeliefDiagnostic:
     in_support: float
     #: When it does, how the truth's bin ranks by mass among occupied bins. 0 is the peak.
     median_rank: float
-    #: Distance to the closest particle — small means the cloud covers the right ground.
+    #: Distance to the closest particle, small means the cloud covers the right ground.
     nearest_percentiles: dict[int, float]
-    #: Distance to the cloud's centre of mass — large with a small nearest means DRIFT.
+    #: Distance to the cloud's centre of mass, large with a small nearest means DRIFT.
     centroid_percentiles: dict[int, float]
     #: `(label, n, median nearest, median centroid)` per darkness band.
     by_darkness: list[tuple[str, int, float, float]] = field(default_factory=list)
@@ -70,10 +70,10 @@ class BeliefDiagnostic:
         near = self.nearest_percentiles.get(50, 0.0)
         centre = self.centroid_percentiles.get(50, 0.0)
         if self.in_support > 0.4 and centre > 4 * max(near, 1.0):
-            return "drift — the cloud covers the right ground and puts its mass elsewhere"
+            return "drift: the cloud covers the right ground and puts its mass elsewhere"
         if self.in_support < 0.2:
-            return "collapse — the truth is usually outside the cloud entirely"
-        return "mixed — neither drift nor collapse dominates"
+            return "collapse: the truth is usually outside the cloud entirely"
+        return "mixed, neither drift nor collapse dominates"
 
     def describe(self) -> dict[str, Any]:
         return {

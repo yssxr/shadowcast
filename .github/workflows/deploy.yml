@@ -3,7 +3,7 @@
 # The whole thing is static: an HTML file, ~78 kB of gzipped JavaScript, a 10 kB terrain
 # PNG, and about 1 MB of artifact per match. No backend, no API key, no database.
 #
-# The artifact is NOT committed — it is derived data, and the project's rule is that
+# The artifact is NOT committed. It is derived data, and the project's rule is that
 # derived data is reproducible from a command rather than checked in. So this job rebuilds
 # it from source every deploy: navgrid -> terrain -> FOV table -> a real decoded match ->
 # artifact. That keeps the deployed site provably a product of the pipeline in this commit,
@@ -26,7 +26,7 @@ permissions:
   pages: write
   id-token: write
 
-# One deploy at a time, and never cancel one midway — a half-published site is worse than
+# One deploy at a time, and never cancel one midway. A half-published site is worse than
 # an out-of-date one.
 concurrency:
   group: pages
@@ -92,7 +92,7 @@ jobs:
 
       # A real match, not a generated one. The site says which it is by reading
       # `meta.provenance`, and shipping a synthetic match unlabelled would show the
-      # engine's geometry while reading as its accuracy — 98% fog agreement against 68%.
+      # engine's geometry while reading as its accuracy, 98% fog agreement against 68%.
       - name: Export a real match
         run: uv run shadowcast export --web --shard data/raw/12_22/batch_001.jsonl.gz --line 0
 

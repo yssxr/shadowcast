@@ -26,7 +26,7 @@ export interface TerrainImage {
    * the visibility bitmap.
    *
    * The PNG is stored flipped so it draws to a canvas without anyone having to remember
-   * to flip it, and the flip is undone here — once — so every array in the app shares one
+   * to flip it, and the flip is undone here, once: so every array in the app shares one
    * convention. Two conventions is how a map ends up correct in three views and upside
    * down in the fourth.
    */
@@ -141,7 +141,7 @@ export function drawTerrain(
   ctx.beginPath();
   for (let j = 0; j < maskGrid; j++) {
     // Merge horizontal runs into one rectangle. A lit region is contiguous by
-    // construction — it is a union of discs — so this typically turns 16,384 rectangles
+    // construction. It is a union of discs, so this typically turns 16,384 rectangles
     // into a few hundred.
     let runStart = -1;
     for (let i = 0; i <= maskGrid; i++) {

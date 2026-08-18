@@ -2,7 +2,7 @@
 
 The flag block sits at a computed offset behind a 4.2 MB block of cell records
 whose size is documented by community reverse-engineering rather than by Riot. If
-that offset were wrong we would be reading arbitrary bytes — which would still
+that offset were wrong we would be reading arbitrary bytes, which would still
 produce a plausible-looking terrain mask, because noise at the right density looks
 like walls. So the exact flag populations are asserted as a regression, and the
 geometry is asserted independently of them.
@@ -44,7 +44,7 @@ def test_flag_populations_are_exactly_as_measured(navgrid):
 def test_unused_flags_are_absent(navgrid):
     """MARKED, PATHED_ON and ALWAYS_VISIBLE are documented but unset on SR.
 
-    If any of them suddenly had a population, we would be misreading the block —
+    If any of them suddenly had a population, we would be misreading the block,
     they are the canary for a half-word offset error, which would smear real flags
     into neighbouring bit positions.
     """
@@ -68,7 +68,7 @@ def test_vision_is_not_the_complement_of_walkability(navgrid):
 
 
 def test_passable_see_through_cells_are_the_base_gates(navgrid):
-    """136 cells are see-through AND passable — the base gates.
+    """136 cells are see-through AND passable. The base gates.
 
     Worth pinning because they are the one place our model knowingly diverges: the
     engine treats a gate as "see into and out of, but not through", and we treat it

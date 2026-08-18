@@ -2,7 +2,7 @@
  * The small shared pieces: panels, toggles, stat readouts, the transport bar.
  *
  * Every interactive element gets a 120 ms transition and no layout-affecting change on
- * hover. That combination is most of what "snappy" means in practice — a control that
+ * hover. That combination is most of what "snappy" means in practice. A control that
  * responds within one frame reads as instant, and one that reflows the page on hover
  * reads as janky no matter how fast it is.
  */

@@ -1,5 +1,5 @@
 /**
- * Champions, wards, trails — everything drawn on top of the terrain.
+ * Champions, wards, trails, everything drawn on top of the terrain.
  *
  * All of it follows the mockup: champions as filled dots with a dark halo and an inner
  * ring for junglers, wards as gold diamonds with a dashed radius ring, trails as
@@ -84,7 +84,7 @@ export function drawChampion(
  * Fourteen ticks of history at .26 alpha, fading to nothing.
  *
  * `points` is a flat `[x, z, x, z, ...]` buffer with `count` pairs, reused across frames
- * rather than rebuilt — see `Artifact.positionInto`.
+ * rather than rebuilt. See `Artifact.positionInto`.
  */
 export function drawTrail(
   ctx: CanvasRenderingContext2D,

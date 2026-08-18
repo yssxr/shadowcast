@@ -2,7 +2,7 @@
  * Loading an artifact, and reading it without index arithmetic at every call site.
  *
  * The generated reader in `../generated/artifact.ts` returns flat typed arrays, which is
- * the right thing for it to do — it is generated from the format and knows nothing about
+ * the right thing for it to do. It is generated from the format and knows nothing about
  * what the numbers mean. This wraps it in accessors so a renderer asks for "champion 3's
  * position at tick 900" rather than computing `(900 * 10 + 3) * 2`.
  *
@@ -127,7 +127,7 @@ export class Artifact {
     return Math.min(n - 1, Math.max(0, Math.round(t * this.maskHz)));
   }
 
-  /** World position of a champion at a position tick. Allocates — see `positionInto`. */
+  /** World position of a champion at a position tick. Allocates: see `positionInto`. */
   position(tick: number, slot: number): [number, number] {
     const { champions } = this.meta.dims;
     const base = (tick * champions + slot) * 2;
@@ -142,7 +142,7 @@ export class Artifact {
    * Write a position interpolated between two ticks, so champions move smoothly.
    *
    * Positions are exported at 8 Hz and the canvas draws at 60, so without this a champion
-   * advances in eight visible steps a second — which reads as a stutter even though every
+   * advances in eight visible steps a second, which reads as a stutter even though every
    * frame is on time. Linear interpolation between the bracketing ticks is what the game
    * client does with the same data.
    *
@@ -170,8 +170,8 @@ export class Artifact {
   /**
    * Write a world position into `out` at `offset`, allocating nothing.
    *
-   * The draw loop reads about 150 positions a frame per map — ten champions plus
-   * fourteen trail ticks each — and a tuple per read is 18,000 short-lived arrays a
+   * The draw loop reads about 150 positions a frame per map, ten champions plus
+   * fourteen trail ticks each, and a tuple per read is 18,000 short-lived arrays a
    * second. That does not show up as a slow frame, it shows up as a periodic one.
    */
   positionInto(tick: number, slot: number, out: Float64Array, offset: number): void {
@@ -194,7 +194,7 @@ export class Artifact {
   /**
    * The 16 mixture components for one (observer, enemy) at a belief tick, in world units.
    *
-   * Meaningless where `seen` is true — the belief is a point mass there and the exporter
+   * Meaningless where `seen` is true. The belief is a point mass there and the exporter
    * writes zeros. Callers must check `seen` first, which every renderer does.
    */
   belief(
@@ -236,7 +236,7 @@ export class Artifact {
   /**
    * Read one bit of a team's visibility bitmap.
    *
-   * The bitmap is 128² row-major, LSB-first within each byte, and row 0 is z-minimum —
+   * The bitmap is 128² row-major, LSB-first within each byte, and row 0 is z-minimum,
    * the same convention the terrain PNG is written in, so the two line up without a flip
    * anywhere in the renderer.
    */
@@ -260,7 +260,7 @@ export class Artifact {
   /**
    * Whether `observer` could see the champion in `slot` at belief tick `tick`.
    *
-   * Allies are always visible to their own team, which is not a modelling shortcut —
+   * Allies are always visible to their own team, which is not a modelling shortcut,
    * it is the game rule that makes the fog oracle work at all: a fog event about a
    * champion can only have come from the opposing team's view.
    */

@@ -1,8 +1,8 @@
 """Brute-force field of view by per-target ray marching.
 
 The oracle that `shadowcast.py` is checked against. It is deliberately a different
-*class* of algorithm — march a ray from the source's centre to each candidate
-cell's centre and ask whether anything opaque lies between — rather than a second
+*class* of algorithm, march a ray from the source's centre to each candidate
+cell's centre and ask whether anything opaque lies between, rather than a second
 octant sweep. A reimplementation of the same idea would share the same mistakes;
 this shares almost nothing, so a disagreement carries information.
 
@@ -30,7 +30,7 @@ from shadowcast.terrain.terrain import Terrain
 
 __all__ = ["boundary_band", "fov_reference", "fov_reference_into"]
 
-#: Ray sampling step, in cells. 0.1 cell is 2.9 world units — far finer than the
+#: Ray sampling step, in cells. 0.1 cell is 2.9 world units, far finer than the
 #: 50-unit resolution of the source terrain, so the march cannot tunnel through a
 #: one-cell wall, which is the only failure mode that would matter.
 _STEP = 0.1

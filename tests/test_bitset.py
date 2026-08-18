@@ -34,7 +34,7 @@ def test_pack_unpack_round_trip(width):
 
 @pytest.mark.parametrize("width", [107, 512])
 def test_pack_rows_zeroes_padding(width):
-    """Padding bits must be zero — popcount and the blit both rely on it."""
+    """Padding bits must be zero, popcount and the blit both rely on it."""
     mask = np.ones((4, width), dtype=bool)
     packed = bs.pack_rows(mask, row_words=16)
     assert bs.popcount(packed) == 4 * width
@@ -66,7 +66,7 @@ def test_mask_range():
 # ---------------------------------------------------------------------------
 # The blit
 # ---------------------------------------------------------------------------
-SRC_WIDTH = 107  # FOV_WINDOW — the width that actually gets blitted
+SRC_WIDTH = 107  # FOV_WINDOW. The width that actually gets blitted
 DST_WIDTH = 512  # GRID
 
 
@@ -146,7 +146,7 @@ def test_blit_shift_zero_carries_nothing_wrongly():
     With x0 a multiple of 64 and the source's top bits set, a naive
     `dst[dw + 1] |= v >> (64 - sh)` would evaluate `v >> 64`. On x86 that yields
     `v` unshifted, which would scribble the source's low bits into the following
-    word — a corruption of exactly 64 cells, 64 cells away from the source.
+    word. A corruption of exactly 64 cells, 64 cells away from the source.
     """
     src_bits = np.zeros(SRC_WIDTH, dtype=bool)
     src_bits[[0, 1, 63]] = True
@@ -167,7 +167,7 @@ def test_blit_never_writes_outside_the_row():
     """Fully-clipped blits must be no-ops, not wraparound writes.
 
     Numba does not bounds-check and negative indices wrap, so a missing guard
-    here would write to the far end of the row — visibility appearing on the
+    here would write to the far end of the row, visibility appearing on the
     opposite side of the map.
     """
     src = bs.pack_rows(np.ones((1, SRC_WIDTH), dtype=bool))[0]

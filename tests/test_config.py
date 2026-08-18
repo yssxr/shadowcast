@@ -60,7 +60,7 @@ def test_filter_spec_rejects_a_lattice_that_outruns_the_particle_budget():
     # version of this assertion allowed two bits of headroom, which let a broken
     # configuration through: 32^2 has 890 walkable bins and so 9.80 bits, while
     # 400 particles cap the plug-in estimator at 8.64. Measured entropy of a
-    # uniform belief came out at 8.74 bits — pinned, and reporting the particle
+    # uniform belief came out at 8.74 bits, pinned, and reporting the particle
     # budget rather than the game.
     default = cfg.FilterSpec()
     assert 2 * math.log2(default.entropy_lattice) <= math.log2(default.particles)
@@ -84,7 +84,7 @@ def test_each_ablation_pair_isolates_exactly_one_change():
     """The property the whole table depends on, and which it used to violate.
 
     This test previously asserted `differing == {"motion", "obs"}` for the headline
-    comparison — that is, it asserted the ablation did *not* isolate negative
+    comparison. That is, it asserted the ablation did *not* isolate negative
     information, since a win could have come from the motion model instead. The fix was
     a seventh baseline, `behavioural`, which is `full` with the observation model turned
     down and nothing else changed.

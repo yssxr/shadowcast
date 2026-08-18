@@ -49,7 +49,7 @@ def terrain(navgrid_path):
 
 @pytest.fixture(scope="session")
 def fov_table(terrain, tmp_path_factory):
-    """The precomputed visibility table. Session-scoped — building it is ~4 s."""
+    """The precomputed visibility table. Session-scoped: building it is ~4 s."""
     from shadowcast.fov.table import build_table
 
     return build_table(terrain, out_dir=tmp_path_factory.mktemp("fov_session"))

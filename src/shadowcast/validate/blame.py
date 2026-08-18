@@ -7,15 +7,15 @@ of hidden champions visible, and a false positive that size has to come from som
 being modelled when the game did not grant it.
 
 So this attributes every false positive to the source class that covers the cell. The
-number that matters is not "how often was a turret in range" — several classes usually
-overlap — but **how often a class was the ONLY thing in range**, because that is the
+number that matters is not "how often was a turret in range", several classes usually
+overlap. But **how often a class was the ONLY thing in range**, because that is the
 subset a fix to that class would actually move. A source that is always accompanied by
 another can be entirely wrong and change nothing.
 
 False negatives get the same treatment in reverse: nothing was in range, so the question
 is what would have had to be there, which `real_fog` answers geometrically instead.
 
-The occlusion test is the real field-of-view table, not a distance check — a turret
+The occlusion test is the real field-of-view table, not a distance check. A turret
 1,000 units away behind a wall grants nothing and must not be blamed for anything.
 """
 
@@ -46,7 +46,7 @@ class BlameReport:
     false_positives: int
     #: How often each class covered the cell at all.
     covered: Counter
-    #: How often each class was the ONLY class covering it — the actionable subset.
+    #: How often each class was the ONLY class covering it. The actionable subset.
     sole: Counter
     stats: dict[str, Any] = field(default_factory=dict)
 

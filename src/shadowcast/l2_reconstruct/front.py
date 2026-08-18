@@ -5,8 +5,8 @@ modelled rather than observed: they have no labelled position packets, and movem
 orders carry no entity id, so nothing in the corpus says where a minion stands. What the
 corpus does say is when each one spawned, which lane it belongs to and when it died.
 
-That leaves one free parameter — the arclength fraction along the lane where the two
-waves meet and stop advancing — and the obvious answer, the midpoint, is right on average
+That leaves one free parameter. The arclength fraction along the lane where the two
+waves meet and stop advancing, and the obvious answer, the midpoint, is right on average
 and wrong at every individual moment. MEASURED on a real match, the front sits a median
 **1,442 units from the midpoint on top, 771 on mid and 1,640 on bot**. A minion sees 1,200
 units, so a front-line error of that size does not merely blur the minion's vision, it
@@ -20,13 +20,13 @@ Two properties are deliberate:
 
 - **It falls back rather than extrapolates.** With no evidence near a time, the estimate
   returns to the midpoint instead of holding the last reading. Lanes go quiet for real
-  reasons — a wave crashes, both laners recall, the lane is pushed and abandoned — and a
+  reasons. A wave crashes, both laners recall, the lane is pushed and abandoned, and a
   stale front held for forty seconds is a confident lie, while the midpoint is at worst
   the average truth.
 - **It is smooth in time.** A front that jumps between adjacent ticks makes minion vision
   flicker, which shows up as spurious visibility transitions rather than as position
   error. The exponential kernel is wide enough that a single stray contact cannot move it
-  far — one observation among twenty shifts the estimate by 5% of its distance.
+  far, one observation among twenty shifts the estimate by 5% of its distance.
 
 The estimator is not told which team is pushing, and does not need to be: both waves stop
 at the same place, so the front is a property of the lane rather than of a side.
@@ -51,9 +51,9 @@ FRONT_HALF_LIFE = 20.0
 #:
 #: The midpoint is not a fallback, it is a *reason*: both waves spawn simultaneously and
 #: move at the same speed, so absent any evidence they meet in the middle. Treating it as
-#: `_PRIOR_WEIGHT` observations at `MEETING_S` makes the estimate a posterior mean —
+#: `_PRIOR_WEIGHT` observations at `MEETING_S` makes the estimate a posterior mean,
 #: shrunk hard toward the midpoint when contacts are sparse, essentially unshrunk when
-#: they are dense — instead of a raw average that trusts three last-hits as much as sixty.
+#: they are dense: instead of a raw average that trusts three last-hits as much as sixty.
 #:
 #: MEASURED, and this is what the number is for: a synthetic match whose waves genuinely
 #: do meet at 0.500 yields about 3.5 units of kernel weight per lane, while a real match
@@ -75,7 +75,7 @@ def estimate_front(
 
     `pos` and `valid` are the attribution outputs, `(n_ticks, n_slots, 2)` and
     `(n_ticks, n_slots)`. A contact whose champion has no position claim at that tick is
-    dropped rather than guessed — it is evidence about a position we do not have.
+    dropped rather than guessed. It is evidence about a position we do not have.
     """
     n_ticks = int(pos.shape[0])
     default = np.full(n_ticks, sr.MEETING_S, dtype=np.float64)
@@ -117,7 +117,7 @@ def estimate_front(
             total = float(w.sum()) + _PRIOR_WEIGHT
             track[k] = float((w @ obs_s[a:b] + _PRIOR_WEIGHT * sr.MEETING_S) / total)
 
-        # A front outside the lane's own body is not a front — it is a champion who was
+        # A front outside the lane's own body is not a front. It is a champion who was
         # standing somewhere odd when the damage landed. Clamping keeps a base skirmish
         # from dragging the meeting point into a fountain.
         np.clip(track, C.FRONT_MIN_S, C.FRONT_MAX_S, out=track)

@@ -1,4 +1,4 @@
-# Shadowcast — working notes for Claude
+# Shadowcast: working notes for Claude
 
 A belief-state engine for League of Legends information asymmetry, built on packet-level decoded
 replays. `README.md` explains what and why; this file is how to work in the repo.
@@ -15,20 +15,20 @@ uv run shadowcast fov build      # precompute the visibility table (~5s)
 uv run shadowcast doctor         # versions, config hashes, stale artifacts
 ```
 
-Everything runs through `uv`. Never invoke a bare `python`/`pytest`/`ruff` — the venv is
+Everything runs through `uv`. Never invoke a bare `python`/`pytest`/`ruff`. The venv is
 uv-managed and a bare call silently picks up whatever is on PATH.
 
 ## Layout
 
-`src/shadowcast/` maps onto the L0–L4 pipeline in the README:
+`src/shadowcast/` maps onto the L0-L4 pipeline in the README:
 
 | Path | Layer | Contents |
 |---|---|---|
 | `packets/` | L0/L1 | `source.py` packet-source seam, `synth.py` synthetic generator, `conformance.py` |
-| `terrain/` | — | `navgrid.py` `.aimesh_ngrid` parser, `terrain.py` three-channel build |
-| `geom/` | — | `grid.py`, `bitset.py`, `path.py` — the numeric primitives |
+| `terrain/` | n/a | `navgrid.py` `.aimesh_ngrid` parser, `terrain.py` three-channel build |
+| `geom/` | n/a | `grid.py`, `bitset.py`, `path.py`: the numeric primitives |
 | `fov/` | L2 | `shadowcast.py` kernel, `reference.py` brute-force oracle, `table.py`, `union.py` |
-| `config.py` `constants.py` `sr.py` | — | hashed config, documented literals, map constants |
+| `config.py` `constants.py` `sr.py` | n/a | hashed config, documented literals, map constants |
 
 ## Invariants that are load-bearing
 
@@ -40,7 +40,7 @@ These are not style preferences. Each one has a test that exists specifically to
   are ever tempted to add either to make a mask look nicer, you are deleting the property the
   160 MB table design rests on.
 - **The table is a cache, not a data structure.** A miss falls back to a live FOV computation.
-  Correctness must never depend on table coverage — that is what lets vision sources sit in
+  Correctness must never depend on table coverage. That is what lets vision sources sit in
   non-walkable cells (wall-hop dashes, over-wall Farsight wards) with no special cases.
 - **Terrain has three channels.** `blocks_move`, `blocks_vision`, `brush_id`. Riot stamps
   see-through cells along wall diagonals that block movement but transmit vision. Deriving
@@ -53,13 +53,13 @@ README that is not in `validation.md` first. When adding a claim about accuracy,
 performance: either produce it from a command, or mark it `[pending]`. Do not write a plausible
 figure into prose. This rule is the project's entire argument for being more than a visualisation.
 
-Likewise the corpus-reality table in the README — every row is a count from parsing real packets.
+Likewise the corpus-reality table in the README. Every row is a count from parsing real packets.
 Do not soften or extrapolate those without re-measuring.
 
 ## Numba conventions
 
 House style is `@njit(cache=True)`, with `inline="always"` on small helpers and
-`parallel=True` + `prange` only where the table build needs it. No `fastmath` anywhere — the
+`parallel=True` + `prange` only where the table build needs it. No `fastmath` anywhere. The
 geometry needs exact float comparisons for shadow intervals.
 
 Set `NUMBA_DISABLE_JIT=1` to run a kernel as plain Python when a typing error is unreadable or you
@@ -70,7 +70,7 @@ need a real traceback. Add a test rather than a print. See the `numba-kernel` sk
 - Expensive fixtures (`terrain`, `fov_table`, `synth_clean`, `synth_dirty`) are **session-scoped**
   in `tests/conftest.py`. Use them; do not rebuild terrain inside a test.
 - Terrain and FOV tests skip cleanly when `data/terrain/AIPath_SRX.aimesh_ngrid` is absent. CI
-  fetches it, verifies its SHA-256, and asserts nothing skipped — a skipped test here is a test
+  fetches it, verifies its SHA-256, and asserts nothing skipped. A skipped test here is a test
   that quietly stopped running.
 - The `slow` marker exists for the exhaustive oracles, but CI runs the whole suite anyway. Don't
   add `-m "not slow"` to a workflow.
@@ -79,10 +79,28 @@ need a real traceback. Add a test rather than a print. See the `numba-kernel` sk
 
 - Short mathematical names (`dx`, `r2`, `si`, `wj`) are deliberate and ruff is configured to allow
   them; ambiguous single letters (`l`, `I`, `O`) stay banned via E741.
-- Comments explain *why*, at length where the reasoning is not obvious — matching the existing
+- Comments explain *why*, at length where the reasoning is not obvious, matching the existing
   files. A comment restating the code is worse than none.
 - `data/` is gitignored and every artifact in it is reproducible from a documented command. Never
   `git add -f` anything under it.
+
+## Prose and voice
+
+The voice is plain, specific, and willing to state that an earlier attempt was wrong.
+
+**No em dashes or en dashes.** Not in prose, not in comments, not in docstrings, not in CLI
+output. Use a period, a comma, a colon, or parentheses; if none of those work, restructure the
+sentence. Numeric ranges take a plain hyphen (`10-25 minutes`, `12.22-13.2`). This is a hard
+rule, so the `humanizer` skill's default behaviour (its section 14) is correct here and must not
+be overridden with a voice sample.
+
+The ruff config disables RUF001-003 so that other typographic characters (multiplication signs,
+comparison operators) do not trip the ambiguous-unicode lint. That is not licence to reintroduce
+dashes.
+
+Two more things the humanizer is right about: never add facts, names, dates or citations that
+were not in the source during a rewrite, and do not inject personality into technical or
+reference text, where neutral and plain already is the human voice.
 
 ## Library docs
 

@@ -3,13 +3,13 @@
 This is the file the whole `packets/source.py` seam exists for. Everything upstream of
 here was built and validated against a synthetic generator; swapping in real data is one
 new class implementing two methods, and `conformance.validate_source` runs the identical
-invariant suite against both — so "the real reader has a subtle bug" surfaces as a named
+invariant suite against both. So "the real reader has a subtle bug" surfaces as a named
 assertion rather than as metrics that look slightly odd.
 
 Reading the shards is fifteen lines of `gzip` and `json`. The official
 [`…-gym` loader](https://github.com/Maknee/league-of-legends-decoded-replay-packets-gym)
 is not usable: `parse_waypoints` treats `WaypointGroup`'s dict key as a net_id when it is
-the list length — confirmed here in 100.0000% of 16,602 real pairs — so all of its
+the list length, confirmed here in 100.0000% of 16,602 real pairs, so all of its
 position tracking is wrong, and `get_heroes_by_team` reads a `team` field that does not
 exist anywhere in the data.
 
@@ -22,7 +22,7 @@ Four shape differences, each absorbed here rather than leaked upward:
 one entry per attribute per unit, so a single packet fans out to many rows. 38% carry a
 non-empty name, which is why the index pair is the key and the name is only a label.
 
-**`SpawnMinion.time` is denormal garbage** — `1.59e-39` in the first row of the first
+**`SpawnMinion.time` is denormal garbage**, `1.59e-39` in the first row of the first
 match. A running clock from the last trustworthy packet dates them instead, and `t_valid`
 records which ones needed it.
 
@@ -35,7 +35,7 @@ being flat fields.
 ## The identifier
 
 The corpus has no match id, region, patch, rank, win/loss or duration anywhere. So the id
-is constructed from the shard and line — `12_22/batch_001:7` — and it is honest about
+is constructed from the shard and line, `12_22/batch_001:7`: and it is honest about
 being synthetic. The mockup's `EUW1_6412887731` is a string with nothing behind it.
 """
 
@@ -121,7 +121,7 @@ def read_shard_line(events: list[dict[str, Any]], meta: MatchMeta) -> PacketBund
             )
 
         elif kind in ("WaypointGroup", "WaypointGroupWithSpeed"):
-            # The dict key is the LIST LENGTH, not a net_id — movement orders carry no
+            # The dict key is the LIST LENGTH, not a net_id, movement orders carry no
             # entity attribution at all, which is the project's first hard problem.
             for _, points in (payload.get("waypoints") or {}).items():
                 offset = len(rows.waypoint_xz)
@@ -148,7 +148,7 @@ def read_shard_line(events: list[dict[str, Any]], meta: MatchMeta) -> PacketBund
                         str(data.get("name", ""))[:32],
                         # A null value is NaN, never zero. 199 entries in the first real
                         # match arrive as `{"Float": null}`, and a null `mHP` read as
-                        # zero is a death that never happened — which the kill inference
+                        # zero is a death that never happened, which the kill inference
                         # would then attribute to whoever last dealt damage.
                         float("nan") if raw_value is None else float(raw_value),
                         type_name == "Float",
@@ -290,7 +290,7 @@ class ReplaySource:
     """Decoded replay shards, as a `PacketSource`.
 
     Matches are addressed by `"<shard stem>:<line>"`, which is stable across runs and
-    carries its own provenance. Lines are indexed lazily on first use — a shard is 86 MB
+    carries its own provenance. Lines are indexed lazily on first use. A shard is 86 MB
     gzipped and 2 GB expanded, so nothing is held that is not asked for.
     """
 
@@ -356,7 +356,7 @@ class ReplaySource:
         """Every match in the shard, in one pass over the file.
 
         `read` seeks by decompressing from the start, so reading N matches one at a time
-        is quadratic in the shard — and a shard is 83 MB gzipped against 2 GB expanded, so
+        is quadratic in the shard, and a shard is 83 MB gzipped against 2 GB expanded, so
         that is not a small constant. Measuring anything across a whole shard goes through
         here instead.
         """

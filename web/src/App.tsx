@@ -2,7 +2,7 @@
  * The shell: loading, routing, and the header.
  *
  * Routing is the URL hash, not a router library. Four views and no nested state does not
- * justify a dependency, and a hash means every view is deep-linkable — including the
+ * justify a dependency, and a hash means every view is deep-linkable, including the
  * playhead, so a specific moment in a specific match can be sent to someone as a link,
  * which is most of what makes an analysis tool useful to more than one person.
  */
@@ -34,7 +34,7 @@ type ViewId = (typeof VIEWS)[number]["id"];
  *
  * `shadowcast export --web` writes that index, newest first, so the site follows whatever
  * was last exported instead of naming a match in source. Hardcoding one meant a deploy
- * that exported anything else built a page that 404s on its own data — and nothing catches
+ * that exported anything else built a page that 404s on its own data, and nothing catches
  * it, because the bundle typechecks and compiles perfectly well while pointing at a file
  * nobody wrote.
  */
@@ -82,7 +82,7 @@ export function App() {
     };
   }, []);
 
-  // The clock outlives every view, so switching tabs does not reset the playhead — which
+  // The clock outlives every view, so switching tabs does not reset the playhead, which
   // matters because the autopsy view moves it deliberately and the replay view should
   // come back where you left it.
   const clock = useMemo(() => {
@@ -311,7 +311,7 @@ function Shell({
           justifyContent: "center",
         }}
       >
-        {/* Capped, because two maps stretched across an ultrawide are unreadable — but
+        {/* Capped, because two maps stretched across an ultrawide are unreadable. But
             capped generously, so a normal laptop fills its screen instead of leaving a
             third of it empty. */}
         <div style={{ width: "100%", maxWidth: 1680 }}>{children}</div>

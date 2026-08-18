@@ -4,8 +4,8 @@ This is the project's central validation, so the tests here are as much about *h
 number is read* as about its value. Two things in particular:
 
 The headline is reported as a decomposition, not a single figure. Substituting true
-positions isolates the irreducible floor — cell snapping, shadowcasting's permissiveness,
-ward and minion modelling — from what the reconstruction itself costs. A single percentage
+positions isolates the irreducible floor, cell snapping, shadowcasting's permissiveness,
+ward and minion modelling, from what the reconstruction itself costs. A single percentage
 conflates the two and cannot tell a modelling limit from a bug.
 
 And the plan's original ≥99.9% gate was mis-specified. That figure came from comparing
@@ -89,7 +89,7 @@ def test_masks_are_yielded_for_every_tick(pipeline, terrain):
 def test_mask_buffers_are_reused_unless_a_copy_is_asked_for(pipeline, terrain):
     """The whole point of streaming: holding every mask would be 472 MB.
 
-    Reuse is a footgun if undocumented, so it is asserted here — a consumer that stashes
+    Reuse is a footgun if undocumented, so it is asserted here. A consumer that stashes
     a yielded array without asking for a copy gets the last tick's contents.
     """
     events, _, at, _, _, table = pipeline
@@ -173,17 +173,17 @@ def test_the_table_covers_almost_every_source(pipeline, terrain):
 
 
 # ---------------------------------------------------------------------------
-# Reveal-on-attack — two bugs found here, both now pinned
+# Reveal-on-attack, two bugs found here, both now pinned
 # ---------------------------------------------------------------------------
 def test_reveal_is_gated_on_having_been_in_fog(pipeline, terrain):
     """Applying the reveal unconditionally is catastrophically wrong.
 
-    The tempting argument is that a reveal centred on an already-visible champion lies
-    inside vision the observer had anyway, so the gate cannot matter. It does: a champion
-    that attacks while visible and then walks into fog would keep being revealed for 4.5
-    seconds it never earned. With attacks every ~1.5 seconds that is not a rounding error
-    — measured, it took fog agreement from 98.8% to 43.4% with a 56.6% false-positive
-    rate.
+        The tempting argument is that a reveal centred on an already-visible champion lies
+        inside vision the observer had anyway, so the gate cannot matter. It does: a champion
+        that attacks while visible and then walks into fog would keep being revealed for 4.5
+        seconds it never earned. With attacks every ~1.5 seconds that is not a rounding error
+    measured, it took fog agreement from 98.8% to 43.4% with a 56.6% false-positive
+        rate.
     """
     events, _, at, _, _, table = pipeline
 
@@ -221,7 +221,7 @@ def test_reveal_is_an_area_at_the_attack_position_not_a_follow(pipeline, terrain
     """The rule reveals "a 400-radius area centred on top of the attacker", statically.
 
     Modelling it as revealing the *champion* for the duration is a different rule, and a
-    materially wrong one — a champion that attacks and walks away stays revealed under
+    materially wrong one. A champion that attacks and walks away stays revealed under
     that version. It cost 11 points of agreement in false negatives before being caught.
     Asserted structurally: reveal sources sit at the recorded attack positions.
     """
@@ -268,7 +268,7 @@ def test_fog_agreement_with_true_positions(agreement):
     #
     # State agreement went UP across both fixes (96.9% -> 98.2%), so the reconstruction
     # is more accurate, not less. What changed is the denominator: reveals used to
-    # manufacture transitions — 2,027 of them against 472 now — and a metric computed
+    # manufacture transitions, 2,027 of them against 472 now, and a metric computed
     # over thousands of spurious events is easy to score well on. With only real
     # transitions left, the ~9% we produce that the oracle does not each get matched to
     # a distant partner, and the p98 is 7.6 s.
@@ -314,7 +314,7 @@ def test_false_positives_and_negatives_are_reported_separately(agreement):
 def test_agreement_is_broken_down_by_region(agreement):
     """Where errors land distinguishes a modelling limit from a bug.
 
-    Brush-adjacent disagreement is expected — brush is a conditional occluder and the grid
+    Brush-adjacent disagreement is expected, brush is a conditional occluder and the grid
     quantises its boundary. Open-lane disagreement is not, and lane must therefore be the
     strongest region.
     """
@@ -322,7 +322,7 @@ def test_agreement_is_broken_down_by_region(agreement):
     rates = res.region_rates()
     assert set(rates) == set(REGIONS)
     assert all(n > 0 for n, _ in res.by_region.values())
-    # The property is that OPEN GROUND agrees and brush does not — not a total ordering.
+    # The property is that OPEN GROUND agrees and brush does not. Not a total ordering.
     # Asserting lane was strictly the best passed only by accident: jungle, river and
     # base now sit at 100% and lane at 99.3%, which is the same finding stated as a
     # ranking that no longer holds.
@@ -406,12 +406,12 @@ def test_transitions_are_matched_one_to_one_within_a_window():
 
     Taking the nearest of our transitions for each of the oracle's is neither exclusive
     nor bounded: one of ours can be claimed by several of theirs, and an oracle transition
-    we never produced pairs with whatever is closest — ten seconds away is common. That
+    we never produced pairs with whatever is closest, ten seconds away is common. That
     reports a *missing* transition as a large *timing* error, and the two need different
     fixes.
 
     MEASURED on real packets under the old scheme: median error +0.000 s with p10 at
-    -12.4 s and p90 at +9.7 s. Symmetric, unbiased, enormous tails — the signature of
+    -12.4 s and p90 at +9.7 s. Symmetric, unbiased, enormous tails. The signature of
     mismatching rather than of lag.
     """
     from shadowcast.validate.fog_oracle import _match_transitions
@@ -452,8 +452,8 @@ def test_transitions_are_matched_one_to_one_within_a_window():
 def test_blame_attributes_false_positives_to_a_source_class(pipeline, terrain):
     """Every false positive must be explained by something, or the accounting is wrong.
 
-    The `sole` column is the one that matters — how often a class was the *only* thing
-    covering the cell — because that is the subset a fix to that class would move. On real
+    The `sole` column is the one that matters, how often a class was the *only* thing
+    covering the cell, because that is the subset a fix to that class would move. On real
     packets no class exceeds 17.2% and 54% of false positives are over-determined, which is
     what ruled out "one source is modelled too generously" as the explanation.
     """

@@ -5,7 +5,7 @@ whose, reconstructed trajectories say where the champions are, ward lifetimes sa
 wards are alive, and the field-of-view table says what each source can see.
 
 **The masks are streamed, never materialised.** A 512² mask for two teams at 8 Hz over a
-fifteen-minute match is 472 MB, and nothing needs all of it at once — the belief filter
+fifteen-minute match is 472 MB, and nothing needs all of it at once. The belief filter
 and the artifact exporter both consume it tick by tick. So this yields masks and moves on,
 and the peak memory is two 32 KB buffers.
 
@@ -17,11 +17,11 @@ tick would be wasteful in a way that compounds over 14,400 team-ticks:
     dynamic  champions, minion waves, reveal-on-attack   every tick
 
 A team mask is then a 32 KB copy of its semi-static layer plus a union of about eighteen
-dynamic sources — six to twelve microseconds of work.
+dynamic sources, six to twelve microseconds of work.
 
 **Reveal-on-attack is gated, and the gate was measured rather than reasoned about.** The
 game rule is that attacking from your team's fog reveals a 400-unit disc around the
-attacker for 4.5 seconds (at patch 12.22 — it became 300 units and 2 seconds in V13.22).
+attacker for 4.5 seconds (at patch 12.22. It became 300 units and 2 seconds in V13.22).
 Applying it unconditionally looks safe, on the argument that a reveal centred on an
 already-visible champion lies inside vision the observer had anyway. It is not: see
 `_reveal_sources`, where the number that killed that argument is recorded.
@@ -50,7 +50,7 @@ __all__ = ["UNKNOWN_TARGET_REVEALS", "SourceCounts", "VisionStream"]
 #: Whether an attack on a target we cannot resolve grants a reveal.
 #:
 #: The rule needs an ENEMY target. Champions, turrets and wards resolve; minions and
-#: neutral monsters do not, and the two fall on opposite sides of the rule — an enemy
+#: neutral monsters do not, and the two fall on opposite sides of the rule. An enemy
 #: minion counts, a jungle camp does not. Since farming is most of what champions attack,
 #: this choice is not marginal.
 #:
@@ -76,7 +76,7 @@ class SourceCounts:
 class VisionStream:
     """Per-team visibility masks, tick by tick.
 
-    Requires teams to be resolved — a mask is per team, so without them there is nothing
+    Requires teams to be resolved. A mask is per team, so without them there is nothing
     to assemble. Raises rather than silently producing one combined mask, because a
     combined mask would look plausible and make every information-asymmetry metric
     meaningless.
@@ -112,7 +112,7 @@ class VisionStream:
         self._static = self._build_static(0.0)
         self._structure_boundaries = self._structure_boundary_ticks()
         # A turret falling changes the static layer, so every ward rebuild after it
-        # must see the new one — hence the union rather than two separate schedules.
+        # must see the new one, hence the union rather than two separate schedules.
         self._ward_boundaries = self._ward_boundary_ticks() | self._structure_boundaries
         self._counts = {"champion": 0, "minion": 0, "reveal": 0}
 
@@ -121,12 +121,12 @@ class VisionStream:
 
         The fog-attack reveal is conditioned on this. The rule is that a champion is
         revealed "when attacking an ENEMY (including wards) from their team's fog of
-        war" — so the target's team decides whether a reveal happens at all, and an
+        war", so the target's team decides whether a reveal happens at all, and an
         attack that names no target reveals nobody.
 
         Getting this wrong was not subtle. Applying the reveal to every attack anchor
         meant every champion revealed themselves roughly once a second wherever they
-        stood, including in their own fountain at 0:00 before either team had left base —
+        stood, including in their own fountain at 0:00 before either team had left base,
         so both teams lit each other's spawn from the first tick of the match.
 
         Champions, turrets and wards are resolvable here. Minions are not: they are
@@ -156,11 +156,11 @@ class VisionStream:
         **Turret destruction is observable and this project assumed for a long time that
         it was not.** The assumption was half right: there is no `BuildingDie` packet, and
         no `TurretDie` or `ObjectDie` either. But turret net_ids appear as `killed_net_id`
-        in the ordinary `NPCDieMapView` stream, which nothing had checked — the earlier
+        in the ordinary `NPCDieMapView` stream, which nothing had checked. The earlier
         conclusion came from grepping for packet *names* rather than for the ids.
 
         It matters because a turret sees 1,350 units and never moves, so one modelled as
-        alive after it falls is a permanent floodlight over the lane it used to defend —
+        alive after it falls is a permanent floodlight over the lane it used to defend,
         for exactly the team whose vision should be collapsing. Outer turrets fall from
         about eleven minutes, and matches in this corpus run to twenty-five.
         """
@@ -206,7 +206,7 @@ class VisionStream:
         Both the floor and the ceiling of every boundary are included, and that is not
         belt-and-braces. Rounding to the nearest tick was the first version, and when a
         ward's placement time rounded DOWN the rebuild happened at a tick where the ward
-        did not yet exist — so it was excluded, and since no later rebuild was scheduled
+        did not yet exist, so it was excluded, and since no later rebuild was scheduled
         it contributed no vision for its entire lifetime. Roughly half of all wards, and
         it surfaced only as an elevated false-negative rate in the fog agreement.
         """
@@ -289,7 +289,7 @@ class VisionStream:
         centred on an already-visible champion lies inside vision the observer had anyway
         and so changes nothing. That is false over time: a champion that attacks while
         visible and then walks into fog would keep being revealed for 4.5 seconds it never
-        earned. With attacks arriving every ~1.5 seconds the effect was not subtle — fog
+        earned. With attacks arriving every ~1.5 seconds the effect was not subtle, fog
         agreement fell from 98.8% to 43.4%, with a 56.6% false-positive rate.
 
         So the condition is checked against BASE visibility recorded earlier in this same
@@ -300,7 +300,7 @@ class VisionStream:
         **And the attack has to have hit an enemy.** The wiki's wording is "when attacking
         an enemy (including wards) from their team's fog of war", so an attack on a
         neutral monster or on nothing at all reveals no one. Ignoring the target was worth
-        488 spurious reveals in the first four seconds of a match — enough for both teams
+        488 spurious reveals in the first four seconds of a match, enough for both teams
         to see each other's fountain before anybody had moved.
         """
         t = tick * self.dt
@@ -332,7 +332,7 @@ class VisionStream:
         if known is None:
             # A minion, a neutral monster, or a unit we never saw created. Minions are
             # enemies and neutrals are not, and the stream does not let us tell them
-            # apart here — see `UNKNOWN_TARGET_REVEALS` for which way that is resolved
+            # apart here. See `UNKNOWN_TARGET_REVEALS` for which way that is resolved
             # and what the choice was measured to cost.
             return UNKNOWN_TARGET_REVEALS
         return known != attacker_team
@@ -341,7 +341,7 @@ class VisionStream:
         """Note which champions the base mask sees, before reveals are added.
 
         A single-bit read per champion, so this costs nothing next to the mask assembly
-        it follows — and it is what makes the reveal rule well-defined.
+        it follows, and it is what makes the reveal rule well-defined.
         """
         for slot in range(self.team.size):
             if not self.attribution.valid[tick, slot]:
@@ -356,8 +356,8 @@ class VisionStream:
     def masks(self, copy: bool = False) -> Iterator[tuple[int, np.ndarray, np.ndarray]]:
         """Yield `(tick, order_mask, chaos_mask)` for every tick.
 
-        The buffers are **reused** unless `copy=True`. That is the whole point — holding
-        every mask would be 472 MB — but it means a consumer that stashes a yielded array
+        The buffers are **reused** unless `copy=True`. That is the whole point, holding
+        every mask would be 472 MB, but it means a consumer that stashes a yielded array
         gets the last tick's contents, so anything needing to keep one must ask.
         """
         self._attacks = self.events.anchors[self.events.anchors["kind"] == ANCHOR_ATTACK]

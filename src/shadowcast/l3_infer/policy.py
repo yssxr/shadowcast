@@ -1,7 +1,7 @@
 """The information barrier: what a belief filter is allowed to know.
 
-This module exists because the central claim of the project — that reconstructing
-*negative* information produces better position estimates than diffusion alone — is
+This module exists because the central claim of the project. That reconstructing
+*negative* information produces better position estimates than diffusion alone, is
 worth exactly nothing if the filter can see the answer. A leak here does not crash, does
 not look wrong, and produces numbers that are better than the honest ones. It would be
 found, if at all, by a reader rather than by us.
@@ -10,7 +10,7 @@ So the barrier is structural rather than aspirational. Truth enters through exac
 function, `observe`, and leaves it as an `Observation`: a boolean per (observer, enemy,
 tick) and a cell index that is meaningful **only where that boolean is true**. Everything
 else a filter is entitled to know is a `PublicInfo`, assembled from facts that were on
-every player's screen — the clock, the kill feed, respawn timers, who plays which role.
+every player's screen. The clock, the kill feed, respawn timers, who plays which role.
 `pf.step` takes those two and a pre-drawn randomness array. It holds no reference to the
 trajectory table, and there is no path from a filter to a position it did not observe.
 
@@ -19,8 +19,8 @@ every unobserved enemy 2,000 units and asserts the filter's output is bit-identi
 A structural argument is what makes that test cheap; the test is what makes the
 structural argument true.
 
-One asymmetry worth naming. Deaths, respawn timers and levels *are* public — the game
-puts them on the scoreboard — so a filter that ignores them is not being principled, it
+One asymmetry worth naming. Deaths, respawn timers and levels *are* public. The game
+puts them on the scoreboard, so a filter that ignores them is not being principled, it
 is being under-informed, and it would understate what a real player knows. Being wrong
 in the flattering direction and being wrong in the modest direction are both wrong.
 """
@@ -55,13 +55,13 @@ class PublicInfo:
     public because champion select is public.
     """
 
-    #: i1[2, 5] — hero slot of each enemy, from the observer's point of view.
+    #: i1[2, 5]: hero slot of each enemy, from the observer's point of view.
     enemy_slot: np.ndarray
-    #: U8[2, 5] — resolved role. Public: everyone can see who walked to the jungle.
+    #: U8[2, 5]: resolved role. Public: everyone can see who walked to the jungle.
     enemy_role: np.ndarray
-    #: bool[n_ticks, 2, 5] — alive, from the kill feed. A dead enemy's position is known.
+    #: bool[n_ticks, 2, 5]: alive, from the kill feed. A dead enemy's position is known.
     alive: np.ndarray
-    #: f8[n_ticks] — match clock in seconds.
+    #: f8[n_ticks]: match clock in seconds.
     clock: np.ndarray
     tick_hz: int = C.TICK_HZ
 
@@ -81,7 +81,7 @@ class Observation:
 
     #: bool[n_ticks, 2, 5]
     seen: np.ndarray
-    #: i4[n_ticks, 2, 5] — flat cell index, valid only where `seen`.
+    #: i4[n_ticks, 2, 5]: flat cell index, valid only where `seen`.
     cell: np.ndarray
     stats: dict[str, Any] = field(default_factory=dict)
 
@@ -104,11 +104,11 @@ class TruthTable:
     Nothing in `l3_infer` outside `metrics` and the validators may import this.
     """
 
-    #: i4[n_ticks, 2, 5] — flat cell index, `NO_CELL` where the trajectory has no estimate.
+    #: i4[n_ticks, 2, 5]: flat cell index, `NO_CELL` where the trajectory has no estimate.
     cell: np.ndarray
-    #: f8[n_ticks, 2, 5, 2] — world position, NaN where unknown.
+    #: f8[n_ticks, 2, 5, 2], world position, NaN where unknown.
     pos: np.ndarray
-    #: bool[n_ticks, 2, 5] — whether the trajectory had an estimate at all.
+    #: bool[n_ticks, 2, 5]: whether the trajectory had an estimate at all.
     valid: np.ndarray
 
 
@@ -134,7 +134,7 @@ def _alive_table(events: MatchEvents, enemy_slot: np.ndarray, n_ticks: int, dt: 
     """Alive/dead per tick from the kill feed.
 
     Deaths are inferred rather than recorded (the corpus has no death packet), so this
-    inherits that uncertainty — but it is inherited *publicly*: a filter using the kill
+    inherits that uncertainty, but it is inherited *publicly*: a filter using the kill
     feed is using what the scoreboard showed, and if our kill feed is wrong then so is
     the belief, in the same direction a mistaken player's would be.
     """
@@ -165,7 +165,7 @@ def observe(
     """Run the vision stream and gate the trajectories through it.
 
     **This is the only function in the project that reads positions and writes something
-    a filter consumes.** It returns the truth alongside, because the validators need it —
+    a filter consumes.** It returns the truth alongside, because the validators need it,
     but as a distinct object, so that handing it to a filter requires writing the wrong
     type rather than forgetting a flag.
     """

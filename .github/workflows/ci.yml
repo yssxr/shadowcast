@@ -42,7 +42,7 @@ jobs:
           enable-cache: true
 
       # The artifact format crosses a language boundary, and a mismatch there does not
-      # throw — it returns numbers from the wrong offsets. `test_export.py` has Node read
+      # throw. It returns numbers from the wrong offsets. `test_export.py` has Node read
       # the same file with the generated reader and compares decoded checksums against
       # Python's, which is the only place that failure can be caught. Without node the
       # test skips, so it is installed rather than left to chance.
@@ -50,7 +50,7 @@ jobs:
         with:
           node-version: "24"
 
-      # The Summoner's Rift navgrid is not committed — it is Riot's data and 9.4 MB.
+      # The Summoner's Rift navgrid is not committed. It is Riot's data and 9.4 MB.
       # Without it the terrain and FOV tests skip cleanly, which would mean CI passing
       # while never exercising the load-bearing radius-monotonicity check. So it is
       # fetched and cached, and the job then asserts nothing skipped for want of it.
@@ -74,8 +74,8 @@ jobs:
 
       - run: uv sync --all-extras
       # No `-m "not slow"` here. A deselected marker is a test that quietly stops
-      # running, and the ones that would be deselected — the exhaustive FOV oracle, the
-      # exact-Bayes comparison, the cross-language conformance check — are precisely the
+      # running, and the ones that would be deselected. The exhaustive FOV oracle, the
+      # exact-Bayes comparison, the cross-language conformance check, are precisely the
       # ones nothing else can substitute for.
       - name: Tests
         run: uv run pytest -q --durations=10
@@ -110,7 +110,7 @@ jobs:
       - run: uv sync --all-extras
 
       # The exporter reads the persisted FOV table, and unlike the test suite it will not
-      # build one on the fly — `load_table` raises rather than silently recomputing, so a
+      # build one on the fly, `load_table` raises rather than silently recomputing, so a
       # stale or missing table can never be mistaken for a fresh one. The tests build their
       # own into a tmpdir, which is why they passed while this job did not.
       - name: Build terrain and the FOV table

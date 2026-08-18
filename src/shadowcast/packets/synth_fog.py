@@ -1,7 +1,7 @@
 """Independent visibility oracle for the synthetic generator.
 
 This computes the fog transitions the synthetic stream will publish, and it must share
-no code with `fov/` — otherwise validating L2's masks against these events would be a
+no code with `fov/`, otherwise validating L2's masks against these events would be a
 tautology dressed up as a test.
 
 It is independent along three axes, not just one:
@@ -19,7 +19,7 @@ The ray-march logic is deliberately duplicated rather than factored out of
 `fov/reference.py`. Sharing it would import exactly the correlation the oracle exists
 to avoid, and twenty lines is a cheap price for that.
 
-Everything here works in **cell units** — world coordinates divided by the cell size —
+Everything here works in **cell units**, world coordinates divided by the cell size,
 so the terrain lookup is a truncation and the radius test is a plain comparison.
 """
 
@@ -39,7 +39,7 @@ __all__ = [
 #:
 #: The reveal is an AREA, not a follow: "reveal a 400-radius area centred on top of the
 #: attacker". A first attempt modelled it as revealing the attacker itself for the whole
-#: duration, which is a materially different rule — a champion that attacks and then walks
+#: duration, which is a materially different rule. A champion that attacks and then walks
 #: away stays revealed under the wrong version and does not under the right one. It cost
 #: 11 points of fog agreement in false negatives before being caught, so the reveal is now
 #: a temporary vision source in the oracle's source list like any other.
@@ -114,7 +114,7 @@ def compute_visibility(
     src_r: np.ndarray,  # f8[total_sources] radius in cells
     src_brush: np.ndarray,  # i2[total_sources]
 ) -> np.ndarray:
-    """`visible[tick, observer_team, champ]` — 1 where that team can see that champion.
+    """`visible[tick, observer_team, champ]`: 1 where that team can see that champion.
 
     Own-team entries are set to 1 unconditionally: a team always sees its own members,
     and that is precisely the fact that lets the observing team of a real fog event be
@@ -169,8 +169,8 @@ def transitions_from_visibility(
     Only cross-team transitions produce events, because a team never loses sight of
     its own members and the real stream contains no such events either.
 
-    The published rows carry `(t, net_id, leaving)` and nothing else — no observer
-    field — exactly matching the real packets. That is deliberate: the observing team
+    The published rows carry `(t, net_id, leaving)` and nothing else. No observer
+    field: exactly matching the real packets. That is deliberate: the observing team
     has to be *re-derived* downstream from the champion's own team, so the code doing
     that derivation is exercised by synthetic data too.
     """

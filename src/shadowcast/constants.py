@@ -483,7 +483,7 @@ WARD_UNITS: Final = {
 # And `PlantVision` respawns at **exactly six** fixed sites, which is how many Scryer's
 # Blooms Summoner's Rift has. A player ward goes where the player wants it.
 #
-# Neither is dropped for being unowned — that would be circular, since the ownerless case
+# Neither is dropped for being unowned. That would be circular, since the ownerless case
 # is what needed explaining. They are dropped because they are map furniture: a Scryer's
 # Bloom grants no passive vision at all (it reveals a cone when *used*, which is not
 # modelled and is noted in `docs/validation.md`), and neither belongs in a metric about
@@ -495,7 +495,7 @@ NON_WARD_UNITS: Final = {
 WARD_CORPSE_UNIT: Final = ("WardCorpse", "S5Test_WardCorpse")
 
 # Lane minions also arrive as SpawnMinion. Matched on a name substring rather than an
-# exact table because the real internal names are not confirmed — the dataset research
+# exact table because the real internal names are not confirmed. The dataset research
 # enumerated ward and plant units but not the regular minion ones. A substring match is
 # robust to whatever they turn out to be, and confirming them is a recon item.
 #: Bounds the estimated lane front line can take. A wave never meets the enemy inside
@@ -507,7 +507,7 @@ FRONT_MAX_S: Final = 0.85
 
 #: The furthest a champion can move in a single instant without a teleport, in units.
 #: Flash is 400 at patch 12.22 and the longest champion dashes are about 1,000, so a
-#: position disagreement beyond this is not a movement — it is a misattributed order or a
+#: position disagreement beyond this is not a movement. It is a misattributed order or a
 #: drifted estimate. Used to gate the trajectory integrator against teleporting.
 MAX_INSTANT_DISPLACEMENT: Final = 1200.0
 
@@ -521,7 +521,7 @@ WARD_SIGHT_BY_KIND: Final = {
     "zombie": SIGHT_WARD_ZOMBIE,
 }
 # `scryer` (900 u) and `scuttle` (1,350 u, a champion's radius) used to be here. Both were
-# inert only because their team never resolved — nothing owns them, so they matched
+# inert only because their team never resolved, nothing owns them, so they matched
 # neither side's mask. Had anything ever assigned them a team, six Scryer's Blooms and a
 # dozen crab decoys would each have lit 900 to 1,350 units of map for someone. Removed
 # with the units themselves; see `NON_WARD_UNITS`.

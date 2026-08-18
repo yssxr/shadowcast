@@ -2,7 +2,7 @@
 // report a checksum of every decoded section.
 //
 // The point is not that TypeScript can open the file. It is that both languages, given
-// the same bytes, arrive at the same NUMBERS — which a CRC over the decoded arrays
+// the same bytes, arrive at the same NUMBERS, which a CRC over the decoded arrays
 // checks and a CRC over the stored bytes does not. A dtype or codec that disagrees
 // across the boundary produces plausible values rather than an error, so this is the
 // only place that failure can be caught.

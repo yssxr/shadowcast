@@ -1,4 +1,4 @@
-"""L1.5: inferring what the packets omit — ownership, teams, roles, deaths.
+"""L1.5: inferring what the packets omit, ownership, teams, roles, deaths.
 
 Everything in here is a guess rather than a reading, and the split from `l1_events`
 proper is deliberate. The corpus contains no entity id on movement orders, no team on

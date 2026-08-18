@@ -7,7 +7,7 @@ the difference. On a 16×16 world there are 256 states, so the exact posterior c
 computed by matrix multiplication and compared against the particle cloud directly.
 
 The comparison is meaningful only because `motion.single_step_matrix` is the analytic
-form of the shipped kernel rather than a model written for the test — `test_motion.py`
+form of the shipped kernel rather than a model written for the test, `test_motion.py`
 pins the two together empirically, and if they ever drift apart both files fail.
 """
 
@@ -48,7 +48,7 @@ def toy_walkable(seed: int = 3) -> np.ndarray:
 def toy_visible(walkable: np.ndarray, half: str) -> np.ndarray:
     """A packed mask covering one half of the toy world.
 
-    This is the observer looking at a region — the thing the negative update consumes.
+    This is the observer looking at a region. The thing the negative update consumes.
     """
     vis = np.zeros((TOY, TOY), dtype=bool)
     if half == "left":
@@ -108,7 +108,7 @@ def test_stay_probability_is_what_it_says_regardless_of_terrain():
     """The whole point of normalising the stay weight against the move weights.
 
     A fixed stay weight competing against however many moves the terrain allows would
-    make a particle in a corridor stand still far more often than one in the open — an
+    make a particle in a corridor stand still far more often than one in the open. An
     accident of the lattice that would read as a behavioural claim.
     """
     walkable = toy_walkable()
@@ -150,7 +150,7 @@ def test_kernel_frequencies_match_the_matrix():
 
 #: MEASURED: median displacement of a champion over each horizon, from synthetic ground
 #: truth. The motion constants were fitted to these, so the test below is what keeps the
-#: two from drifting apart — change a constant and this fails with the number it broke.
+#: two from drifting apart, change a constant and this fails with the number it broke.
 TRUTH_DISPLACEMENT = {2.0: 268.1, 5.0: 565.2, 10.0: 976.5, 20.0: 1394.9}
 
 
@@ -195,7 +195,7 @@ def test_the_walk_travels_as_far_as_champions_actually_do(terrain):
 
     Tolerances are asymmetric because the error is: the model tracks the truth to within
     a few percent out to ten seconds and then overshoots by 28% at twenty, because real
-    champions reverse course — recall, then walk back — and a random-waypoint model does
+    champions reverse course, recall, then walk back, and a random-waypoint model does
     not. Overshooting means the belief is slightly too spread rather than too confident,
     which is the safe direction, but it is a real limit and is stated as one.
     """
@@ -209,8 +209,8 @@ def test_the_walk_travels_as_far_as_champions_actually_do(terrain):
 def test_a_diffusive_walk_cannot_reach_the_measured_displacement(terrain):
     """The measurement that rejected pure diffusion as the motion model.
 
-    An unbiased walk is recurrent — it wanders back over its own path, so displacement
-    grows like the square root of time — while a champion crossing the map does not. No
+    An unbiased walk is recurrent. It wanders back over its own path, so displacement
+    grows like the square root of time, while a champion crossing the map does not. No
     setting of sub-steps, stay probability or heading persistence got a diffusive walk
     past 900 units at twenty seconds against a truth of 1,395. That gap is the entire
     reason `navmesh_behavioural` carries a destination, and the ablation reports what it
@@ -285,8 +285,8 @@ def _exact_forward(walkable, visible_seq, p_stay, pd_map, start_cell, n_sub):
 def test_filter_matches_exact_bayes():
     """Total variation < 0.05 between the particle cloud and the exact posterior.
 
-    If the negative update were merely plausible rather than correct — a hard kill, a
-    wrong ordering of predict and update, a likelihood applied to the wrong particles —
+    If the negative update were merely plausible rather than correct. A hard kill, a
+    wrong ordering of predict and update, a likelihood applied to the wrong particles,
     this diverges. Nothing else in the suite can catch that, because a wrong-but-smooth
     posterior looks exactly as reasonable as a right one when drawn on a map.
     """
@@ -313,7 +313,7 @@ def test_filter_matches_exact_bayes():
     pd_map = np.full((TOY, TOY), C.PD_INTERIOR)
 
     # The exact model has a single detection probability, so the filter is run with the
-    # edge ring switched off — comparing against a two-valued p_d would be comparing
+    # edge ring switched off, comparing against a two-valued p_d would be comparing
     # against a different model and the discrepancy would be the test's fault.
     order = [i % 2 for i in range(n_ticks)]
     exact = _exact_forward(walkable, [bool_masks[k] for k in order], p_stay, pd_map, start, n_sub)
@@ -346,12 +346,12 @@ def test_filter_matches_exact_bayes():
 def test_exact_bayes_error_falls_at_the_monte_carlo_rate():
     """Convergence, which is a far stronger claim than any single threshold.
 
-    A filter that is *biased* — targeting a subtly different posterior — plateaus at a
+    A filter that is *biased*, targeting a subtly different posterior, plateaus at a
     non-zero total variation no matter how many particles it is given, and would sail
     past a fixed 0.05 gate at P = 20,000 while being wrong. A filter that is merely
     *noisy* has error falling as one over the square root of the particle count.
 
-    MEASURED: 0.115 at P=2,000, 0.030 at P=20,000, 0.012 at P=100,000 — ratios of 3.9
+    MEASURED: 0.115 at P=2,000, 0.030 at P=20,000, 0.012 at P=100,000, ratios of 3.9
     and 2.4 against the sqrt(10)=3.2 and sqrt(5)=2.2 that pure sampling error predicts.
     """
     walkable = toy_walkable()
@@ -483,7 +483,7 @@ def test_detection_field_separates_interior_from_edge():
         [
             8 * TOY + 8,  # deep interior
             4 * TOY + 4,  # corner of the visible block
-            5 * TOY + 5,  # one cell in — still inside the 2-cell ring
+            5 * TOY + 5,  # one cell in, still inside the 2-cell ring
             0 * TOY + 0,  # not visible at all
         ],
         dtype=np.int32,
@@ -497,7 +497,7 @@ def test_detection_field_separates_interior_from_edge():
 
 
 def test_detection_probability_is_zero_outside_the_visible_region():
-    """Not looking somewhere is not evidence about it — the sign error that would
+    """Not looking somewhere is not evidence about it. The sign error that would
     invert the whole model."""
     packed = pack_rows(np.zeros((TOY, TOY), dtype=bool))
     cells = np.arange(TOY * TOY, dtype=np.int32)
@@ -524,7 +524,7 @@ def test_every_resolved_role_has_its_own_prior(terrain):
 
     They did not. The resolver emits `("top", "jungle", "mid", "bot", "support")` and the
     motion model matched `"jng"` and `"sup"`, so junglers and supports fell through to the
-    catch-all target set — two of every five enemies, including the champion who spends
+    catch-all target set, two of every five enemies, including the champion who spends
     the most time in fog. Nothing raised, nothing failed a test, and the only symptom was
     a belief that was confidently wrong more often than it should have been.
 

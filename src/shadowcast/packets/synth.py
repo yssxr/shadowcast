@@ -3,7 +3,7 @@
 Exists because the two hardest components in the engine cannot be validated against
 real data at all. Movement-order attribution has no labels in the corpus, and the
 belief filter's correctness is not something a real replay can adjudicate. Both need a
-match where the answer is known, and this produces one — on the *real* terrain, so
+match where the answer is known, and this produces one, on the *real* terrain, so
 real geometry (brush entrances, jungle walls, base chokes) is exercised throughout.
 
 **It is adversarial on purpose.** A generator that emitted clean, labelled,
@@ -23,8 +23,8 @@ toggleable, so a failing test can be bisected to the specific pathology that bro
     keyframe_creates     CreateHero is re-emitted every 60 s as a resync
     duplicate_fog_max    each fog transition repeated up to N times at one timestamp
 
-With every pathology off, downstream reconstruction should recover truth exactly —
-that pins the algebra. With all on, it should stay within stated tolerances — that
+With every pathology off, downstream reconstruction should recover truth exactly,
+that pins the algebra. With all on, it should stay within stated tolerances. That
 pins the robustness. Between them the two settings cover what L1 and L2 can get wrong.
 
 **Motion is defined by the orders, not the other way round.** Each champion picks a
@@ -81,7 +81,7 @@ _NEUTRAL_NETID_BASE = 0x40002000
 # a fog-attack reveal, and any value in that band produces the same qualitative result.
 _ATTACK_RANGE = 700.0
 _MINION_NETID_BASE = 0x40003000
-#: Barracks, one per lane per side. Not turrets and not in `CreateTurret` — matching the
+#: Barracks, one per lane per side. Not turrets and not in `CreateTurret`, matching the
 #: real stream, where the six barrack net_ids appear in no create packet at all.
 _BARRACK_NETID_BASE = 0x40004000
 #: Damage exchanges emitted per wave. The labelling needs only a handful; this is enough
@@ -347,7 +347,7 @@ def _route_lut(route: np.ndarray, n: int = 2048) -> np.ndarray:
     """Resample a polyline to `n` points evenly spaced by arclength.
 
     The dense A*-built routes have hundreds of vertices, so a Python-level arclength
-    lerp inside the per-tick loop would walk all of them every call — hundreds of
+    lerp inside the per-tick loop would walk all of them every call, hundreds of
     millions of operations over a match. A lookup makes it an array index.
     """
     out = np.empty((n, 2))
@@ -479,7 +479,7 @@ class SyntheticSource:
         # Three superposed oscillations, chosen so implied speed is realistic rather
         # than so the amplitudes look plausible. A single slow swing (900 units over
         # 165 s) moves the goal ~10 units/second, less than half a cell per order
-        # interval — champions then stand still, no order is ever long enough to emit,
+        # interval, champions then stand still, no order is ever long enough to emit,
         # and median implied speed comes out at zero. Peak contribution of a term is
         # amplitude * 2*pi / period, so the short-period terms are what create motion.
         LANE_WAVES = ((900.0, 90.0), (320.0, 23.0), (140.0, 7.0))
@@ -554,14 +554,14 @@ class SyntheticSource:
             # first path vertex. Substituting looked equivalent and was not: the chord
             # from an off-centre point to the *second* vertex is a different segment
             # from the centre-to-centre one the simplifier verified, and it can clip a
-            # third cell. Prepending keeps the extra segment inside a single cell —
-            # cells are convex, so it is walkable by construction — and leaves every
+            # third cell. Prepending keeps the extra segment inside a single cell,
+            # cells are convex, so it is walkable by construction, and leaves every
             # verified chord intact.
             return np.vstack([np.asarray(start, dtype=np.float64)[None, :], poly])
 
         # Static entities, resolved before the tick loop because turret attacks
         # emitted during it must use the same snapped positions the vision oracle
-        # does — otherwise a recovered turret position would not match the source
+        # does, otherwise a recovered turret position would not match the source
         # that produced the visibility it is meant to explain.
         rows_turret: list[tuple] = []
         turret_pos: list[tuple[float, float, int]] = []
@@ -605,7 +605,7 @@ class SyntheticSource:
                         # The champion walks the UNJITTERED path; only the published
                         # order is perturbed. Jittering the walked path too would make
                         # truth agree with the corrupted waypoint, which is the
-                        # opposite of the pathology being modelled — the point is that
+                        # opposite of the pathology being modelled. The point is that
                         # waypoints[0] disagrees with where the unit actually is, and
                         # that disagreement is what the order residual measures.
                         movers[c].set_order(poly)
@@ -627,7 +627,7 @@ class SyntheticSource:
 
                 # Recorded BEFORE stepping, so `pos[tick]` is the position at time
                 # `tick * dt` rather than at `(tick + 1) * dt`. Stepping first put
-                # every truth sample one tick ahead of its own timestamp — an error
+                # every truth sample one tick ahead of its own timestamp. An error
                 # that would have propagated silently into the fog oracle and every
                 # metric derived from it.
                 pos[tick, c] = movers[c].pos
@@ -644,7 +644,7 @@ class SyntheticSource:
 
             # Labelled position anchors. These are the only packets that tie a
             # position to a net_id, so they are what makes anonymous movement orders
-            # attributable at all — roughly one per champion per 1.5 s, matching the
+            # attributable at all, roughly one per champion per 1.5 s, matching the
             # 546-1,085 per champion per match measured in the real corpus.
             for c in range(n_champs):
                 if alive[tick, c] == 0:
@@ -652,9 +652,9 @@ class SyntheticSource:
                 if rng.random() < dt / 1.5:
                     x, z = pos[tick, c]
                     # The TARGET matters, and a first version left it at zero for every
-                    # attack. The fog-attack reveal is conditioned on it — the rule is
+                    # attack. The fog-attack reveal is conditioned on it. The rule is
                     # "attacking an enemy (including wards) from their team's fog of
-                    # war" — so an attack with no target reveals nobody, and one on an
+                    # war", so an attack with no target reveals nobody, and one on an
                     # enemy reveals the attacker.
                     #
                     # With every target zero, the oracle and the reconstruction agreed
@@ -665,7 +665,7 @@ class SyntheticSource:
                     # came out at 84% against a real 25-40%.
                     #
                     # So an attack names an enemy champion only when one is actually
-                    # within reach. Everything else — farming a wave, clearing a camp —
+                    # within reach. Everything else: farming a wave, clearing a camp,
                     # is a target this model does not track, and leaves at zero.
                     target = 0
                     for other in range(n_champs):
@@ -686,7 +686,7 @@ class SyntheticSource:
             # Turrets shoot too, and that is the only way their positions can be
             # recovered: `CreateTurret` carries a name but no coordinates, while
             # `BasicAttackPos` pairs `source_net_id` with `source_position`. Since a
-            # turret never moves, the mode of its attack positions IS its location —
+            # turret never moves, the mode of its attack positions IS its location,
             # which makes turret team (from the name) and turret position (from the
             # attacks) jointly recoverable, and turrets are the anchor for resolving
             # champion teams.
@@ -710,7 +710,7 @@ class SyntheticSource:
                 if abs(t - kt) < dt / 2:
                     # Several damagers, not one. A real kill is contested, and the
                     # killer inference reports its confidence as the last damager's
-                    # share of the window — a figure that stays pinned at 1.0 and
+                    # share of the window. A figure that stays pinned at 1.0 and
                     # therefore untested if only one champion ever deals damage.
                     assist = (killer + 1) % n_champs
                     if team[assist] == team[victim]:
@@ -807,7 +807,7 @@ class SyntheticSource:
             )
 
         # Lane minion waves. Emitted through `BarrackSpawnUnit`, which is where the real
-        # stream puts them and — verified on a real match — the ONLY place it puts them:
+        # stream puts them and, verified on a real match. The ONLY place it puts them:
         # not one lane minion appears in `SpawnMinion`, whose contents are wards, plants,
         # camps and ability summons. A generator that spawned them with a position and a
         # readable name would be handing downstream code two facts the corpus withholds,
@@ -850,7 +850,7 @@ class SyntheticSource:
                     rows_damage.append((when, turret, net_id, 60.0))
 
                     # Champions farming the wave. This is the *only* evidence for where a
-                    # lane's front line actually sits — the reconstruction has no minion
+                    # lane's front line actually sits. The reconstruction has no minion
                     # positions, so it infers the front from where champions stand when
                     # they hit minions. Emitting it means the front estimator is exercised
                     # against a generator whose waves really do meet at `MEETING_S`, so a
@@ -868,7 +868,7 @@ class SyntheticSource:
             wave_specs.append((wave_t, lane, wave_team, net_id))
 
         # Camp clears. Death packets exist in the real stream but NEVER name a
-        # champion as the victim — verified across 45,851 real rows — so the generator
+        # champion as the victim, verified across 45,851 real rows, so the generator
         # emits them only for neutrals. Anything downstream that hoped to read
         # champion deaths from here will find nothing, which is the point.
         for n in range(6):
@@ -1008,7 +1008,7 @@ class SyntheticSource:
         # denormal garbage, because that is exactly the situation on real data: the
         # timestamps are unusable but the stream position is not, and a ward's real
         # placement time is recoverable from the packets around it. Losing that would
-        # make ward lifetimes — the project's headline metric — unrecoverable.
+        # make ward lifetimes. The project's headline metric, unrecoverable.
         merge_t: list[np.ndarray] = []
         merge_kind: list[np.ndarray] = []
         merge_idx: list[np.ndarray] = []
@@ -1186,7 +1186,7 @@ def _arrival_permutation(t: np.ndarray, window: float, rng) -> np.ndarray:
 
     Returns a permutation rather than mutating in place so callers can apply the same
     reordering to parallel bookkeeping. Real packets do not arrive perfectly ordered,
-    and anything that assumes monotone arrival — a running clock, a state accumulator —
+    and anything that assumes monotone arrival. A running clock, a state accumulator,
     has to tolerate it, so the generator produces it rather than leaving the
     assumption untested.
     """

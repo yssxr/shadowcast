@@ -12,7 +12,7 @@ member: the transport already has a compressor and it is better than anything we
 bundle.
 
 **Every section carries a CRC32**, and this is not belt-and-braces. The failure this
-format is most exposed to is a section read at the wrong offset or the wrong dtype —
+format is most exposed to is a section read at the wrong offset or the wrong dtype,
 which produces numbers, not an error. A checksum per section turns "the map looks
 strange" into a named assertion at load time, and it is what makes the cross-language
 conformance test possible: `tests/test_export.py` has Node read the same file and compare
@@ -72,7 +72,7 @@ def _json_safe(value: Any) -> Any:
     """Replace non-finite floats with `null`, recursively.
 
     `json.dumps` emits bare `NaN` and `Infinity` by default. That is accepted by Python's
-    own parser and by nothing else — `JSON.parse` throws on it, so a single unknown
+    own parser and by nothing else, `JSON.parse` throws on it, so a single unknown
     respawn time makes the whole artifact unreadable in a browser. The cross-language
     conformance test found this on its first run, which is the entire argument for
     having one.
@@ -209,7 +209,7 @@ def read_artifact(path: Path | str, decode: bool = True) -> Artifact:
             raise ValueError(
                 f"section {entry.name!r} failed its checksum "
                 f"({actual:#010x} != {entry.crc32:#010x}). The section was read at the "
-                f"wrong offset or the file is damaged — either way the numbers would "
+                f"wrong offset or the file is damaged, either way the numbers would "
                 f"have been plausible rather than absent."
             )
         arr = np.frombuffer(payload, dtype=np.dtype(section.numpy_dtype)).reshape(entry.shape)

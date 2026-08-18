@@ -6,7 +6,7 @@ description: Write a decision record into docs/decisions/ when a design choice i
 # Decision records
 
 `docs/decisions/` exists and is empty. It is for the choices whose *rationale* is the valuable
-part — the ones where the code shows what was done and nothing shows why the obvious alternative
+part: the ones where the code shows what was done and nothing shows why the obvious alternative
 is wrong.
 
 This repo already writes rationale inline, at length, in module docstrings and comments. A
@@ -21,7 +21,7 @@ Write one when any of these is true:
 - An approach was **tried and rejected** for a reason that is not visible in the surviving code.
   (The removed subsampling in `simplify_path` is the archetype: the reason truncation is correct
   is that subsampling creates unverified chords.)
-- A choice is **load-bearing across modules** — break it somewhere and something unrelated fails.
+- A choice is **load-bearing across modules**: break it somewhere and something unrelated fails.
 - A **dataset claim turned out to be false** and the measurement is worth keeping. These are the
   rows in the README's reality table; the record holds the method behind the number.
 - A constraint is **external and non-obvious** (Riot's see-through cells, numba's numpy pin).
@@ -34,14 +34,14 @@ is still open. An open question is a `[pending]` row in `docs/validation.md`, no
 File: `docs/decisions/NNNN-kebab-case-title.md`, numbered sequentially from `0001`.
 
 ```markdown
-# NNNN — Title stated as the decision, not the topic
+# NNNN: Title stated as the decision, not the topic
 
 Date: YYYY-MM-DD
 Status: accepted | superseded by [NNNN](NNNN-....md)
 
 ## Context
 
-What forced the choice. Include the measurement if there is one — a count, a timing, a
+What forced the choice. Include the measurement if there is one: a count, a timing, a
 mismatch rate. State the constraint that makes this non-trivial.
 
 ## Decision
@@ -66,6 +66,6 @@ What this costs, what it now forbids, and what test or assertion keeps it true.
   property with nothing keeping it true is describing a property that will stop being true.
 - Write in the repo's register: plain, specific, willing to say an earlier attempt was wrong.
 - Records are append-only. Superseding one means writing a new record and setting the old one's
-  status — never editing history to look correct.
+  status, never editing history to look correct.
 - Add a link to the new record from `README.md` only if it changes what a reader of the README
   would otherwise believe.

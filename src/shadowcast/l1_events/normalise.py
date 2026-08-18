@@ -3,14 +3,14 @@
 This layer does the work that makes the corpus usable, and every step of it exists
 because of a specific measured defect rather than as generic tidying:
 
-- **Fog is deduped.** `LeaveFog` is 65–70% of all packets in the real stream and
+- **Fog is deduped.** `LeaveFog` is 65-70% of all packets in the real stream and
   maknee documents "20+ repeats sometimes" at an identical timestamp. Beyond exact
   duplicates, transitions that do not change state are dropped too, so the output is a
   clean alternating timeline.
 - **The waypoint frame is calibrated, not assumed.** Waypoint coordinates are
   map-centred while every other position is world-framed. The offset is near 7500 and
   demonstrably not equal to it, so it is recovered by maximising the fraction of
-  waypoints that land on walkable ground — a score that only peaks when the frame is
+  waypoints that land on walkable ground. A score that only peaks when the frame is
   right, and which needs no labels.
 - **Turret positions are recovered from attacks.** `CreateTurret` carries a name but no
   coordinates. `BasicAttackPos` carries `source_net_id` and `source_position`, and a
@@ -91,8 +91,8 @@ def calibrate_waypoint_frame(
     score identically, so the plateau is about 28.8 units wide no matter how much data
     is thrown at it. Measured plateau width on synthetic matches is 28.0 units, which
     is that limit rather than a weakness in the signal. Half a cell of frame error is
-    acceptable — it is below the resolution of the terrain the offset is being fitted
-    against — but it does mean this is not the way to pin the frame to single units,
+    acceptable. It is below the resolution of the terrain the offset is being fitted
+    against, but it does mean this is not the way to pin the frame to single units,
     and a claim to that precision would be unfounded.
     """
     if waypoint_xz.size == 0:
@@ -211,7 +211,7 @@ def _minion_times(bundle: PacketBundle) -> np.ndarray:
 def _dedupe_fog(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
     """Collapse the fog stream into an alternating per-champion timeline.
 
-    Two stages, and both are needed. Exact duplicates go first — the real stream
+    Two stages, and both are needed. Exact duplicates go first. The real stream
     repeats a single transition up to twenty times at one timestamp. Then transitions
     that do not change state go, which catches repeats spread across nearby
     timestamps that an exact-match dedupe would keep.
@@ -255,14 +255,14 @@ def _turret_sites(bundle: PacketBundle) -> np.ndarray:
     """Turret positions by name where the map knows them, from attack packets otherwise.
 
     `CreateTurret` carries no coordinates, so a turret's location has to come from
-    somewhere else — and turrets are 27% of a team's static vision, so getting them wrong
+    somewhere else, and turrets are 27% of a team's static vision, so getting them wrong
     is expensive.
 
     **The name is the better source, and attack packets are the fallback.** A turret does
     not move, and Summoner's Rift turret positions are known: `sr.TURRETS` holds all 24
     keyed by the same internal name the packet carries. MEASURED on a real match, 22 of
     24 names match exactly, while deriving position from attack packets recovered only
-    **6** — most turrets simply never fire inside a truncated twelve-minute window, and a
+    **6**, most turrets simply never fire inside a truncated twelve-minute window, and a
     turret with no recovered position grants no vision at all. That deficit alone put the
     real fog agreement at 64.6% with a 27.9% false-negative rate.
 
@@ -281,7 +281,7 @@ def _turret_sites(bundle: PacketBundle) -> np.ndarray:
     name_of = {int(r["net_id"]): str(r["name"]) for r in turrets}
 
     # Turret destruction, which this project spent most of its life believing was not
-    # observable. There is no `BuildingDie` packet and grep finds no `TurretDie` either —
+    # observable. There is no `BuildingDie` packet and grep finds no `TurretDie` either,
     # but turret net_ids appear as `killed_net_id` in the ordinary NPC death stream, and
     # nothing had ever looked. MEASURED across six real matches: one to three outer
     # turrets fall per match, between 11 and 17 minutes.
@@ -332,7 +332,7 @@ def _wards(bundle: PacketBundle, slots: dict[int, int], times: np.ndarray) -> np
 
     Placement, position and owner are all directly observed. Destruction is observed
     when a `WardCorpse` appears, and modelled from the ward kind's duration when it does
-    not — which happens in the real stream, so `t1_known` records which case applied.
+    not, which happens in the real stream, so `t1_known` records which case applied.
     """
     minions = bundle.minions
     if minions.size == 0:
@@ -432,8 +432,8 @@ def _damage(bundle: PacketBundle, slots: dict[int, int]) -> np.ndarray:
 #: Outer and inner lane turrets are on the line; inhibitor and nexus turrets are not, and
 #: excluding them is what keeps a base skirmish from relabelling a barrack.
 _BARRACK_TURRET_LANE_RADIUS = 1500.0
-#: Damage exchanges needed before a barrack is labelled. The real margin is not close —
-#: the modal turret wins by an order of magnitude — so this only rejects noise.
+#: Damage exchanges needed before a barrack is labelled. The real margin is not close,
+#: the modal turret wins by an order of magnitude, so this only rejects noise.
 _BARRACK_MIN_VOTES = 5
 
 
@@ -442,7 +442,7 @@ def _barrack_labels(bundle: PacketBundle) -> dict[int, tuple[str, int]]:
 
     `BarrackSpawnUnit` names a barrack but the corpus never creates one: the six
     `barrack_net_id` values appear in no `CreateTurret` row, so there is no name to read
-    a lane or a team out of. Nothing else in the packet identifies them either — the
+    a lane or a team out of. Nothing else in the packet identifies them either. The
     minions all spawn at the same instants, so timing cannot separate the lanes.
 
     What does separate them is who shoots at them. **A barrack's minions exchange damage
@@ -457,7 +457,7 @@ def _barrack_labels(bundle: PacketBundle) -> dict[int, tuple[str, int]]:
     polylines cannot be got backwards.
 
     A barrack with no damage evidence is left unlabelled and its minions are dropped
-    rather than guessed — an invented lane would put a 1,200-unit light in the wrong half
+    rather than guessed. An invented lane would put a 1,200-unit light in the wrong half
     of the map, which is worse than modelling no minions there at all.
     """
     if bundle.barracks.size == 0 or bundle.damage.size == 0:
@@ -498,14 +498,14 @@ def _lane_minions(bundle: PacketBundle) -> np.ndarray:
     """Lane minions, one row each, from `BarrackSpawnUnit`.
 
     This is the only place they exist. `SpawnMinion` carries wards, plants, camps and
-    ability summons and **not one lane minion** — verified on a real match, where the
+    ability summons and **not one lane minion**, verified on a real match, where the
     intersection of the two net_id sets is empty. Building minion vision from
     `SpawnMinion` therefore produced no lane minions at all on real data, which is what a
     23.9% missing-source floor in the fog agreement turned out to be: the largest vision
     source in the game was simply not modelled.
 
-    Spawn time and death time are both observed — 94.5% of minions have an
-    `NPCDieMapView` row, median lifetime 29 s — so neither has to be assumed. The
+    Spawn time and death time are both observed, 94.5% of minions have an
+    `NPCDieMapView` row, median lifetime 29 s, so neither has to be assumed. The
     previous model assumed a flat 55 s.
     """
     if bundle.barracks.size == 0:
@@ -553,7 +553,7 @@ def _minion_contacts(
     minion can see. A champion hitting a minion is standing at the front, and champion
     positions are recovered, so this turns an assumption into a reading.
 
-    Direction is not distinguished — a champion damaging a minion and a minion damaging a
+    Direction is not distinguished. A champion damaging a minion and a minion damaging a
     champion place the two units equally close, and the front wants both.
     """
     if bundle.damage.size == 0 or minion_waves.size == 0:

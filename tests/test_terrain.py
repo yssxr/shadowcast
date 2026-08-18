@@ -29,7 +29,7 @@ def test_resampling_is_exact(terrain, navgrid):
     repair entirely: the simulation grid (28.83 u) is FINER than the source
     (50 u), so this is an upsample and no information can be lost. If it were a
     downsample, a brush entrance could seal and vision would stop leaking through
-    a real corridor — silently.
+    a real corridor, silently.
 
     Checked by going the long way round: take each simulation cell's world-space
     centre, independently locate the navgrid cell containing it, and compare.
@@ -62,7 +62,7 @@ def test_brush_groups_are_in_band(terrain):
     Not an equality check against the wiki's 39: labelling gives 40 on this
     navgrid and we have not chased the one-patch difference down, so asserting 39
     would fail on correct output. What the band actually rules out is the two
-    failure modes that break conditional-occluder semantics — far fewer groups
+    failure modes that break conditional-occluder semantics, far fewer groups
     means two brushes were welded together and standing in one reveals the other;
     far more means one brush was split and it stops behaving as a unit.
     """
@@ -103,7 +103,7 @@ def test_brush_cells_are_walkable(terrain):
 
     The navgrid disagrees: 251 of its 2,129 brush cells also carry NOT_PASSABLE,
     where the 50-unit raster straddles a brush/terrain boundary. Those cells are
-    opaque whatever their brush flag says, so we drop them at build time — which
+    opaque whatever their brush flag says, so we drop them at build time, which
     both keeps this invariant and removes any chance of two patches being welded
     through a wall cell.
     """
@@ -115,7 +115,7 @@ def test_wall_brush_cells_are_excluded_but_present_in_the_source(terrain, navgri
     overlap = navgrid.brush & navgrid.blocks_move
     assert int(overlap.sum()) == 251
     assert not (overlap & navgrid.see_through).any()
-    # Dropping them must not change the grouping — verified for this navgrid.
+    # Dropping them must not change the grouping, verified for this navgrid.
     assert terrain.n_brush_groups == C.SR_BRUSH_PATCHES_MEASURED
 
 

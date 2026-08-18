@@ -1,7 +1,7 @@
 """Union many vision sources into one per-team visibility mask.
 
 A team's visible region is the union over its champions, wards, turrets and minions,
-so the hot loop is a bitwise OR. The global mask is `uint64[512, 8]` — 32 KB, which
+so the hot loop is a bitwise OR. The global mask is `uint64[512, 8]`, 32 KB, which
 fits in L2, so assembling one costs a memcpy plus a few dozen shifted ORs rather
 than touching a quarter-million bytes.
 
@@ -14,7 +14,7 @@ The kernel is paired with a NumPy reference of identical signature and checked
 bit-for-bit against it. Two hazards here produce wrong masks rather than errors:
 `x >> 64` is undefined in LLVM so the carry term is skipped when the shift is zero,
 and Numba does not bounds-check while negative indices wrap, so the destination word
-guards are load-bearing — without them a source near the left edge would light cells
+guards are load-bearing, without them a source near the left edge would light cells
 on the right side of the map.
 """
 
@@ -155,7 +155,7 @@ def union_sources_ref(
 def or_live_window(out: np.ndarray, window_bool: np.ndarray, x0: int, y0: int) -> None:
     """OR a live-computed boolean window into a packed mask.
 
-    The fallback path for table misses — sources in walls, sources whose continuous
+    The fallback path for table misses, sources in walls, sources whose continuous
     position sits in a brush their cell does not, runtime occluders. Rare enough that
     a NumPy slice is fine.
     """

@@ -10,7 +10,7 @@ a fixed `(n_ticks, 10, ...)` shape rather than a dictionary keyed on 32-bit ids.
 **Everything the packets do not state is `-1` until something resolves it.** Team,
 role, order ownership and observer team all start unknown, and the resolvers fill them.
 That is deliberately visible in the types: a field that is `-1` has not been inferred
-yet, so no consumer can mistake an unresolved value for a real one — which matters
+yet, so no consumer can mistake an unresolved value for a real one, which matters
 because the corpus omits team, role, ownership and kills entirely, and every one of
 them is a guess we make rather than a fact we read.
 """
@@ -64,7 +64,7 @@ HERO = np.dtype(
     ]
 )
 
-#: A movement order. `owner` is the champion slot, `UNKNOWN` until attributed — which
+#: A movement order. `owner` is the champion slot, `UNKNOWN` until attributed, which
 #: is the project's first hard problem, because the packets carry no entity id.
 ORDER = np.dtype([("t", "f8"), ("off", "i8"), ("n", "i4"), ("owner", "i1"), ("seq", "i8")])
 
@@ -100,13 +100,13 @@ FOG_EVENT = np.dtype([("t", "f8"), ("slot", "i1"), ("observer_team", "i1"), ("vi
 #:
 #: `destroyed_t` is `inf` for a turret that survives the recorded window. It exists
 #: because turret destruction IS observable, contrary to what this project assumed for
-#: most of its life. There is no `BuildingDie` packet — grep finds zero — but turret
+#: most of its life. There is no `BuildingDie` packet, grep finds zero: but turret
 #: net_ids appear as `killed_net_id` in the ordinary `NPCDieMapView` stream, which nobody
 #: checked. MEASURED across six real matches: one to three outer turrets fall per match,
 #: between 11 and 17 minutes.
 #:
 #: A turret sees 1,350 units, so a destroyed turret still granting vision is a permanent
-#: floodlight for whichever team is losing structures — precisely the team whose vision
+#: floodlight for whichever team is losing structures, precisely the team whose vision
 #: should be collapsing.
 TURRET_SITE = np.dtype(
     [
@@ -138,11 +138,11 @@ WARD_EVENT = np.dtype(
     ]
 )
 
-#: A replicated scalar for a champion — movement speed, health.
+#: A replicated scalar for a champion, movement speed, health.
 REPL_VALUE = np.dtype([("t", "f8"), ("slot", "i1"), ("value", "f8")])
 
-#: One lane minion. Spawn time and death time are both observed — `BarrackSpawnUnit`
-#: gives the first, `NPCDieMapView` the second for 94.5% of them — while lane and side
+#: One lane minion. Spawn time and death time are both observed, `BarrackSpawnUnit`
+#: gives the first, `NPCDieMapView` the second for 94.5% of them, while lane and side
 #: come from the barrack, labelled through the turret its minions fight.
 #:
 #: Position is not here and cannot be: minions have no labelled position packets and
@@ -161,7 +161,7 @@ MINION_WAVE = np.dtype(
 
 #: A champion trading damage with a lane minion, which is the only observable evidence
 #: for where a lane's front line is. Minions have no position packets at all, so their
-#: location is modelled rather than read — and the model needs to know where the two
+#: location is modelled rather than read, and the model needs to know where the two
 #: waves are meeting, which moves by ±1,400 units on the side lanes over a match.
 #: A champion's position IS known, so "champion X hit a minion of lane L at time t"
 #: places the front at X.
@@ -198,8 +198,8 @@ class FrameCalibration:
     **Two offsets, not one.** The navgrid is 14,719.5 units wide and 14,759.5 tall, so
     its midpoints on the two axes are 53.8 units apart, and a single shared offset
     cannot be correct. MEASURED on 37,693 real waypoints, a per-axis fit lands within
-    6 units of the navgrid midpoint — inside the one-cell resolution any walkability fit
-    can resolve — so the offset simply IS the midpoint, and this is a check rather than
+    6 units of the navgrid midpoint, inside the one-cell resolution any walkability fit
+    can resolve, so the offset simply IS the midpoint, and this is a check rather than
     a fit. `baseline_fraction` is the score at the midpoint, so "calibration found the
     same answer" is distinguishable from "calibration did something".
     """
@@ -216,7 +216,7 @@ class FrameCalibration:
         """Is the optimum sharp enough, and good enough, to rely on?
 
         The thresholds are loose on purpose: the point is to catch a calibration that
-        failed outright — a flat response, or a peak no better than chance — rather
+        failed outright. A flat response, or a peak no better than chance, rather
         than to certify precision.
         """
         return self.walkable_fraction > 0.9 and self.plateau_width <= 120.0
@@ -274,8 +274,8 @@ class MatchEvents:
         """Has order attribution run? Not "did every order find an owner".
 
         Those are different questions and only the first has a yes/no answer. Some orders
-        genuinely belong to no champion — the real stream contains net_ids that act
-        without ever being created, and a pet or a misfire issues movement nobody owns —
+        genuinely belong to no champion. The real stream contains net_ids that act
+        without ever being created, and a pet or a misfire issues movement nobody owns,
         so demanding all of them resolve makes this permanently False and useless as a
         "has this stage run" flag. `order_attribution_rate` is the measurement.
         """

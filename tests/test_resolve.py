@@ -152,7 +152,7 @@ def test_supports_are_separated_from_carries_by_observed_ward_ownership(resolved
     """The part that positions cannot do, and why it uses a measurement instead.
 
     A support and its carry stand together by design, so lane occupancy cannot tell them
-    apart. Ward ownership is directly observed — `targetable_on_client` names the owner —
+    apart. Ward ownership is directly observed, `targetable_on_client` names the owner,
     so this is a reading rather than a behavioural guess.
     """
     events, truth, at, _ = resolved
@@ -221,7 +221,7 @@ def test_killer_confidence_reflects_contested_damage(resolved):
 
     A figure that is always 1.0 tells a consumer nothing. The generator gives every kill
     an assisting damager for exactly this reason, so a chaotic teamfight scores lower
-    than a clean solo kill — which is the right shape, because that is when the
+    than a clean solo kill, which is the right shape, because that is when the
     attribution is genuinely least trustworthy.
     """
     events, _, _, info = resolved
@@ -298,7 +298,7 @@ def test_order_ownership_reaches_the_events(resolved):
     It did not, for the whole life of the project up to this point: `with_owners` existed,
     was exported, and was called by nothing. So `events.orders["owner"]` was `UNKNOWN` on
     every match and `describe()` reported `orders_attributed: False` while 91% of ticks
-    had a recovered position — a QA surface that said the opposite of the truth.
+    had a recovered position. A QA surface that said the opposite of the truth.
     """
     events, _, at, _ = resolved
     np.testing.assert_array_equal(events.orders["owner"], at.owner)
@@ -319,7 +319,7 @@ def test_ward_teams_are_resolved_not_left_for_consumers(resolved):
     """Every ward must carry a real team once resolution has run.
 
     This was `UNKNOWN` for every ward, and it went unnoticed because the one consumer
-    that needed it — the vision layer — derived it locally from the owner. The moment a
+    that needed it. The vision layer: derived it locally from the owner. The moment a
     second consumer appeared, the exported artifact shipped ten wards labelled team -1
     and the frontend indexed off the end of an array with it.
 

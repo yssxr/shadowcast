@@ -7,12 +7,12 @@
  *
  * **Clouds are drawn in the ENEMY's colour, not the observer's.** This diverges from the
  * mockup on purpose. A cloud is a belief *about* someone, and when it collapses it
- * collapses into a dot — so cloud and dot sharing a colour makes the collapse read as one
+ * collapses into a dot, so cloud and dot sharing a colour makes the collapse read as one
  * event rather than two unrelated marks.
  *
  * ## One rendering, not three
  *
- * There were three modes — cloud, contour, grid — and the toggle was a bad answer to the
+ * There were three modes, cloud, contour, grid: and the toggle was a bad answer to the
  * question of how to draw a distribution. Putting all three on the same data settled it:
  *
  * *Grid* drew the raw display lattice: useful for checking what the model literally said,
@@ -22,7 +22,7 @@
  * two nested rectangles, because a belief concentrated in four cells puts every level on
  * nearly the same cells. It said less than grid did.
  *
- * *Cloud* read well at a glance but had no boundary — you could not tell whether the
+ * *Cloud* read well at a glance but had no boundary. You could not tell whether the
  * faint edge held ten percent of the mass or one.
  *
  * So the shipped rendering is the cloud **with its 90% credible boundary drawn on it**.
@@ -53,7 +53,7 @@ const CREDIBLE_MASS = 0.9;
  *
  * Sorting the field was the obvious implementation and it cost 36 fps: 16,384 floats
  * sorted per enemy per map per frame is six hundred sorts a second. A histogram finds the
- * same threshold in one linear pass, to within a 256th of the peak density — far finer
+ * same threshold in one linear pass, to within a 256th of the peak density, far finer
  * than a boundary drawn on a 128-cell lattice can express.
  */
 const THRESHOLD_BINS = 256;
@@ -75,8 +75,8 @@ export interface BeliefScratch {
  * Allocate the scratch surfaces once, per map.
  *
  * Reused rather than created per draw. The first version allocated a canvas inside the
- * draw call — five per map per frame, six hundred GPU-backed surfaces a second across two
- * maps — and the symptom was not a slow frame but a periodic one, as the collector ran.
+ * draw call, five per map per frame, six hundred GPU-backed surfaces a second across two
+ * maps, and the symptom was not a slow frame but a periodic one, as the collector ran.
  */
 export function createScratch(enemies = 5): BeliefScratch {
   const canvas = document.createElement("canvas");
@@ -131,7 +131,7 @@ export function rasteriseMixture(components: Float64Array, out: Float32Array): F
  * Zero the field wherever no champion could stand.
  *
  * The filter already constrains its particles to the navmesh, but the mixture's Gaussians
- * are round and leak a little probability into walls — and a soft cloud edge overlapping
+ * are round and leak a little probability into walls, and a soft cloud edge overlapping
  * a wall reads as "he might be inside that wall". Removing it is cheap and it is what
  * makes the clouds look terrain-shaped rather than blobby.
  */
@@ -171,7 +171,7 @@ export function normalise(field: Float32Array): Float32Array {
  *
  * `alpha = v^0.75 * 205` and `screen` compositing are both from the mockup. The exponent
  * matters more than it looks: a linear ramp makes the tail of a diffuse belief invisible,
- * and the tail is where the interesting claim lives — a cloud carved by negative
+ * and the tail is where the interesting claim lives. A cloud carved by negative
  * information is mostly tail.
  */
 export function drawCloud(

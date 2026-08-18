@@ -147,7 +147,7 @@ def test_unresolved_fields_are_marked_unknown(events_clean):
     """Team, role and order ownership are inferences, not readings.
 
     They stay UNKNOWN until a resolver runs, so no consumer can mistake an
-    unresolved value for a real one — which matters because the corpus omits all
+    unresolved value for a real one, which matters because the corpus omits all
     three entirely.
     """
     events, _ = events_clean
@@ -168,7 +168,7 @@ def test_fog_dedupe_discards_duplicates_without_losing_transitions(events_dirty,
 
     LeaveFog is 65-70% of all real packets, repeated up to twenty times at a single
     timestamp. Dedupe has to throw away the vast majority while keeping every genuine
-    state change — so the output is compared against the oracle's own timeline, not
+    state change, so the output is compared against the oracle's own timeline, not
     merely checked for plausibility.
     """
     events, truth = events_dirty
@@ -214,7 +214,7 @@ def test_turret_positions_come_from_the_map_by_name(events_clean, terrain):
     """`CreateTurret` has no coordinates, so a turret's position comes from elsewhere.
 
     The name is the better source and attack packets are the fallback. Deriving position
-    from attacks alone recovered only 6 of 24 turrets on a real match — most never fire
+    from attacks alone recovered only 6 of 24 turrets on a real match, most never fire
     inside a truncated twelve-minute window, and a turret with no position grants no
     vision. `sr.TURRETS` knows all 24 by the same internal name the packet carries, and
     22 of 24 match exactly on real data.
@@ -422,7 +422,7 @@ def test_describe_reports_the_shape_of_the_match(events_clean):
 # Lane minions
 # ---------------------------------------------------------------------------
 def test_lane_minions_come_from_barracks_not_spawn_minion(events_clean, synth_clean):
-    """`SpawnMinion` holds wards, plants and camps — never a lane minion.
+    """`SpawnMinion` holds wards, plants and camps. Never a lane minion.
 
     Verified on a real match, where the two net_id sets do not intersect at all. The
     generator matches that shape, so a reader that looked for minions in `SpawnMinion`
@@ -440,7 +440,7 @@ def test_barracks_are_labelled_by_the_turrets_their_minions_fight(events_clean):
     """The barrack carries no lane and no team, so both are recovered or lost.
 
     Every wave the generator scheduled must come back with the right lane and side. The
-    schedule is symmetric — one wave per lane per team per interval — so any labelling
+    schedule is symmetric, one wave per lane per team per interval, so any labelling
     error shows up immediately as an imbalance.
     """
     events, _ = events_clean
@@ -465,7 +465,7 @@ def test_minion_spawn_times_match_the_wave_schedule(events_clean):
 def test_front_line_recovers_the_midpoint_the_generator_used(events_clean):
     """The generator's waves really do meet at `MEETING_S`, so the estimator must say so.
 
-    This is the guard against a front estimator that merely *moves* — one that tracks
+    This is the guard against a front estimator that merely *moves*, one that tracks
     noise would still improve nothing and would quietly corrupt minion vision. Real
     matches have no ground-truth front, so this is the only place the estimator can be
     checked against a known answer.

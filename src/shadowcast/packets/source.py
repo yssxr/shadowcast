@@ -1,7 +1,7 @@
 """The packet-source seam.
 
 This module imports nothing else from the package. It defines what a decoded replay
-looks like, and everything upstream of it — synthetic generator, HuggingFace reader —
+looks like, and everything upstream of it, synthetic generator, HuggingFace reader,
 implements the same protocol, so swapping one for the other is a new file rather than
 a refactor.
 
@@ -27,7 +27,7 @@ instead of being bolted on when real data arrives:
 
 Wards are not a packet type. They arrive as `SPAWN_MINION` rows whose `name` and
 `skin_name` identify them, with the owner's hero net_id in `targetable_on_client` and
-destruction signalled by a `WardCorpse` unit — so placement, owner and lifetime are
+destruction signalled by a `WardCorpse` unit, so placement, owner and lifetime are
 all directly observable, which is better than the project plan assumed.
 """
 
@@ -64,12 +64,12 @@ __all__ = [
 # ---------------------------------------------------------------------------
 #: Every packet dtype carries `seq`: its index in the original interleaved event
 #: stream. That field exists because splitting one stream into per-kind arrays throws
-#: away the interleaving — and the interleaving is the only thing that makes
+#: away the interleaving: and the interleaving is the only thing that makes
 #: `SPAWN_MINION`'s corrupt timestamps recoverable. A ward's placement time comes from
 #: the surrounding packets' clock, which requires knowing what "surrounding" means.
 #: Ward lifetimes are the project's headline metric, so losing that would be expensive.
 
-#: `CreateHero` — re-emitted roughly every 60 s as a keyframe resync, so consumers
+#: `CreateHero`: re-emitted roughly every 60 s as a keyframe resync, so consumers
 #: must dedupe by net_id. No team, no role, no position.
 CREATE_HERO = np.dtype(
     [("t", "f8"), ("net_id", "u4"), ("name", "U24"), ("champion", "U24"), ("seq", "i8")]
@@ -83,7 +83,7 @@ WAYPOINT = np.dtype([("t", "f8"), ("off", "i8"), ("n", "i4"), ("with_speed", "u1
 #: Waypoint polyline payload, in the **map-centred** frame.
 WAYPOINT_XZ = np.dtype([("x", "f4"), ("z", "f4")])
 
-#: `EnterFog` / `LeaveFog`, distinguished by `leaving`. No team or observer field —
+#: `EnterFog` / `LeaveFog`, distinguished by `leaving`. No team or observer field,
 #: the observing team is derived from the fact that a team always sees its own
 #: members, so an event about champion C can only come from C's opponents.
 #: Heavily duplicated in the real stream; dedupe on (t, net_id, leaving).
@@ -91,7 +91,7 @@ FOG = np.dtype([("t", "f8"), ("net_id", "u4"), ("leaving", "u1"), ("seq", "i8")]
 
 #: `Replication`. One attribute per net_id per packet, so full state needs
 #: accumulation. `name` is empty for the majority of real entries, leaving only the
-#: index pair — hence both are carried.
+#: index pair: hence both are carried.
 REPLICATION = np.dtype(
     [
         ("t", "f8"),
@@ -105,7 +105,7 @@ REPLICATION = np.dtype(
     ]
 )
 
-#: `CreateTurret`. No position — the name is the only identity, and it encodes team
+#: `CreateTurret`. No position: the name is the only identity, and it encodes team
 #: (`T1` = ORDER, `T2` = CHAOS), which makes turrets the anchor for team resolution.
 CREATE_TURRET = np.dtype(
     [("t", "f8"), ("net_id", "u4"), ("owner_net_id", "u4"), ("name", "U40"), ("seq", "i8")]
@@ -127,7 +127,7 @@ SPAWN_MINION = np.dtype(
     ]
 )
 
-#: `CreateNeutral` — jungle camps, dragon, herald. `position1` is trustworthy.
+#: `CreateNeutral`: jungle camps, dragon, herald. `position1` is trustworthy.
 CREATE_NEUTRAL = np.dtype(
     [
         ("t", "f8"),
@@ -181,7 +181,7 @@ DAMAGE = np.dtype(
 )
 
 #: `NPCDieMapView` / `NPCDieMapViewBroadcast`. Covers minions, camps and structures.
-#: **Never champions** — verified across 45,851 real death packets.
+#: **Never champions**: verified across 45,851 real death packets.
 NPC_DIE = np.dtype(
     [
         ("t", "f8"),
@@ -192,13 +192,13 @@ NPC_DIE = np.dtype(
     ]
 )
 
-#: `UseItem`. No position, so a trinket use alone cannot locate a ward — the ward's
+#: `UseItem`. No position, so a trinket use alone cannot locate a ward. The ward's
 #: own `SpawnMinion` row does that.
 USE_ITEM = np.dtype([("t", "f8"), ("net_id", "u4"), ("slot", "i2"), ("seq", "i8")])
 
 #: `BarrackSpawnUnit`. **The only record of lane minions in the corpus.** They do not
-#: appear in `SpawnMinion` at all — that packet carries wards, plants, camps and
-#: ability summons — so without this the largest vision source in the game is simply
+#: appear in `SpawnMinion` at all. That packet carries wards, plants, camps and
+#: ability summons: so without this the largest vision source in the game is simply
 #: absent, which is what a 23.9% missing-source floor in the fog agreement turned out
 #: to be.
 #:
@@ -319,7 +319,7 @@ class PacketSource(Protocol):
 
     Two methods. Implementing them is the entire cost of adding a data source, and
     `packets.conformance.validate_source` runs the same invariant suite against every
-    implementation — so "the real reader has a subtle bug" surfaces as a named
+    implementation. So "the real reader has a subtle bug" surfaces as a named
     assertion failure rather than as metrics that look slightly odd.
     """
 

@@ -1,8 +1,8 @@
 """The ablation: seven models, one code path, one table.
 
 The point of this module is to make a specific claim falsifiable. The claim is that
-reconstructing *negative* information — the region a team is actively looking at, and
-therefore where the enemy provably is not — produces a materially better position
+reconstructing *negative* information. The region a team is actively looking at, and
+therefore where the enemy provably is not, produces a materially better position
 estimate than the alternatives. The alternatives are not strawmen: `geodisc` is a
 geodesic reachability ball, which is already better than anything shipping today, and
 `behavioural` is a navmesh random walk with a role-conditioned prior.
@@ -14,7 +14,7 @@ Two adjacent rows carry the argument:
 
 They are adjacent because each differs from its neighbour in exactly one field of one
 frozen spec. If `full` does not beat `behavioural`, negative information is contributing
-nothing and the central claim is empty — and that result would be worth publishing too,
+nothing and the central claim is empty, and that result would be worth publishing too,
 which is why the comparison is set up to be capable of producing it.
 
 Every model sees identical observations and identical vision masks. Only the motion model
@@ -57,7 +57,7 @@ def run_model(
 ) -> BeliefScore:
     """Run one model and score it.
 
-    `truth` goes to `evaluate` and never to the filter — the two arguments sit side by
+    `truth` goes to `evaluate` and never to the filter. The two arguments sit side by
     side in this signature and are handed to different functions, which is as close as
     Python gets to making the barrier visible at the call site.
     """

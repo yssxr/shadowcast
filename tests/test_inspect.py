@@ -1,7 +1,7 @@
 """Tests for the real-shard reconnaissance.
 
-These skip when no shard is present — it is 86 MB of someone else's data and is not
-committed — but when one is there they are the only tests in the project that touch a
+These skip when no shard is present. It is 86 MB of someone else's data and is not
+committed, but when one is there they are the only tests in the project that touch a
 real packet stream, and they check the single claim everything downstream is built on.
 
 The `oracle_holds` criterion is worth reading closely, because a weaker version of it
@@ -50,9 +50,9 @@ def test_every_match_has_ten_heroes(reports):
 def test_fog_transitions_alternate_after_dedup(reports):
     """The 6:1 raw EnterFog:LeaveFog ratio is duplication, not a semantic asymmetry.
 
-    `LeaveFog` is 65–70% of every packet in the corpus and maknee documents 20+ repeats.
+    `LeaveFog` is 65-70% of every packet in the corpus and maknee documents 20+ repeats.
     Deduping exact `(time, kind)` pairs and then collapsing consecutive same-kind runs
-    leaves a sequence that alternates perfectly — which is what a visibility signal must
+    leaves a sequence that alternates perfectly, which is what a visibility signal must
     do, and what rules out the events meaning something other than a state change.
     """
     assert all(r.alternates for r in reports)
@@ -72,7 +72,7 @@ def test_position_packets_arrive_while_visible(reports):
 def test_teams_are_recovered_exactly_from_damage_alone(reports):
     """Five and five, with essentially all hero damage across the split.
 
-    Champions damage enemies and not allies, so the true split is the maximum cut — solved
+    Champions damage enemies and not allies, so the true split is the maximum cut, solved
     exactly here, since ten champions admit only 126 balanced splits. MEASURED: 23 of 23
     matches recover 5/5, and the median match puts 100.00% of hero-to-hero damage across
     the cut.
@@ -88,7 +88,7 @@ def test_teams_are_recovered_exactly_from_damage_alone(reports):
 def test_the_fog_oracle_holds_on_real_packets(reports):
     """**The claim the whole project rests on.**
 
-    A fog event naming champion C reflects whether C's OPPONENTS can see C — which is what
+    A fog event naming champion C reflects whether C's OPPONENTS can see C, which is what
     makes `observer_team = 1 - subject_team` correct, and what turns the corpus into a
     ground-truth visibility oracle for both sides at once.
 
@@ -118,7 +118,7 @@ def test_replication_carries_the_documented_index_pairs():
     """R3: the attribute indices, confirmed against real packets.
 
     `Replication` arrives as a dict of `net_id -> {primary_index, secondary_index, name,
-    data}`, not as flat rows — a shape the synthetic source models differently, which is
+    data}`, not as flat rows. A shape the synthetic source models differently, which is
     exactly the kind of difference the packet-source seam exists to absorb. 38% of entries
     carry a name at all, so the index pair is the only reliable key.
     """
@@ -144,7 +144,7 @@ def test_replication_carries_the_documented_index_pairs():
 
 
 def test_the_resolver_recovers_the_same_teams_as_the_recon():
-    """Two unrelated methods, one answer — on real packets.
+    """Two unrelated methods, one answer, on real packets.
 
     `resolve_teams` and `packets.inspect` both recover teams, and they share nothing:
     one runs over normalised slot-indexed damage after attribution, the other over raw
@@ -185,7 +185,7 @@ def test_the_resolver_recovers_the_same_teams_as_the_recon():
 
 
 def test_a_real_match_runs_the_whole_pipeline():
-    """Read, normalise, attribute, resolve — on real packets, end to end.
+    """Read, normalise, attribute, resolve, on real packets, end to end.
 
     The point of the `packets/source.py` seam. Everything upstream was built against a
     synthetic generator; this asserts the real reader satisfies the same contract well
@@ -218,7 +218,7 @@ def test_a_real_match_runs_the_whole_pipeline():
 def test_the_real_reader_passes_the_same_conformance_suite():
     """The seam's whole purpose: one invariant suite, two sources.
 
-    Warnings are expected — 17 ms timestamp jitter is one 30 Hz tick, entities referenced
+    Warnings are expected: 17 ms timestamp jitter is one 30 Hz tick, entities referenced
     before their create packet were made before the recording started, and the fog
     duplication is documented. ERRORS are not.
     """
@@ -236,7 +236,7 @@ def test_read_all_matches_read_one_by_one():
     """The single-pass reader must produce exactly what seeking produces.
 
     `read` seeks by decompressing from the start of the shard, so reading N matches costs
-    O(N²) work over an 83 MB gzip that expands to 2 GB — which is why anything measuring a
+    O(N²) work over an 83 MB gzip that expands to 2 GB, which is why anything measuring a
     whole shard goes through `read_all` instead. That is only a safe substitution if the
     two agree bundle for bundle, including the constructed match id.
     """
@@ -258,8 +258,8 @@ def test_read_all_matches_read_one_by_one():
             assert mine.shape == theirs.shape, name
             # Field by field, not whole-array: `assert_array_equal` treats NaN as equal
             # for float arrays but compares structured rows elementwise on void, where
-            # NaN != NaN. `replication` carries real NaNs — a null `Float` in the stream
-            # is NaN and deliberately not zero — so a whole-array compare reports every
+            # NaN != NaN. `replication` carries real NaNs. A null `Float` in the stream
+            # is NaN and deliberately not zero, so a whole-array compare reports every
             # such row as a difference while printing two identical lines.
             for field in mine.dtype.names or ():
                 np.testing.assert_array_equal(mine[field], theirs[field], err_msg=f"{name}.{field}")
@@ -283,7 +283,7 @@ def test_real_wards_all_have_an_owner():
     Two independent facts say they are not wards: `targetable_on_client` never resolves to
     a champion for either, and `PlantVision` respawns at exactly **six** fixed sites, which
     is how many Scryer's Blooms Summoner's Rift has. A player ward goes where the player
-    puts it — real `SightWard` placements span 77 distinct sites across three matches.
+    puts it, real `SightWard` placements span 77 distinct sites across three matches.
 
     Asserting on ownership rather than on the name list is deliberate: it keeps catching
     the mistake if some other map object is added to the table later.
@@ -312,7 +312,7 @@ def test_map_plants_are_not_wards():
     _shard_or_skip()
     bundle = next(ReplaySource(SHARD, limit=1).read_all())
     names = {str(r["name"]) for r in bundle.minions}
-    # Still present in the stream — this is a classification fix, not a parsing one.
+    # Still present in the stream. This is a classification fix, not a parsing one.
     assert "PlantVision" in names
     assert ("PlantVision", "SRU_Plant_Vision") in C.NON_WARD_UNITS
     assert ("PlantVision", "SRU_Plant_Vision") not in C.WARD_UNITS
@@ -323,13 +323,13 @@ def test_map_plants_are_not_wards():
 def test_turret_destruction_is_observable():
     """It is, and this project assumed for most of its life that it was not.
 
-    The earlier conclusion — "the corpus has no building-death packet" — came from
+    The earlier conclusion: "the corpus has no building-death packet", came from
     grepping for packet *names*: there is no `BuildingDie`, no `TurretDie`, no `ObjectDie`.
     All true, and it hid the answer, because turret net_ids appear as `killed_net_id` in
     the ordinary `NPCDieMapView` stream. Nothing had looked at the ids.
 
     It matters because a turret sees 1,350 units and never moves, so one modelled as alive
-    after it falls is a permanent floodlight over the lane it used to defend — for exactly
+    after it falls is a permanent floodlight over the lane it used to defend, for exactly
     the team whose vision should be collapsing.
     """
     from shadowcast.l1_events.normalise import normalise

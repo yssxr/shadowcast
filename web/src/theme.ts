@@ -5,7 +5,7 @@
  * component is how a considered design becomes an approximately-considered one, and the
  * drift is invisible in any single view.
  *
- * The text ramp is nine steps because the mockup uses nine — headings, body, labels,
+ * The text ramp is nine steps because the mockup uses nine, headings, body, labels,
  * axis ticks, disabled state and four grades of de-emphasis. Collapsing it to three
  * would flatten exactly the hierarchy that makes a dense dashboard readable.
  */
@@ -50,12 +50,12 @@ export const font = {
  * Terrain colours for the map canvas.
  *
  * `lit` and `unlit` are separate palettes rather than one palette with an opacity,
- * because fog in this design is not "the map, dimmer" — brush stays legible in fog while
+ * because fog in this design is not "the map, dimmer", brush stays legible in fog while
  * open ground recedes, which is what makes a brush-heavy region read as dangerous rather
  * than merely dark.
  *
  * The separation between them is deliberately large. A first pass used #1C1C22 against
- * #111116 — eleven levels apart out of 255 — and the result was a map where the fog of
+ * #111116, eleven levels apart out of 255, and the result was a map where the fog of
  * war was invisible at a glance. Fog is the entire subject here; if a reader cannot see
  * the boundary without being told where to look, nothing else on the page matters.
  */
@@ -64,7 +64,7 @@ export const terrainPalette = {
   unlit: { ground: "#121217", wall: "#0A0A0D", brush: "#151D13" },
 } as const;
 
-/** The enemy's colour, not the observer's — see `BeliefLayer` for why. */
+/** The enemy's colour, not the observer's. See `BeliefLayer` for why. */
 export function beliefColor(enemyTeam: number): string {
   return teamColor(enemyTeam);
 }
@@ -75,7 +75,7 @@ export function beliefColor(enemyTeam: number): string {
  * `color.team[t]` is an array of two and the engine writes `-1` for a team it could not
  * resolve, so a direct index yields `undefined`, which reaches `hexToRgb` and throws on
  * `.slice`. That is not hypothetical: the first real match exported had 50 wards with an
- * unresolved team — they were map plants misclassified as wards — and the Ward yield view
+ * unresolved team. They were map plants misclassified as wards, and the Ward yield view
  * rendered as a blank black page with one line in the console. The underlying data is
  * fixed, and this exists so the next unresolved field is a grey dot instead of a dead tab.
  */

@@ -2,7 +2,7 @@
 
 The generator is the test harness for everything downstream, so it needs its own
 tests more than most modules do: a bug here does not fail loudly, it makes some
-later layer look wrong or — worse — look right.
+later layer look wrong or, worse: look right.
 
 Two properties matter above the rest. Movement orders must carry no entity id, or
 the attribution layer is never exercised. And integrating the published orders must
@@ -35,7 +35,7 @@ def test_synthetic_source_satisfies_the_protocol(terrain):
 def test_movement_orders_carry_no_entity_id(synth_clean):
     """The defining defect of the real corpus, asserted structurally.
 
-    In the real data the waypoint dict's key is the list length, not a net_id — 100%
+    In the real data the waypoint dict's key is the list length, not a net_id, 100%
     of 41,129 pairs checked. If a source ever supplied an id here, movement-order
     attribution would become dead code and every test that assumes attribution is
     hard would start passing for the wrong reason.
@@ -126,7 +126,7 @@ def test_conformance_rejects_a_source_that_labels_its_orders(synth_clean):
 def test_each_order_starts_at_its_owners_true_position(synth_clean):
     """The consistency the trajectory reconstructor is asked to invert.
 
-    Motion is defined BY the orders — a champion walks the polyline it published —
+    Motion is defined BY the orders. A champion walks the polyline it published,
     so with no jitter injected the first waypoint of every order must equal the
     owner's true position at that tick, exactly. If this drifts, no downstream
     reconstruction can be correct, because truth and orders would disagree.
@@ -146,7 +146,7 @@ def test_each_order_starts_at_its_owners_true_position(synth_clean):
 
 
 def test_jitter_pathology_perturbs_order_starts_but_only_slightly(synth_dirty):
-    """With jitter on, the disagreement must appear — and stay bounded.
+    """With jitter on, the disagreement must appear, and stay bounded.
 
     This models server-side smoothing, where waypoints[0] is near but not equal to
     the true position. The reconstructor's order residual is exactly this quantity,
@@ -169,7 +169,7 @@ def test_order_polylines_are_walkable(synth_clean, terrain):
     """Simplification must not cut wall corners.
 
     A shortcut through terrain would put the ground truth somewhere no champion
-    could walk, and the belief filter — which constrains particles to the navmesh —
+    could walk, and the belief filter, which constrains particles to the navmesh,
     would then look wrong precisely when it was right.
     """
     from shadowcast.geom.grid import world_to_cell_array
@@ -215,7 +215,7 @@ def test_orders_are_evenly_spread_across_champions(synth_clean):
 def test_implied_speed_is_plausible(synth_clean):
     """Champions must actually move.
 
-    Long oscillation periods once left laners drifting ~10 units/second — they stood
+    Long oscillation periods once left laners drifting ~10 units/second. They stood
     still, no order was long enough to emit, and median implied speed was zero.
     """
     _, truth = synth_clean
@@ -408,7 +408,7 @@ def test_oracle_agrees_with_shadowcasting_where_they_overlap(synth_clean, terrai
     anything the champion-only mask lights, the oracle must also have seen.
 
     A preview of M5's fog-agreement gate, and the reason the oracle shares no code
-    with `fov/` — a comparison against a re-run of the same algorithm would prove
+    with `fov/`. A comparison against a re-run of the same algorithm would prove
     nothing.
     """
     from shadowcast.fov.union import assemble, mask_to_bool

@@ -2,7 +2,7 @@
 
 There is no death packet. `HeroDie` is declared in the published schema and fires zero
 times across 965,768 real packets, and no champion net_id ever appears as the victim in
-the NPC death packets either — checked across 45,851 of them. So a champion death has to
+the NPC death packets either, checked across 45,851 of them, so a champion death has to
 be inferred, and both halves of it are guesses that carry a confidence.
 
 **The death itself** is a health replication reaching zero. That is about as direct as an
@@ -14,7 +14,7 @@ There is no killing-blow flag, so this is genuinely uncertain: an execution by a
 or a turret leaves no champion as the last damager, and a kill stolen in the final
 instant looks identical to one earned over the preceding five seconds. The confidence
 reported is the killer's share of the damage in the window, so a clean solo kill scores
-near 1.0 and a chaotic teamfight scores low — which is the right shape, because that is
+near 1.0 and a chaotic teamfight scores low, which is the right shape, because that is
 exactly when the attribution is least trustworthy.
 
 **The respawn** is observed rather than computed. League's respawn timer is a function of
@@ -38,7 +38,7 @@ __all__ = ["DeathResolution", "resolve_deaths"]
 #: How far back to look for the damage that caused a death.
 _DAMAGE_WINDOW = 5.0
 #: A death this soon after a previous one for the same champion is the same event seen
-#: twice, not a second death — health can be replicated at zero more than once.
+#: twice, not a second death, health can be replicated at zero more than once.
 _DEDUPE_WINDOW = 3.0
 
 
@@ -85,7 +85,7 @@ def resolve_deaths(events: MatchEvents, window: float = _DAMAGE_WINDOW) -> Death
             inwin = dmg[(dmg["target"] == slot) & (dmg["t"] >= t - window) & (dmg["t"] <= t + 1e-9)]
             if inwin.size:
                 # Last damager, with confidence set by their share of the window's
-                # damage — low in a teamfight, which is exactly when it is least sure.
+                # damage, low in a teamfight, which is exactly when it is least sure.
                 last = inwin[np.argmax(inwin["t"])]
                 killer = int(last["source"])
                 total = float(inwin["amount"].sum())

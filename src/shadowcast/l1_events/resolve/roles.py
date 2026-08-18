@@ -1,7 +1,7 @@
 """Inferring each champion's role from where it went and what it did.
 
 The corpus contains no role field, and unlike team there is no entity that states one
-outright — so this is the softest inference in the pipeline, and it is the one whose
+outright, so this is the softest inference in the pipeline, and it is the one whose
 accuracy should be quoted most carefully.
 
 Two kinds of evidence, and mixing them is what makes it work:
@@ -11,7 +11,7 @@ is near none of the three lanes. That separates top, mid and jungle cleanly, and
 champions in the bottom lane.
 
 **Who places the wards.** Distinguishing the bottom laner from the support by position
-alone is unreliable — they stand together by design. But ward ownership is *directly
+alone is unreliable. They stand together by design, but ward ownership is *directly
 observed*: `SpawnMinion` gives a ward's position and `targetable_on_client` gives the
 owning champion's net_id. Supports ward far more than carries do, so this is a real
 measurement rather than a behavioural guess, and it is what decides the pair.

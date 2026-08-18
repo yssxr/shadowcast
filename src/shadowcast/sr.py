@@ -3,8 +3,8 @@
 **Provenance, and it matters.** These are *schematic* positions, not extracted game
 data. They come from the normalised layout in the project's own design mockup,
 converted into world coordinates and snapped onto walkable ground. They are accurate
-enough to drive a synthetic match — champions walk down lanes, junglers visit camps,
-wards sit in plausible spots — and they are not accurate enough to be used as ground
+enough to drive a synthetic match, champions walk down lanes, junglers visit camps,
+wards sit in plausible spots, and they are not accurate enough to be used as ground
 truth about the real map.
 
 Nothing in the real-data path should depend on this module, and it does not need to,
@@ -205,7 +205,7 @@ def snap_polyline(terrain, pts: np.ndarray, max_radius: int = 24) -> tuple[np.nd
 # ---------------------------------------------------------------------------
 #: Game knowledge, not map data: waves spawn on a fixed cadence and walk their lane.
 #: Lane vision in League is mostly minion vision, so omitting waves would badly
-#: overstate fog — but tracking individual minions is not possible, because movement
+#: overstate fog: but tracking individual minions is not possible, because movement
 #: orders carry no entity id and minions have none of the labelled position packets that
 #: make champion attribution work.
 #:
@@ -223,13 +223,13 @@ MINION_SPEED = 325.0
 #: How long a clump survives before the opposing wave clears it.
 #:
 #: MEASURED from the geometry: a wave reaches the meeting point 18.7 s after spawn on mid
-#: and 27.6 s on top and bot, and the next wave arrives one interval — 30 s — after that.
+#: and 27.6 s on top and bot, and the next wave arrives one interval, 30 s: after that.
 #: So a clump lives roughly until its replacement shows up, which is 49-58 s depending on
 #: the lane. 55 s is one constant across all three.
 #:
 #: The old value of 62 s was justified as "the average that puts the meeting point near
 #: the lane midpoint", which stopped being the mechanism when the meeting point became
-#: explicit — and was never really the mechanism, since the clump used to march past the
+#: explicit: and was never really the mechanism, since the clump used to march past the
 #: midpoint and out the far end of the lane regardless.
 MINION_CLUMP_LIFETIME = 55.0
 #: Arclength fraction along the lane where each team's minions enter.
@@ -268,7 +268,7 @@ def minion_clump_position(
     """Where a wave's clump is at time `t`, or None if it has not spawned or has died.
 
     Walks its lane from its own end toward the enemy's at `MINION_SPEED`. Everything it
-    needs — the lane, the side, the spawn time and the death time — is observable from
+    needs: the lane, the side, the spawn time and the death time, is observable from
     `SpawnMinion` and `NPCDieMapView`, so the reconstruction needs no minion tracking.
     """
     if t < spawn_t:
@@ -286,12 +286,12 @@ def minion_clump_position(
     # **A wave stops where it meets the opposing wave.** Clipping to [0, 1] instead let
     # it march the entire lane and park in the enemy fountain: at 325 u/s a 62-second
     # clump covers 20,150 units on a lane about 16,000 long, so by five minutes every
-    # wave was sitting in the enemy base granting 1,200 units of vision there — three
+    # wave was sitting in the enemy base granting 1,200 units of vision there, three
     # permanent floodlights per team inside the other team's spawn, which showed up as
     # unexplained circles on the map.
     #
     # Both teams spawn together and move at the same speed, so the midpoint is where they
-    # meet *on average* — and only on average. `front_s` carries the measured meeting
+    # meet *on average*, and only on average. `front_s` carries the measured meeting
     # point when there is evidence for one (see `l2_reconstruct.front`), because the real
     # front sits a median 1,442 units from the midpoint on top and 1,640 on bot, which is
     # further than a minion can see. It defaults to the midpoint so a caller with no

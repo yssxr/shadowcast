@@ -1,14 +1,14 @@
 """The artifact format, declared once.
 
 This module is a **seam**, in the same sense `packets/source.py` is. Everything about
-the on-disk format — which sections exist, their dtypes, their shapes, how each is
-compressed — is stated here as data, and three things are generated from it: the Python
+the on-disk format, which sections exist, their dtypes, their shapes, how each is
+compressed, is stated here as data, and three things are generated from it: the Python
 writer, the Python reader, and the TypeScript reader the site uses. A format change is
 one edit in one table, and a change that reaches Python without reaching TypeScript
 fails a test rather than producing a site that renders garbage.
 
 That failure mode is the whole reason for the indirection. A section whose dtype changed
-on one side of the language boundary does not throw — `new Float32Array` over bytes that
+on one side of the language boundary does not throw, `new Float32Array` over bytes that
 are now `Uint16Array` returns numbers, they are simply the wrong ones, and the first
 symptom is a map where champions stand in walls.
 
@@ -17,8 +17,8 @@ symptom is a map where champions stand in walls.
 Arrow IPC, protobuf and flatbuffers all lose here, and it is worth saying why rather than
 appearing to have not considered them. Every section in this artifact is a **dense
 numeric array of known shape**. That is the one case where a framed format's schema
-machinery buys nothing — there are no optional fields, no varints worth having, no
-polymorphism — while costing a dependency, a parse step, and a copy. Concatenated raw
+machinery buys nothing. There are no optional fields, no varints worth having, no
+polymorphism, while costing a dependency, a parse step, and a copy. Concatenated raw
 bytes with a JSON directory means the entire TypeScript reader is `fetch` →
 `arrayBuffer` → construct typed-array views at the recorded offsets, and the browser
 inflates the gzip for free on the wire.
@@ -33,8 +33,8 @@ dtype we might ever add safe in advance.
 **Deltas are modular.** A delta between two `u8` values ranges over [-255, 255] and does
 not fit in a byte, so the encoder stores `(new - old) mod 256` and the decoder adds back
 modulo 256. That is exact for every input rather than exact for small changes, which
-matters because the one case that breaks a clamped scheme — a champion flashing across
-the map — is precisely the case an analyst is looking at.
+matters because the one case that breaks a clamped scheme. A champion flashing across
+the map, is precisely the case an analyst is looking at.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ Codec = Literal["raw", "delta", "xor"]
 #:
 #: **Little-endian, explicitly.** JavaScript typed arrays read native order and every
 #: platform that matters is little-endian, so `uint16` would work everywhere this will
-#: ever run — but "works because nobody has a big-endian machine" is a latent bug rather
+#: ever run: but "works because nobody has a big-endian machine" is a latent bug rather
 #: than a decision, and the `<` costs nothing.
 DTYPES: dict[str, tuple[str, int, str]] = {
     "u8": ("uint8", 1, "Uint8Array"),
@@ -70,7 +70,7 @@ DTYPES: dict[str, tuple[str, int, str]] = {
 #: **Integers only, and this is a correctness constraint rather than a preference.** Both
 #: codecs are defined on the integer representation, so applying either to a float
 #: truncates it: encoding `[1.75, 2.5]` after `[1.5, 2.25]` and decoding gives
-#: `[1.0, 2.0]`. Worse, it *appears* to work — a delta-coded `scalars` section compressed
+#: `[1.0, 2.0]`. Worse, it *appears* to work. A delta-coded `scalars` section compressed
 #: twelve times better than raw, which is what destroying the fractional part will do.
 #: A float section that needs to be small should be quantised to an integer first, where
 #: the loss is a stated number rather than a silent one.
@@ -102,7 +102,7 @@ class Section:
     codec: Codec = "raw"
     #: Rows along axis 0 between absolute frames. Zero means only row 0 is absolute.
     #:
-    #: Not just a compression knob — it is what makes the artifact **seekable**. A
+    #: Not just a compression knob. It is what makes the artifact **seekable**. A
     #: scrubber dropped at 11:42 must not have to decode from tick zero to draw a frame,
     #: and without keyframes a delta stream forces exactly that.
     keyframe: int = 0
@@ -162,7 +162,7 @@ SECTIONS: tuple[Section, ...] = (
             "Champion positions, quantised to 12 bits over the world span (3.6 u/LSB). "
             "The quantisation and the delta width are one decision rather than two: at "
             "full u16 precision a 50-unit tick move is 220 LSB, while at 12 bits even a "
-            "400-unit Flash is 110 — so deltas stay small and gzip stays effective "
+            "400-unit Flash is 110, so deltas stay small and gzip stays effective "
             "without any clamping or escape mechanism."
         ),
     ),
@@ -172,7 +172,7 @@ SECTIONS: tuple[Section, ...] = (
         shape=("position_ticks", "champions"),
         codec="raw",
         doc=(
-            "1 while alive. MEASURED at 0.1 kB gzipped under every codec — ten booleans "
+            "1 while alive. MEASURED at 0.1 kB gzipped under every codec, ten booleans "
             "that change a handful of times a match compress to nothing whatever is done "
             "to them, so it stays raw and stays readable."
         ),
@@ -209,7 +209,7 @@ SECTIONS: tuple[Section, ...] = (
         keyframe=int(C.BELIEF_EXPORT_HZ * C.BELIEF_KEYFRAME_SECONDS),
         doc=(
             "The belief as a 16-component mixture: (x, z, weight, sigma) per component, "
-            "each a byte. Grids do not fit by any margin — 64^2 u8 at 8 Hz is 295 MB a "
+            "each a byte. Grids do not fit by any margin, 64^2 u8 at 8 Hz is 295 MB a "
             "match and 37 MB even at 1 Hz, and no compression closes that. Components "
             "are k-means centres warm-started from the previous tick's, which is worth "
             "6.5x on its own (19.9 kB against 129.5) because it keeps component identity "

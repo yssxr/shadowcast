@@ -16,7 +16,7 @@
  * ## What it is not
  *
  * Not causal. It says the ward was the only plausible source of vision for those
- * sightings, not that they would not have happened without it — a team without the ward
+ * sightings, not that they would not have happened without it. A team without the ward
  * would have played differently, and no replay corpus can answer that.
  */
 

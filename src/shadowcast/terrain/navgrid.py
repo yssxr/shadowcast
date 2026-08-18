@@ -24,7 +24,7 @@ implementation ignores height too.
 
 Format documented by TheKillerey/MapgeoAddon's `navgrid.py` and Pupix's 010
 template. Neither is normative, so the reader validates aggressively and the
-expected flag population is asserted in tests — a silently wrong offset would
+expected flag population is asserted in tests. A silently wrong offset would
 produce a plausible-looking mask.
 """
 
@@ -85,7 +85,7 @@ class NavGrid:
         around structures once players found they could hide behind them.
 
         This is the flag a naive implementation misses, and missing it does not
-        merely lose detail — it reproduces the exact bug Riot patched, because
+        merely lose detail. It reproduces the exact bug Riot patched, because
         deriving vision from walkability makes every wall diagonal opaque.
         """
         return (self.flags & C.NGRID_SEE_THROUGH) != 0

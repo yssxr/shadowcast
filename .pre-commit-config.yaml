@@ -2,7 +2,7 @@
 #
 # Deliberately does NOT run the test suite. Numba's cold-cache JIT plus the FOV
 # table build makes a full run tens of seconds, which is the wrong thing to put in
-# front of every commit — CI covers it. These hooks are the ones that are fast
+# front of every commit, CI covers it. These hooks are the ones that are fast
 # enough to never be worth skipping.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit

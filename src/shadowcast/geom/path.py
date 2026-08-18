@@ -3,7 +3,7 @@
 Two things, both needed downstream for different reasons.
 
 `astar` gives point-to-point paths. The synthetic match generator uses it so its
-champions move on navmesh-legal routes — which matters because the belief filter
+champions move on navmesh-legal routes, which matters because the belief filter
 later constrains particles to the navmesh, and a ground truth that walked through
 walls would make the filter look wrong when it was right.
 
@@ -14,7 +14,7 @@ Euclidean one, and the difference is most of the map when the last sighting was
 next to a wall.
 
 Distances are 8-connected with octile weights, held as scaled integers (70 for a
-step, 99 for a diagonal — 99/70 = 1.41428, within 0.01% of sqrt 2). Integer weights
+step, 99 for a diagonal, 99/70 = 1.41428, within 0.01% of sqrt 2). Integer weights
 let the field use a bucket queue instead of a heap, and they make the metric exactly
 reproducible rather than dependent on float summation order.
 """
@@ -40,10 +40,10 @@ __all__ = [
 STEP_COST = 70
 DIAG_COST = 99
 #: Sentinel for cells no path reaches. Chosen so `field < budget` is safe without a
-#: separate reachability mask — nothing can be closer than a real distance.
+#: separate reachability mask: nothing can be closer than a real distance.
 UNREACHABLE = np.int32(2**30)
 
-# (dj, di, cost) — 8-connected.
+# (dj, di, cost), 8-connected.
 _NEIGHBOURS = np.array(
     [
         (-1, 0, STEP_COST),
@@ -70,7 +70,7 @@ def diagonal_ok(walkable: np.ndarray, j: int, i: int, dj: int, di: int) -> bool:
     through one of the orthogonal cells, so if that cell is a wall the move clips
     terrain. `chord_walkable` traverses exactly and rejects such a chord, and the
     disagreement showed up as 14 synthetic ground-truth positions per match sitting
-    inside walls — routes a navmesh-constrained belief filter could never explain.
+    inside walls, routes a navmesh-constrained belief filter could never explain.
 
     Physically it is also wrong for League: a one-cell gap here is 28.8 world units,
     well under a champion's ~65-unit collision radius, so squeezing through is not
@@ -127,7 +127,7 @@ def geodesic_field(walkable: np.ndarray, seeds: np.ndarray) -> np.ndarray:
     Plain Dijkstra with a binary heap. A bucket queue would be asymptotically better
     given the two small integer weights, but it needs either 100 buckets sized for
     the worst-case frontier (~105 MB at this grid) or a linked-list arena, and this
-    runs in tens of milliseconds — the wrong thing to optimise before a caller exists
+    runs in tens of milliseconds. The wrong thing to optimise before a caller exists
     that cares.
     """
     h, w = walkable.shape
@@ -253,7 +253,7 @@ def astar(walkable: np.ndarray, start: int, goal: int) -> np.ndarray:
     """Shortest 8-connected walkable path between two flat cells.
 
     Returns cells from `start` to `goal` inclusive, or an empty array if no path
-    exists — which callers must handle rather than assume, since a mis-snapped
+    exists, which callers must handle rather than assume, since a mis-snapped
     endpoint inside a wall is the usual cause.
     """
     walkable = np.ascontiguousarray(walkable, dtype=np.bool_)
@@ -274,7 +274,7 @@ def chord_walkable(walkable: np.ndarray, j0: int, i0: int, j1: int, i1: int) -> 
     the segment passes through, including cells it merely clips at a corner.
 
     That exactness is the point. A sampled version at 0.25-cell steps looks adequate
-    and is not — a segment can cut the corner of a wall cell without any sample
+    and is not. A segment can cut the corner of a wall cell without any sample
     landing inside it, which put roughly 15 synthetic ground-truth positions per match
     inside terrain even though every chord had supposedly been verified. Those are
     exactly the positions a navmesh-constrained belief filter could never explain.
@@ -334,19 +334,19 @@ def chord_walkable(walkable: np.ndarray, j0: int, i0: int, j1: int, i1: int) -> 
 def simplify_path(walkable: np.ndarray, cells: np.ndarray, max_points: int = 8) -> np.ndarray:
     """Reduce a dense path to at most `max_points` cells, keeping every chord walkable.
 
-    Greedy: from the current vertex, reach as far ahead as a legal straight chord
-    allows, then repeat. This is what a movement order actually looks like — a client
-    sends a few waypoints, not a cell-by-cell route — and the walkability guarantee is
-    what keeps the shortcut honest.
+        Greedy: from the current vertex, reach as far ahead as a legal straight chord
+        allows, then repeat. This is what a movement order actually looks like. A client
+        sends a few waypoints, not a cell-by-cell route, and the walkability guarantee is
+        what keeps the shortcut honest.
 
-    If the greedy pass still needs more than `max_points`, the result is **truncated**
-    — the first `max_points` vertices are kept and the destination is dropped.
+        If the greedy pass still needs more than `max_points`, the result is **truncated**
+    the first `max_points` vertices are kept and the destination is dropped.
 
-    Subsampling to fit the budget was the first attempt and it is wrong: evenly
-    spaced vertices from a legal chain create new chords that were never checked, so
-    the returned path cuts wall corners while appearing to have been verified. A real
-    movement order is also finite; a client sends what fits and the unit is ordered
-    again on arrival. Truncation matches that and keeps every chord legal.
+        Subsampling to fit the budget was the first attempt and it is wrong: evenly
+        spaced vertices from a legal chain create new chords that were never checked, so
+        the returned path cuts wall corners while appearing to have been verified. A real
+        movement order is also finite; a client sends what fits and the unit is ordered
+        again on arrival. Truncation matches that and keeps every chord legal.
     """
     walkable = np.ascontiguousarray(walkable, dtype=np.bool_)
     w = walkable.shape[1]
