@@ -298,6 +298,10 @@ The decoded replay corpus is by **Henry Zhu (maknee)**, released under Apache 2.
 [write-up](https://maknee.github.io/blog/2025/League-Data-Scraping/). None of this exists without
 that work.
 
+The site's icon is Riot's own enemy-ward indicator from the game client, cropped to its
+badge. Used as fan content under Riot's Legal Jibber Jabber policy, non-commercially, with the
+disclaimer below.
+
 Terrain parsing follows the `.aimesh_ngrid` format documented by
 [FrankTheBoxMonster/LoL-NGRID-converter](https://github.com/FrankTheBoxMonster/LoL-NGRID-converter)
 and [TheKillerey/MapgeoAddon](https://github.com/TheKillerey/MapgeoAddon).
